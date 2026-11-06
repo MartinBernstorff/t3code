@@ -198,8 +198,8 @@ cannot drag threads, and the Working section is off. Each device keeps its own c
 ### Group threads into lanes
 
 **Settings → General → Group threads by** splits pinned, active, and working threads into lanes
-by **Section**, **Project**, **Priority**, or **Engagement**. **Section** alone, the default, keeps
-the sidebar as described above. Pick up to two **Then by** levels to nest lanes, for example
+by **Section**, **Project**, **Priority**, **Engagement**, or **Agent state** (Needs you, Working,
+Waiting on others). **Section** alone, the default, keeps the sidebar as described above. Pick up to two **Then by** levels to nest lanes, for example
 Priority then Section. Each lane header shows its thread count; click it to collapse that lane on
 its own. The Engagement lanes always show, even when empty. Snoozed and Settled stay at the
 bottom. While grouped, you cannot drag threads. The boring sidebar keeps its project folders and
