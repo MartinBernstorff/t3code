@@ -62,6 +62,7 @@ import {
   memo,
   useRef,
   useState,
+  type FocusEvent as ReactFocusEvent,
   type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
@@ -923,6 +924,19 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
     onSnooze(threadRef, preset);
   };
   const [snoozeMenuOpenRaw, setSnoozeMenuOpen] = useState(false);
+  // The Open button subscribes to editor and remote state, so only an engaged row mounts it.
+  const [controlsEngaged, setControlsEngaged] = useState(false);
+  const engageControls = () => setControlsEngaged(true);
+  const releaseOnPointerLeave = (event: ReactPointerEvent<HTMLElement>) => {
+    if (!event.currentTarget.contains(document.activeElement)) setControlsEngaged(false);
+  };
+  const releaseOnBlur = (event: ReactFocusEvent<HTMLElement>) => {
+    const row = event.currentTarget;
+    const next = event.relatedTarget;
+    if (!(next instanceof Node && row.contains(next)) && !row.matches(":hover")) {
+      setControlsEngaged(false);
+    }
+  };
   // The React Compiler caches render results on their inputs, so a clock read
   // here would stay frozen until `thread` changes and a queued-turn gate would
   // never reopen. The gate's clock is state, reset with the thread.
@@ -1488,6 +1502,10 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
               data-testid="sidebar-row-card"
               aria-busy={isRegeneratingTitle || undefined}
               className={rowSurfaceClassName}
+              onPointerEnter={engageControls}
+              onPointerLeave={releaseOnPointerLeave}
+              onFocus={engageControls}
+              onBlur={releaseOnBlur}
               onClick={handleClick}
               onDoubleClick={handleDoubleClick}
               onKeyDown={handleKeyDown}
@@ -1612,7 +1630,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
                           <TooltipPopup side="top">Discard draft</TooltipPopup>
                         </Tooltip>
                       ) : null}
-                      {openCwd && props.project ? (
+                      {(controlsEngaged || snoozeMenuOpen) && openCwd && props.project ? (
                         <SidebarOpenThreadButton
                           environmentId={thread.environmentId}
                           threadId={thread.id}
