@@ -7,6 +7,7 @@ import { TriangleAlertIcon } from "lucide-react";
 import { type ComponentProps, useId, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { settlePromise, squashAtomCommandFailure } from "@t3tools/client-runtime/state/runtime";
+import { AUTO_UPDATE_DISABLED } from "@t3tools/shared/autoUpdate";
 import { isElectron } from "../../env";
 import { useMediaQuery } from "../../hooks/useMediaQuery";
 import { cn } from "../../lib/utils";
@@ -192,7 +193,7 @@ export async function installLocalUpdate(
 }
 
 export function SidebarUpdatePill() {
-  return <SidebarUpdateControl />;
+  return AUTO_UPDATE_DISABLED ? null : <SidebarUpdateControl />;
 }
 
 function SidebarUpdateControl() {

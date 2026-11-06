@@ -1,4 +1,5 @@
 import { HOSTED_APP_CHANNEL } from "~/branding";
+import { AUTO_UPDATE_DISABLED } from "@t3tools/shared/autoUpdate";
 import { isElectron, isSecretsFeatureEnabled } from "~/env";
 import { isMacPlatform, isWindowsPlatform, normalizeSearchText } from "~/lib/utils";
 import { STATIC_KEYBINDING_COMMANDS, type KeybindingCommand } from "@t3tools/contracts";
@@ -1465,7 +1466,8 @@ export function settingsForThisPlatform(
   return items.filter(
     (item) =>
       (isElectron || item.desktopOnly !== true) &&
-      (!item.releaseChannelOnly || isElectron || HOSTED_APP_CHANNEL !== null) &&
+      (!item.releaseChannelOnly ||
+        (!AUTO_UPDATE_DISABLED && (isElectron || HOSTED_APP_CHANNEL !== null))) &&
       (!item.secretsFeatureOnly || isSecretsFeatureEnabled) &&
       (!item.macOnly || isMacPlatform(platform)) &&
       (!item.windowsOnly || isWindowsPlatform(platform)),
