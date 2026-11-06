@@ -873,6 +873,13 @@ export const SETTINGS_SEARCH_ITEMS = [
     searchTerms: ["composer meter usage tokens circle old"],
   },
   {
+    id: "legacy-context-window-indicator-cap",
+    title: "Context window indicator cap",
+    to: "/settings/labs",
+    targetId: "legacy-context-window-indicator",
+    searchTerms: ["composer meter usage tokens limit maximum scale 200k"],
+  },
+  {
     id: "keybindings",
     title: "Keybindings",
     to: "/settings/keybindings",

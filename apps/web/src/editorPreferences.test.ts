@@ -27,7 +27,7 @@ vi.mock("./hooks/useLocalStorage", () => ({
   useLocalStorage: vi.fn(),
 }));
 
-import { useOpenInPreferredEditor } from "./editorPreferences";
+import { resolvePreferredEditor, useOpenInPreferredEditor } from "./editorPreferences";
 
 const primary = EnvironmentId.make("primary");
 const secondary = EnvironmentId.make("secondary");
@@ -67,3 +67,16 @@ it("checks revocation and regrant when a retained editor callback is invoked", a
   });
   expect(state.setPreference).toHaveBeenCalledTimes(1);
 });
+
+it.each([
+  { last: "zed", available: ["vscode", "zed"], expected: "zed" },
+  { last: "zed", available: ["zed", "cursor"], expected: "zed" },
+  { last: "zed", available: ["vscode", "cursor"], expected: "cursor" },
+  { last: null, available: ["vscode", "cursor"], expected: "cursor" },
+  { last: "zed", available: [], expected: null },
+] as const)(
+  "resolves last-used $last among $available to $expected",
+  ({ last, available, expected }) => {
+    expect(resolvePreferredEditor(last, available)).toBe(expected);
+  },
+);
