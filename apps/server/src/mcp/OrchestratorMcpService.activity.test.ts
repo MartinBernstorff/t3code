@@ -125,12 +125,18 @@ function makeRun(input: {
 it("readThread preserves caller access errors and prefers activity-run status over a newer cancelled queued run", async () => {
   let callerUnavailable = false;
   const projection = {
-    thread: baseThread({
-      threadId: parentThreadId,
-      title: "Parent",
-      instanceId: parentInstanceId,
-      model: "gpt-5.4",
-    }),
+    thread: {
+      ...baseThread({
+        threadId: parentThreadId,
+        title: "Parent",
+        instanceId: parentInstanceId,
+        model: "gpt-5.4",
+      }),
+      priority: "high",
+      engagement: "inbox",
+      waitingOnOthers: false,
+      linearIssue: "MB-12",
+    },
     runs: [
       makeRun({ id: activeRunId, ordinal: 1, status: "running" }),
       makeRun({ id: cancelledRunId, ordinal: 2, status: "cancelled" }),
@@ -196,6 +202,9 @@ it("readThread preserves caller access errors and prefers activity-run status ov
     expect(result.thread.status).toBe("running");
     expect(result.thread.latestRunId).toBe(cancelledRunId);
     expect(result.thread.activeRunId).toBe(activeRunId);
+    expect(result.thread).toMatchObject({ priority: "high", linearIssue: "MB-12" });
+    expect(result.thread).not.toHaveProperty("engagement");
+    expect(result.thread).not.toHaveProperty("waitingOnOthers");
 
     callerUnavailable = true;
     const denied = yield* service

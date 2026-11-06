@@ -22,6 +22,7 @@ import {
 import {
   readLatestMessages,
   threadCommand,
+  threadFieldsLine,
   type ThreadTools,
   titleFromMessage,
   waitForRun,
@@ -366,6 +367,24 @@ it.effect("show returns a --messages count larger than one call can spread", () 
     );
   }),
 );
+
+it("show prints only the thread fields that are set", () => {
+  const thread = {
+    snoozedUntil: null,
+  } as unknown as Parameters<typeof threadFieldsLine>[0];
+  assert.strictEqual(threadFieldsLine(thread), "");
+  assert.strictEqual(
+    threadFieldsLine({
+      ...thread,
+      priority: "high",
+      engagement: "engaged",
+      waitingOnOthers: true,
+      snoozedUntil: "2030-01-02T08:00:00.000Z",
+      linearIssue: "MB-12",
+    }),
+    "priority high  engaged  waiting on others  snoozed until 2030-01-02T08:00:00.000Z  MB-12",
+  );
+});
 
 it("titles from a long first line without splitting an emoji", () => {
   const title = titleFromMessage(`${"a".repeat(78)}😀 and the rest of a long first line`);
