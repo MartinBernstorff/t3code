@@ -1,6 +1,7 @@
 import { ThreadHoverCard, ThreadHoverCardPopup } from "../ThreadHoverCard";
 import { ThreadTerminalStatusButton } from "../ThreadStatusIndicators";
 import { ThreadPriorityGlyph } from "../ThreadPriorityGlyph";
+import { SidebarOpenThreadButton } from "./SidebarOpenThreadButton";
 import { resolveSidebarRowGlyphs } from "./sidebarRowGlyphs";
 import { useClientSettings } from "../../hooks/useSettings";
 import { discardComposerDraft } from "../../lib/discardComposerDraft";
@@ -685,6 +686,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
   };
 
   const gitCwd = thread.worktreePath ?? props.project?.workspaceRoot ?? null;
+  const openCwd = canOperateThread && !hasUnsentDraft ? gitCwd : null;
   const linkedPullRequestStatus = useLinkedThreadPullRequest(
     thread.environmentId,
     thread.linkedPullRequest,
@@ -1534,7 +1536,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
                       <RelativeTimeLabel timestamp={threadTimeTimestamp(thread)} />
                     )}
                   </span>
-                  {props.settlementSupported || showSnoozeButton || hasUnsentDraft ? (
+                  {props.settlementSupported || showSnoozeButton || hasUnsentDraft || openCwd ? (
                     <span
                       className={cn(
                         // Mouse clicks leave Settle focused; focus-within would pin controls over
@@ -1559,6 +1561,15 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
                           </TooltipTrigger>
                           <TooltipPopup side="top">Discard draft</TooltipPopup>
                         </Tooltip>
+                      ) : null}
+                      {openCwd && props.project ? (
+                        <SidebarOpenThreadButton
+                          environmentId={thread.environmentId}
+                          threadId={thread.id}
+                          engagement={thread.engagement}
+                          projectName={props.project.title}
+                          cwd={openCwd}
+                        />
                       ) : null}
                       {showSnoozeButton ? (
                         <SnoozeMenuButton
