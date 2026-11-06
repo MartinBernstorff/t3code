@@ -312,6 +312,16 @@ describe("ClientSettings notifications", () => {
   });
 });
 
+describe("ClientSettings context window meter", () => {
+  it("caps the meter at 200k tokens unless the user picks another cap", () => {
+    expect(decodeClientSettings({}).contextWindowMeterCapTokens).toBe(200_000);
+    expect(decodeClientSettings({ contextWindowMeterCapTokens: 400_000 })).toMatchObject({
+      contextWindowMeterCapTokens: 400_000,
+    });
+    expect(decodeClientSettingsPatch({})).not.toHaveProperty("contextWindowMeterCapTokens");
+  });
+});
+
 describe("ClientSettings quit confirmation", () => {
   it.each([
     [true, "hold"],

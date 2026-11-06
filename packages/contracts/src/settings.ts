@@ -161,6 +161,16 @@ export const PanelAnimationDurationMs = Schema.Int.check(
 );
 export type PanelAnimationDurationMs = typeof PanelAnimationDurationMs.Type;
 const DEFAULT_PANEL_ANIMATION_DURATION_MS: PanelAnimationDurationMs = 0;
+export const MIN_CONTEXT_WINDOW_METER_CAP_TOKENS = 1_000;
+export const MAX_CONTEXT_WINDOW_METER_CAP_TOKENS = 10_000_000;
+export const ContextWindowMeterCapTokens = Schema.Int.check(
+  Schema.isBetween({
+    minimum: MIN_CONTEXT_WINDOW_METER_CAP_TOKENS,
+    maximum: MAX_CONTEXT_WINDOW_METER_CAP_TOKENS,
+  }),
+);
+export type ContextWindowMeterCapTokens = typeof ContextWindowMeterCapTokens.Type;
+const DEFAULT_CONTEXT_WINDOW_METER_CAP_TOKENS: ContextWindowMeterCapTokens = 200_000;
 
 export const MIN_INTERFACE_FONT_SIZE = 12;
 export const MAX_INTERFACE_FONT_SIZE = 20;
@@ -489,6 +499,9 @@ export const ClientSettingsSchema = Schema.Struct({
 
   planModeEnabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
   contextWindowMeterEnabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
+  contextWindowMeterCapTokens: ContextWindowMeterCapTokens.pipe(
+    Schema.withDecodingDefault(Effect.succeed(DEFAULT_CONTEXT_WINDOW_METER_CAP_TOKENS)),
+  ),
   composerRichTextEnabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
   sendShortcut: Schema.Literals(["enter", "mod-enter-multiline", "mod-enter"]).pipe(
     Schema.withDecodingDefault(Effect.succeed("enter")),
@@ -1876,6 +1889,7 @@ export const ClientSettingsPatch = Schema.Struct({
   pullRequestLinksOpenInApp: Schema.optionalKey(Schema.Boolean),
   planModeEnabled: Schema.optionalKey(Schema.Boolean),
   contextWindowMeterEnabled: Schema.optionalKey(Schema.Boolean),
+  contextWindowMeterCapTokens: Schema.optionalKey(ContextWindowMeterCapTokens),
   composerRichTextEnabled: Schema.optionalKey(Schema.Boolean),
   sendShortcut: Schema.optionalKey(Schema.Literals(["enter", "mod-enter-multiline", "mod-enter"])),
   followUpBehavior: Schema.optionalKey(Schema.Literals(["queue", "steer"])),
