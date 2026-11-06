@@ -48,6 +48,7 @@ import {
   setThreadPriority,
   setThreadEngagement,
   setThreadWaiting,
+  setThreadLinearIssue,
   settleThread,
   snoozeThread,
   startThreadTurn,
@@ -215,6 +216,12 @@ export function createThreadEnvironmentAtoms<R, E>(
     setWaiting: createEnvironmentCommand(runtime, {
       label: "environment-data:commands:thread:set-waiting",
       execute: setThreadWaiting,
+      scheduler,
+      concurrency,
+    }),
+    setLinearIssue: createEnvironmentCommand(runtime, {
+      label: "environment-data:commands:thread:set-linear-issue",
+      execute: setThreadLinearIssue,
       scheduler,
       concurrency,
     }),

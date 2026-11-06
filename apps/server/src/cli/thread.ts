@@ -1,4 +1,5 @@
 import {
+  LinearIssueId,
   OrchestratorMcpFailure,
   OrchestratorMcpThreadListResult,
   OrchestratorMcpThreadReadResult,
@@ -787,6 +788,17 @@ const parseSnooze = (value: string, nowMillis: number): string | null | undefine
   return Option.getOrUndefined(Option.map(DateTime.make(value), DateTime.formatIso));
 };
 
+const decodeLinearIssueId = Schema.decodeUnknownEffect(LinearIssueId);
+const decodeLinearFlag = (value: string) =>
+  value.trim().toLowerCase() === "none"
+    ? Effect.succeed(null)
+    : decodeLinearIssueId(value.trim().toUpperCase()).pipe(
+        Effect.mapError(
+          () =>
+            new ThreadUsageError({ detail: `'${value}' is not a Linear issue id like MB-123.` }),
+        ),
+      );
+
 /** Omitted flags leave a field unchanged. `--snooze` uses the organize `snooze`/`unsnooze` actions. */
 const threadSetCommand = Command.make("set", {
   ...projectLocationFlags,
@@ -818,6 +830,10 @@ const threadSetCommand = Command.make("set", {
     ),
     Flag.optional,
   ),
+  linear: Flag.String("linear").pipe(
+    Flag.withDescription("Linear issue id, such as MB-123, or none to unlink it."),
+    Flag.optional,
+  ),
   json: jsonFlag,
 }).pipe(
   Command.withDescription("Change a thread's fields, such as its priority or snooze."),
@@ -830,6 +846,9 @@ const threadSetCommand = Command.make("set", {
         return yield* new ThreadUsageError({ detail: "Pass a thread id." });
       }
       const threadId = yield* decodeThreadId(thread.value);
+      const linearIssue = Option.isSome(flags.linear)
+        ? yield* decodeLinearFlag(flags.linear.value)
+        : undefined;
       const fields = {
         ...Option.match(flags.priority, {
           onNone: () => ({}),
@@ -843,6 +862,7 @@ const threadSetCommand = Command.make("set", {
           onNone: () => ({}),
           onSome: (waitingOnOthers) => ({ waitingOnOthers }),
         }),
+        ...(linearIssue === undefined ? {} : { linearIssue }),
       };
       const nowMillis = yield* Clock.currentTimeMillis;
       const snooze = Option.map(flags.snooze, (value) => ({

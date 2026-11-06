@@ -863,6 +863,7 @@ export function applyToProjection(
     case "thread.priority-updated":
     case "thread.engagement-updated":
     case "thread.waiting-updated":
+    case "thread.linear-issue-updated":
     case "thread.pull-request-synced":
       return {
         ...base,
@@ -1701,6 +1702,7 @@ export function threadShellFromProjection(
     ...(projection.thread.priority ? { priority: projection.thread.priority } : {}),
     ...(projection.thread.engagement ? { engagement: projection.thread.engagement } : {}),
     ...(projection.thread.waitingOnOthers ? { waitingOnOthers: true } : {}),
+    ...(projection.thread.linearIssue ? { linearIssue: projection.thread.linearIssue } : {}),
     lastVisitedAt: projection.thread.lastVisitedAt,
     opens: projection.thread.opens ?? null,
     titleRegeneration: projection.thread.titleRegeneration ?? null,
@@ -1970,6 +1972,7 @@ function shellFromState(input: {
     ...(input.state.thread.priority ? { priority: input.state.thread.priority } : {}),
     ...(input.state.thread.engagement ? { engagement: input.state.thread.engagement } : {}),
     ...(input.state.thread.waitingOnOthers ? { waitingOnOthers: true } : {}),
+    ...(input.state.thread.linearIssue ? { linearIssue: input.state.thread.linearIssue } : {}),
     lastVisitedAt: input.state.thread.lastVisitedAt,
     opens: input.state.thread.opens ?? null,
     titleRegeneration: input.state.thread.titleRegeneration ?? null,
@@ -2032,6 +2035,7 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
             case "thread.priority-updated":
             case "thread.engagement-updated":
             case "thread.waiting-updated":
+            case "thread.linear-issue-updated":
             case "thread.visited":
             case "thread.marked-unread":
             case "thread.metadata-updated":
@@ -2849,6 +2853,7 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
             event.type !== "thread.priority-updated" &&
             event.type !== "thread.engagement-updated" &&
             event.type !== "thread.waiting-updated" &&
+            event.type !== "thread.linear-issue-updated" &&
             event.type !== "thread.visited" &&
             event.type !== "thread.marked-unread" &&
             event.type !== "thread.metadata-updated" &&

@@ -17,6 +17,7 @@ import type {
   ThreadId,
   ThreadPriority,
   ThreadEngagement,
+  LinearIssueId,
 } from "@t3tools/contracts";
 import * as DateTime from "effect/DateTime";
 
@@ -188,6 +189,7 @@ export interface EnvironmentThreadShell {
   readonly priority: ThreadPriority | null;
   readonly engagement: ThreadEngagement;
   readonly waitingOnOthers: boolean;
+  readonly linearIssue: LinearIssueId | null;
   readonly pullRequests: ReadonlyArray<import("@t3tools/contracts").ThreadPullRequestLink>;
   readonly linkedPullRequest?: ThreadLinkedPullRequest | null;
   readonly branchPullRequest?: ThreadLinkedPullRequest | null;
@@ -346,6 +348,7 @@ export function presentThreadShell(
     priority: thread.priority ?? null,
     engagement: thread.engagement ?? "inbox",
     waitingOnOthers: thread.waitingOnOthers ?? false,
+    linearIssue: thread.linearIssue ?? null,
     ...(thread.lastVisitedAt === undefined
       ? {}
       : { lastVisitedAt: nullableIso(thread.lastVisitedAt) }),

@@ -1,4 +1,9 @@
-import type { ContextMenuItem, ThreadEngagement, ThreadPriority } from "@t3tools/contracts";
+import type {
+  ContextMenuItem,
+  LinearIssueId,
+  ThreadEngagement,
+  ThreadPriority,
+} from "@t3tools/contracts";
 import type { SnoozePreset } from "@t3tools/client-runtime/state/thread-settled";
 
 import { THREAD_ENGAGEMENT_OPTIONS } from "../threadEngagement";
@@ -26,6 +31,7 @@ export type ThreadActionMenuId =
   | `engagement:${ThreadEngagement}`
   | "waiting-on"
   | "waiting-off"
+  | "linear-issue"
   | "rename"
   | "regenerate-title"
   | "mark-unread"
@@ -92,6 +98,7 @@ export interface ThreadActionMenuState {
   readonly priority: ThreadPriority | null;
   readonly engagement: ThreadEngagement;
   readonly waitingOnOthers: boolean;
+  readonly linearIssue: LinearIssueId | null;
   readonly isRegeneratingTitle: boolean;
   /** Archive rejects attached providers, so disable it while running. */
   readonly isRunning: boolean;
@@ -224,6 +231,11 @@ export function buildThreadActionMenuItems(
     state.waitingOnOthers
       ? { id: "waiting-off" as const, label: "Stop waiting on others", icon: "hourglass" }
       : { id: "waiting-on" as const, label: "Mark waiting on others", icon: "hourglass" },
+    {
+      id: "linear-issue",
+      label: state.linearIssue ? `Linear issue ${state.linearIssue}…` : "Link Linear issue…",
+      icon: "link",
+    },
     { id: "rename", label: "Rename thread", icon: "pencil", separatorBefore: true },
     ...(state.supports.titleRegeneration
       ? [

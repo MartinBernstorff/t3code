@@ -44,6 +44,7 @@ describe("searchThreadsForPalette", () => {
     thread("archived", { archivedAt: "2026-03-09T10:00:00.000Z" }),
     thread("linked", {
       createdAt: "2026-03-07T10:00:00.000Z",
+      linearIssue: "MB-77",
       linkedPullRequest: {
         projectId: ProjectId.make("project-test"),
         repository: "t3tools/t3code",
@@ -75,6 +76,7 @@ describe("searchThreadsForPalette", () => {
   it("matches project names and pull request numbers", () => {
     expect(search("api")).toEqual(["newer active"]);
     expect(search("#4321")).toEqual(["linked"]);
+    expect(search("mb-77")).toEqual(["linked"]);
     expect(search("web active")).toEqual(["older active"]);
   });
 });

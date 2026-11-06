@@ -18,6 +18,7 @@ import {
   ThreadId,
   ThreadPriority,
   ThreadEngagement,
+  LinearIssueId,
   RunId,
   NonNegativeInt,
   ProjectId,
@@ -53,6 +54,11 @@ const ThreadOrganizeTool = Tool.make("t3_thread_organize", {
     priority: Schema.optional(Schema.NullOr(ThreadPriority)),
     engagement: Schema.optional(ThreadEngagement),
     waitingOnOthers: Schema.optional(Schema.Boolean),
+    linearIssue: Schema.optional(
+      Schema.NullOr(LinearIssueId).annotate({
+        description: "Linear issue you work on, e.g. MB-123.",
+      }),
+    ),
   }),
   success: Schema.Union([
     OrchestrationV2DispatchCommandResult,

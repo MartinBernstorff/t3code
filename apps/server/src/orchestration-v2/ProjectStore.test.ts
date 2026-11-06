@@ -52,7 +52,7 @@ it.layer(ProjectStore.layer.pipe(Layer.provideMerge(SqlitePersistence.layerMemor
       }),
     );
 
-    it.effect("keeps pin and archive times across later updates", () =>
+    it.effect("keeps pin, archive, and Linear workspace across later updates", () =>
       Effect.gen(function* () {
         const projects = yield* ProjectStore.ProjectStoreV2;
         const projectId = ProjectId.make("project-organized");
@@ -81,7 +81,13 @@ it.layer(ProjectStore.layer.pipe(Layer.provideMerge(SqlitePersistence.layerMemor
           sequence: 2,
           eventId: EventId.make("event-organized-pinned"),
           type: "project.meta-updated",
-          payload: { projectId, pinnedAt: at, archivedAt: at, updatedAt: at },
+          payload: {
+            projectId,
+            pinnedAt: at,
+            archivedAt: at,
+            linearWorkspaceSlug: "acme",
+            updatedAt: at,
+          },
         });
         yield* projects.apply({
           ...event,
@@ -94,6 +100,7 @@ it.layer(ProjectStore.layer.pipe(Layer.provideMerge(SqlitePersistence.layerMemor
         const project = Option.getOrNull(yield* projects.get(projectId));
         assert.strictEqual(project?.pinnedAt, at);
         assert.strictEqual(project?.archivedAt, at);
+        assert.strictEqual(project?.linearWorkspaceSlug, "acme");
       }),
     );
   },

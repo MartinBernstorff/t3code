@@ -249,6 +249,11 @@ When no image is found, web and desktop show a two-character monogram with a col
 from the icon palette, derived from the saved project name. For example, `Nebula` becomes `NA`,
 `Silver Orchard` becomes `SO`, and `M7 Forge` becomes `M7`.
 
+## Linear workspace
+
+Enter your Linear workspace (the `acme` in `linear.app/acme`) under Project settings so
+the Linear issues linked to the project's threads open in Linear. Agents can set it too.
+
 ## Keep the default branch current
 
 In Source control, enable **Automatically pull** to keep the default-branch checkout up to date

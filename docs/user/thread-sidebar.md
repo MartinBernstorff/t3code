@@ -83,6 +83,14 @@ sidebar shows an hourglass on the thread, and its finished turns do not notify y
 or mark the thread unread. Your next message in the thread clears the mark. You can
 also set or clear it from the thread's menu.
 
+## Link a Linear issue
+
+Choose **Link Linear issue…** from a thread's menu or the command palette, and enter an
+issue id such as `MB-123` or paste the issue's link. Agents can link the issue they work
+on. The id shows next to the thread title and opens the issue in Linear once the
+project has a Linear workspace (see [Project settings](project-settings.md#linear-workspace));
+without one it is plain text. Thread search (Cmd+O) finds threads by issue id.
+
 ## Pin and reorder threads
 
 Pin a thread from its menu to keep it above your active work.
