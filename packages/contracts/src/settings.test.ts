@@ -322,6 +322,14 @@ describe("ClientSettings context window meter", () => {
   });
 });
 
+describe("ClientSettings sidebar row glyphs", () => {
+  it("shows every glyph unless the user hides it", () => {
+    expect(decodeClientSettings({}).sidebarRowGlyphs).toEqual(["priority", "waitingOnOthers"]);
+    expect(decodeClientSettings({ sidebarRowGlyphs: [] }).sidebarRowGlyphs).toEqual([]);
+    expect(decodeClientSettingsPatch({})).not.toHaveProperty("sidebarRowGlyphs");
+  });
+});
+
 describe("ClientSettings quit confirmation", () => {
   it.each([
     [true, "hold"],

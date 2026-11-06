@@ -24,6 +24,7 @@ import {
   type ResponseStreamingMode,
   type QuitConfirmationMode,
   SidebarProjectSortOrder,
+  SidebarRowGlyphKind,
   SidebarThreadSort,
 } from "@t3tools/contracts/settings";
 import { AUTO_UPDATE_DISABLED } from "@t3tools/shared/autoUpdate";
@@ -102,6 +103,7 @@ import {
   SettingsSection,
 } from "./settingsLayout";
 import { searchableSetting } from "./settingsSearch";
+import { SIDEBAR_ROW_GLYPH_LABELS, toggleSidebarRowGlyphKind } from "../sidebar/sidebarRowGlyphs";
 import { BackgroundActivitySettingsRow } from "./BackgroundActivitySettings";
 import { AdvancedSettings } from "./AdvancedSettings";
 import { PullRequestLinksOpenInAppSetting } from "./IntegrationsSettings";
@@ -497,6 +499,9 @@ export function useSettingsRestore(onRestored?: () => void) {
     ...(settings.sidebarWorkingShelfEnabled !== DEFAULT_UNIFIED_SETTINGS.sidebarWorkingShelfEnabled
       ? ["Working section"]
       : []),
+    ...(!Equal.equals(settings.sidebarRowGlyphs, DEFAULT_UNIFIED_SETTINGS.sidebarRowGlyphs)
+      ? ["Sidebar row glyphs"]
+      : []),
     ...(settings.sidebarAutoSettleAfterDays !== DEFAULT_UNIFIED_SETTINGS.sidebarAutoSettleAfterDays
       ? ["Auto-settle inactive threads"]
       : []),
@@ -676,6 +681,7 @@ export function useSettingsRestore(onRestored?: () => void) {
       sidebarProjectSortOrder: DEFAULT_UNIFIED_SETTINGS.sidebarProjectSortOrder,
       sidebarThreadSort: DEFAULT_UNIFIED_SETTINGS.sidebarThreadSort,
       sidebarWorkingShelfEnabled: DEFAULT_UNIFIED_SETTINGS.sidebarWorkingShelfEnabled,
+      sidebarRowGlyphs: DEFAULT_UNIFIED_SETTINGS.sidebarRowGlyphs,
       sidebarAutoSettleAfterDays: DEFAULT_UNIFIED_SETTINGS.sidebarAutoSettleAfterDays,
       sidebarAutoSettleKeepPullRequests: DEFAULT_UNIFIED_SETTINGS.sidebarAutoSettleKeepPullRequests,
       sidebarAutoSettleOnMerge: DEFAULT_UNIFIED_SETTINGS.sidebarAutoSettleOnMerge,
@@ -1020,6 +1026,42 @@ export function GeneralSettingsPanel() {
               }
               aria-label="Working section"
             />
+          }
+        />
+        <SettingsRow
+          {...searchableSetting("sidebar-row-glyphs")}
+          description="Choose which glyphs appear before thread titles in the sidebar."
+          resetAction={
+            !Equal.equals(settings.sidebarRowGlyphs, DEFAULT_UNIFIED_SETTINGS.sidebarRowGlyphs) ? (
+              <SettingResetButton
+                label="sidebar row glyphs"
+                onClick={() =>
+                  updateSettings({ sidebarRowGlyphs: DEFAULT_UNIFIED_SETTINGS.sidebarRowGlyphs })
+                }
+              />
+            ) : null
+          }
+          control={
+            <div className="flex flex-wrap items-center gap-3">
+              {SidebarRowGlyphKind.literals.map((kind) => (
+                <label key={kind} className="flex items-center gap-2 text-sm">
+                  {SIDEBAR_ROW_GLYPH_LABELS[kind]}
+                  <Switch
+                    checked={settings.sidebarRowGlyphs.includes(kind)}
+                    onCheckedChange={(checked) =>
+                      updateSettings({
+                        sidebarRowGlyphs: toggleSidebarRowGlyphKind(
+                          settings.sidebarRowGlyphs,
+                          kind,
+                          Boolean(checked),
+                        ),
+                      })
+                    }
+                    aria-label={`${SIDEBAR_ROW_GLYPH_LABELS[kind]} glyph`}
+                  />
+                </label>
+              ))}
+            </div>
           }
         />
       </SettingsSection>
