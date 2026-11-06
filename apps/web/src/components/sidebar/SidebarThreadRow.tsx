@@ -2,12 +2,16 @@ import { ThreadHoverCard, ThreadHoverCardPopup } from "../ThreadHoverCard";
 import { ThreadTerminalStatusButton } from "../ThreadStatusIndicators";
 import { ThreadPriorityGlyph } from "../ThreadPriorityGlyph";
 import { resolveSidebarRowGlyphs } from "./sidebarRowGlyphs";
+import { resolveSidebarLinkedRefs, type SidebarLinkedRef } from "./sidebarLinkedRefs";
 import { useClientSettings } from "../../hooks/useSettings";
 import { discardComposerDraft } from "../../lib/discardComposerDraft";
 import { requestCustomSnooze } from "../CustomSnoozeDialog";
 import { useSupportsMultiplePullRequests } from "~/hooks/useSupportsMultiplePullRequests";
 import { useDeadlinePassed } from "~/hooks/useDeadline";
-import { resolveThreadCurrentPullRequestLink } from "@t3tools/client-runtime/thread-pull-requests";
+import {
+  resolveThreadCurrentPullRequestLink,
+  visibleThreadPullRequests,
+} from "@t3tools/client-runtime/thread-pull-requests";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import {
@@ -943,14 +947,20 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
   if (snoozeMenuOpenRaw && !showSnoozeButton) setSnoozeMenuOpen(false);
   const snoozeMenuOpen = snoozeMenuOpenRaw && showSnoozeButton;
   const jumpHintLabel = snoozeMenuOpen ? null : props.jumpLabel;
-  const handlePrClick = (event: ReactMouseEvent<HTMLElement>, targetUrl?: string) => {
-    const url = targetUrl ?? pr?.url ?? currentLinkedPr?.url;
-    if (!url) return;
-    const showInRightPanel = targetUrl !== undefined || openPullRequestsInRightPanel;
+  const openPullRequest = (
+    event: ReactMouseEvent<HTMLElement>,
+    url: string,
+    showInRightPanel: boolean,
+  ) => {
     const openedInRightPanel = openPrLink(event, url, showInRightPanel ? threadRef : undefined);
     if (openedInRightPanel && showInRightPanel && !props.isRouteThread) {
       onThreadActivate(threadRef);
     }
+  };
+  const handlePrClick = (event: ReactMouseEvent<HTMLElement>, targetUrl?: string) => {
+    const url = targetUrl ?? pr?.url ?? currentLinkedPr?.url;
+    if (!url) return;
+    openPullRequest(event, url, targetUrl !== undefined || openPullRequestsInRightPanel);
   };
 
   const rowSurfaceClassName = cn(
@@ -1087,6 +1097,29 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
         onOpenPullRequest={handlePrClick}
       />
     ) : null;
+  const linkedRefs = resolveSidebarLinkedRefs({
+    linearIssue: thread.linearIssue,
+    linearWorkspaceSlug: props.project?.linearWorkspaceSlug,
+    pullRequests: supportsMultiplePullRequests
+      ? visibleThreadPullRequests(thread.pullRequests)
+      : pr
+        ? [pr]
+        : [],
+  });
+  const linkedRefsRow =
+    linkedRefs.length === 0 ? null : (
+      <div className="mt-0.5 flex h-4 min-w-0 items-center gap-1 overflow-hidden">
+        {linkedRefs.map((ref) => (
+          <SidebarLinkedRefChip
+            key={ref.key}
+            linkedRef={ref}
+            onOpenPullRequest={(event, url) =>
+              openPullRequest(event, url, openPullRequestsInRightPanel)
+            }
+          />
+        ))}
+      </div>
+    );
   const terminalStatusIcon = (
     <ThreadTerminalStatusButton
       threadRef={threadRef}
@@ -1221,7 +1254,12 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
         {...(fileDropHandlers ?? {})}
         className={cn(
           "list-none [content-visibility:auto] [contain-intrinsic-size:auto_--spacing(9)]",
-          metaLine !== null && multiline && "[contain-intrinsic-size:auto_--spacing(13.5)]",
+          multiline &&
+            (metaLine !== null && linkedRefsRow !== null
+              ? "[contain-intrinsic-size:auto_--spacing(18)]"
+              : metaLine !== null || linkedRefsRow !== null
+                ? "[contain-intrinsic-size:auto_--spacing(13.5)]"
+                : null),
           sortable?.isDragging && "relative z-20",
         )}
       >
@@ -1403,6 +1441,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
               )}
               {props.sweepAction !== null ? dragDestination : null}
             </div>
+            {multiline ? linkedRefsRow : null}
             {multiline ? metaLine : null}
           </TooltipTrigger>
           {detailsTooltip}
@@ -1419,6 +1458,10 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
       className={cn(
         "list-none py-0.5 [content-visibility:auto] [contain-intrinsic-size:auto_78px]",
         metaLineEmpty && "[contain-intrinsic-size:auto_58px]",
+        linkedRefsRow !== null &&
+          (metaLineEmpty
+            ? "[contain-intrinsic-size:auto_76px]"
+            : "[contain-intrinsic-size:auto_96px]"),
         sortable?.isDragging && "relative z-20",
       )}
     >
@@ -1447,7 +1490,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
           <div
             className={cn(
               "relative z-10 h-[4.875rem] px-(--sidebar-row-content-inset) py-(--sidebar-content-inset)",
-              metaLineEmpty && "h-auto",
+              metaLineEmpty ? "h-auto" : linkedRefsRow !== null && "h-24",
             )}
           >
             <div className="flex h-5 min-w-0 items-center gap-1.5">
@@ -1605,6 +1648,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
               ) : null}
               {titleLineIcons}
             </div>
+            {linkedRefsRow}
             {metaLine}
           </div>
         </TooltipTrigger>
@@ -1613,6 +1657,39 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
     </li>
   );
 });
+
+const LINKED_REF_CHIP_CLASS_NAME =
+  "min-w-0 shrink truncate rounded-sm font-mono text-2xs leading-4 text-secondary-label";
+
+function SidebarLinkedRefChip(props: {
+  linkedRef: SidebarLinkedRef;
+  onOpenPullRequest: (event: ReactMouseEvent<HTMLElement>, url: string) => void;
+}) {
+  const { linkedRef } = props;
+  const url = linkedRef.url;
+  if (url === null) {
+    return <span className={LINKED_REF_CHIP_CLASS_NAME}>{linkedRef.label}</span>;
+  }
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      // Opening a ref must not open the thread or start a row drag.
+      onPointerDown={(event) => event.stopPropagation()}
+      onClick={(event) => {
+        event.stopPropagation();
+        if (linkedRef.kind === "pull-request") props.onOpenPullRequest(event, url);
+      }}
+      className={cn(
+        LINKED_REF_CHIP_CLASS_NAME,
+        "outline-none hover:text-foreground hover:underline focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
+      )}
+    >
+      {linkedRef.label}
+    </a>
+  );
+}
 
 function latestRunDiff(
   thread: SidebarThreadSummary,
