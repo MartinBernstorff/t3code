@@ -274,6 +274,31 @@ it.layer(NodeServices.layer)("keybindings", (it) => {
     }).pipe(Effect.provide(layerKeybindings())),
   );
 
+  it.effect("moves a persisted default to its new key once, freeing the old key", () =>
+    Effect.gen(function* () {
+      const { keybindingsConfigPath } = yield* ServerConfig.ServerConfig;
+      const keybindings = yield* Keybindings.Keybindings;
+      const oldDefault = { key: "mod+o", command: "editor.openFavorite" } as const;
+      const modORules = Effect.map(readKeybindingsConfig(keybindingsConfigPath), (rules) =>
+        rules.filter((entry) => entry.key === "mod+o" || entry.command === "editor.openFavorite"),
+      );
+      yield* writeKeybindingsConfig(keybindingsConfigPath, [oldDefault]);
+
+      yield* keybindings.syncDefaultKeybindingsOnStartup;
+      assert.deepStrictEqual(yield* modORules, [
+        { key: "mod+o", command: "threadSearch.toggle", when: "!terminalFocus" },
+        { key: "mod+alt+o", command: "editor.openFavorite" },
+      ]);
+
+      yield* writeKeybindingsConfig(keybindingsConfigPath, [oldDefault]);
+      yield* keybindings.syncDefaultKeybindingsOnStartup;
+      assert.deepStrictEqual(
+        (yield* modORules).filter((entry) => entry.command === "editor.openFavorite"),
+        [oldDefault],
+      );
+    }).pipe(Effect.provide(layerKeybindings())),
+  );
+
   it.effect("leaves a customized command without the late default", () =>
     Effect.gen(function* () {
       const { keybindingsConfigPath } = yield* ServerConfig.ServerConfig;

@@ -232,6 +232,11 @@ On mobile, the thread list search also lists message matches and opens them at
 the matching message; on an iPad with a keyboard, `Cmd+K` opens the same
 palette.
 
+To search only threads, press `Cmd/Ctrl+O`. It matches thread titles, project
+names, pull request numbers such as `#123`, and pull request titles across every
+project, and lists matches in sidebar order. Enter opens the thread. Opening
+your favorite editor moved from `Cmd/Ctrl+O` to `Cmd/Ctrl+Alt+O`.
+
 Use **Settings → Keybindings** to find or customize shortcuts for searching files
 and copying a thread reference. A copied reference uses the thread's pull request
 link when available, otherwise a link to the thread, which opens it from anywhere

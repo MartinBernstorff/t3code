@@ -114,6 +114,19 @@ const LATE_DEFAULT_KEYBINDINGS: ReadonlyArray<{
   },
 ];
 
+// A default whose key changed: configs still holding the old default get the new key, once.
+const MOVED_DEFAULT_KEYBINDINGS: ReadonlyArray<{
+  readonly id: string;
+  readonly from: KeybindingRule;
+  readonly to: KeybindingRule;
+}> = [
+  {
+    id: "editor.openFavorite:mod+alt+o",
+    from: { key: "mod+o", command: "editor.openFavorite" },
+    to: { key: "mod+alt+o", command: "editor.openFavorite" },
+  },
+];
+
 function keybindingShortcutContext(rule: KeybindingRule): string | null {
   const parsed = parseKeybindingShortcut(rule.key);
   if (!parsed) return null;
@@ -447,13 +460,17 @@ const make = Effect.gen(function* () {
       const pendingLateDefaults = LATE_DEFAULT_KEYBINDINGS.filter(
         (late) => !appliedMigrationIds.has(late.id),
       );
+      const pendingMovedDefaults = MOVED_DEFAULT_KEYBINDINGS.filter(
+        (moved) => !appliedMigrationIds.has(moved.id),
+      );
       const configExists = yield* readConfigExists;
       if (!configExists) {
         yield* writeConfigAtomically(DEFAULT_KEYBINDINGS);
-        if (pendingLateDefaults.length > 0) {
+        if (pendingLateDefaults.length > 0 || pendingMovedDefaults.length > 0) {
           yield* recordAppliedMigrations([
             ...appliedMigrationIds,
             ...LATE_DEFAULT_KEYBINDINGS.map((late) => late.id),
+            ...MOVED_DEFAULT_KEYBINDINGS.map((moved) => moved.id),
           ]);
         }
         yield* Cache.invalidate(resolvedConfigCache, resolvedConfigCacheKey);
@@ -472,7 +489,15 @@ const make = Effect.gen(function* () {
         yield* Cache.invalidate(resolvedConfigCache, resolvedConfigCacheKey);
         return;
       }
-      const customConfig = runtimeConfig.keybindings;
+      let movedAnyDefault = false;
+      const customConfig = runtimeConfig.keybindings.map((entry) => {
+        const moved = pendingMovedDefaults.find((candidate) =>
+          isSameKeybindingRule(entry, candidate.from),
+        );
+        if (moved === undefined) return entry;
+        movedAnyDefault = true;
+        return moved.to;
+      });
       const existingCommands = new Set(customConfig.map((entry) => entry.command));
       const missingDefaults: KeybindingRule[] = [];
       const shortcutConflictWarnings: Array<{
@@ -542,16 +567,17 @@ const make = Effect.gen(function* () {
           commands: skippedDefaults.map((rule) => rule.command),
         });
       }
-      if (defaultsToAppend.length > 0) {
+      if (defaultsToAppend.length > 0 || movedAnyDefault) {
         yield* writeConfigAtomically([...defaultsToAppend, ...customConfig]);
       }
       const settledLateDefaults = pendingLateDefaults.filter(
         (late) => !skippedDefaults.includes(late.rule),
       );
-      if (settledLateDefaults.length > 0) {
+      if (settledLateDefaults.length > 0 || pendingMovedDefaults.length > 0) {
         yield* recordAppliedMigrations([
           ...appliedMigrationIds,
           ...settledLateDefaults.map((late) => late.id),
+          ...pendingMovedDefaults.map((moved) => moved.id),
         ]);
       }
       yield* Cache.invalidate(resolvedConfigCache, resolvedConfigCacheKey);

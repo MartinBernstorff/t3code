@@ -69,7 +69,12 @@ export function browseInputEndPaddingClass(input: {
   return "*:data-[slot=autocomplete-input]:pe-24!";
 }
 
-export type SearchOverlayMode = "command" | "files" | "content";
+export type SearchOverlayMode = "command" | "files" | "content" | "threads";
+
+/** Searches opened from the command palette, which Escape returns to. */
+export function isChildSearchMode(mode: SearchOverlayMode): mode is "files" | "content" {
+  return mode === "files" || mode === "content";
+}
 
 export type CommandPaletteOpenIntent =
   | { readonly kind: "add-project" | "new-thread-in" | "change-theme" }
@@ -866,6 +871,7 @@ const OVERLAY_MODE_BY_COMMAND = {
   "commandPalette.toggle": "command",
   "filePicker.toggle": "files",
   "projectSearch.toggle": "content",
+  "threadSearch.toggle": "threads",
 } as const satisfies Partial<Record<string, SearchOverlayMode>>;
 
 export function overlayModeForCommand(command: string | null): SearchOverlayMode | null {
