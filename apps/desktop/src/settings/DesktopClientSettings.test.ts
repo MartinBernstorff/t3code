@@ -66,7 +66,7 @@ const clientSettings: ClientSettings = {
   sidebarThreadSortOrder: "created_at",
   sidebarRowGlyphs: [],
   sidebarThreadSort: "priority",
-  sidebarGroupBy: "priority",
+  sidebarGroupBy: ["priority", "section"],
   boringSidebarEnabled: false,
   boringSidebarMultilineRows: false,
   threadDetailsUsageEnabled: false,

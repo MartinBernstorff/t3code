@@ -1,8 +1,11 @@
 import { ThreadEngagement, ThreadPriority } from "@t3tools/contracts";
 import type { SidebarGroupBy } from "@t3tools/contracts/settings";
 
-/** Dimensions grouped here; "section" stays the sidebar's own pinned/active/shelf split. */
-export type ThreadGroupDimension = Exclude<SidebarGroupBy, "section">;
+export type ThreadGroupDimension = SidebarGroupBy;
+
+/** The sidebar sections a lane can hold; Snoozed and Settled stay as shelves outside lanes. */
+const THREAD_GROUP_SECTIONS = ["pinned", "active", "working"] as const;
+export type ThreadGroupSection = (typeof THREAD_GROUP_SECTIONS)[number];
 
 export interface ThreadGroupInput {
   readonly environmentId: string;
@@ -20,6 +23,8 @@ export interface ThreadGroupProject {
 export interface ThreadGroupContext {
   /** Project lanes in display order. */
   readonly projects: readonly ThreadGroupProject[];
+  /** The sidebar decides sections from more than the thread (clock, drops, shelf setting). */
+  readonly sectionOf: (thread: ThreadGroupInput) => ThreadGroupSection;
 }
 
 export interface ThreadLane<T> {
@@ -45,6 +50,11 @@ interface ThreadGroupDimensionDefinition {
 const projectRefKey = (thread: ThreadGroupInput) => `${thread.environmentId}:${thread.projectId}`;
 
 const THREAD_GROUP_DIMENSIONS: Record<ThreadGroupDimension, ThreadGroupDimensionDefinition> = {
+  section: {
+    values: () => THREAD_GROUP_SECTIONS,
+    valueOf: (context) => context.sectionOf,
+    keepEmpty: false,
+  },
   project: {
     values: (context) => context.projects.map((project) => project.key),
     valueOf: (context) => {
@@ -67,6 +77,22 @@ const THREAD_GROUP_DIMENSIONS: Record<ThreadGroupDimension, ThreadGroupDimension
     keepEmpty: true,
   },
 };
+
+/**
+ * Sets the Group by level at `index`, or clears it and the levels below with `null`.
+ * Lower levels that now repeat a level above are dropped.
+ */
+export function withThreadGroupLevel(
+  levels: readonly ThreadGroupDimension[],
+  index: number,
+  dimension: ThreadGroupDimension | null,
+): ThreadGroupDimension[] {
+  // The outermost level is required.
+  if (dimension === null) return levels.slice(0, Math.max(index, 1));
+  const above = levels.slice(0, index);
+  const below = levels.slice(index + 1).filter((level) => level !== dimension);
+  return [...above, dimension, ...below].filter((level, i, all) => all.indexOf(level) === i);
+}
 
 export function threadLaneKey(path: readonly string[]): string {
   return path.map(encodeURIComponent).join("/");
@@ -98,4 +124,60 @@ export function groupThreadsBy<T extends ThreadGroupInput>(
     lanes.push({ key: threadLaneKey(path), path, dimension, value, threads: laneThreads });
   }
   return lanes;
+}
+
+export type ThreadLaneRow<T> =
+  | {
+      readonly kind: "lane";
+      readonly lane: ThreadLane<T>;
+      /** 0 for the outermost level. Rows sit at the depth of the lane that lists them. */
+      readonly depth: number;
+      readonly parentKey: string | null;
+      readonly collapsed: boolean;
+    }
+  | {
+      readonly kind: "thread";
+      readonly thread: T;
+      readonly depth: number;
+      readonly laneKey: string;
+    };
+
+/**
+ * Groups by each level in turn and flattens the lanes into header and thread rows.
+ * A collapsed lane lists only the threads `keepWhenCollapsed` accepts (the open thread), with no nested lanes.
+ */
+export function threadLaneRows<T extends ThreadGroupInput>(
+  threads: readonly T[],
+  levels: readonly ThreadGroupDimension[],
+  context: ThreadGroupContext,
+  collapsed: {
+    readonly keys: ReadonlySet<string>;
+    readonly keepWhenCollapsed: (thread: T) => boolean;
+  },
+): ThreadLaneRow<T>[] {
+  const rows: ThreadLaneRow<T>[] = [];
+  const visit = (laneThreads: readonly T[], depth: number, parent: ThreadLane<T> | null) => {
+    const dimension = levels[depth];
+    if (dimension === undefined) return;
+    for (const lane of groupThreadsBy(laneThreads, dimension, context, parent?.path)) {
+      const isCollapsed = collapsed.keys.has(lane.key);
+      rows.push({
+        kind: "lane",
+        lane,
+        depth,
+        parentKey: parent?.key ?? null,
+        collapsed: isCollapsed,
+      });
+      if (!isCollapsed && depth + 1 < levels.length) {
+        visit(lane.threads, depth + 1, lane);
+        continue;
+      }
+      for (const thread of lane.threads) {
+        if (isCollapsed && !collapsed.keepWhenCollapsed(thread)) continue;
+        rows.push({ kind: "thread", thread, depth, laneKey: lane.key });
+      }
+    }
+  };
+  visit(threads, 0, null);
+  return rows;
 }

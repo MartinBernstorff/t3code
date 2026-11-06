@@ -8,7 +8,7 @@ import {
   sidebarMarkerId,
   type SidebarListMarker,
 } from "../Sidebar.logic";
-import { SIDEBAR_SORTABLE_DRAG_DISABLED } from "./SidebarThreadRow";
+import { SIDEBAR_LANE_DEPTH_INSET, SIDEBAR_SORTABLE_DRAG_DISABLED } from "./SidebarThreadRow";
 
 function SortableSidebarMarker(props: {
   marker: SidebarListMarker;
@@ -154,15 +154,24 @@ export function sidebarLaneRowId(laneKey: string) {
 /** A Group by lane header. Lanes do not take part in drag reordering. */
 export function SidebarLaneHeader(props: {
   laneKey: string;
+  /** The enclosing lane of a nested header, for keyboard tree navigation. */
+  parentLaneKey: string | null;
+  depth: number;
   label: string;
   count: number;
   expanded: boolean;
   onToggle: (laneKey: string) => void;
 }) {
   return (
-    <li data-thread-selection-safe className="relative mx-0.5 h-8 list-none">
+    <li
+      data-thread-selection-safe
+      className={cn("relative mx-0.5 h-8 list-none", SIDEBAR_LANE_DEPTH_INSET[props.depth])}
+    >
       <CollapsibleSectionHeader
         data-sidebar-row={sidebarLaneRowId(props.laneKey)}
+        data-sidebar-parent={
+          props.parentLaneKey === null ? undefined : sidebarLaneRowId(props.parentLaneKey)
+        }
         onClick={() => props.onToggle(props.laneKey)}
         expanded={props.expanded}
         tone="muted"

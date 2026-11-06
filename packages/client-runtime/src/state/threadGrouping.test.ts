@@ -1,19 +1,37 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { groupThreadsBy, type ThreadGroupInput, threadLaneKey } from "./threadGrouping.ts";
+import {
+  groupThreadsBy,
+  type ThreadGroupInput,
+  type ThreadGroupSection,
+  threadLaneKey,
+  threadLaneRows,
+  withThreadGroupLevel,
+} from "./threadGrouping.ts";
 
 type TestThread = ThreadGroupInput & { readonly id: string };
 
-const thread = (id: string, overrides: Partial<TestThread> = {}): TestThread => ({
-  id,
-  environmentId: "env",
-  projectId: "p1",
-  priority: null,
-  engagement: "inbox",
-  ...overrides,
-});
+// The sidebar looks sections up by shell identity; the fixtures do the same.
+const sections = new WeakMap<ThreadGroupInput, ThreadGroupSection>();
+const sectionOf = (input: ThreadGroupInput) => sections.get(input) ?? "active";
 
-const NO_PROJECTS = { projects: [] };
+const thread = (
+  id: string,
+  { section = "active", ...overrides }: Partial<TestThread> & { section?: ThreadGroupSection } = {},
+): TestThread => {
+  const created = {
+    id,
+    environmentId: "env",
+    projectId: "p1",
+    priority: null,
+    engagement: "inbox" as const,
+    ...overrides,
+  };
+  sections.set(created, section);
+  return created;
+};
+
+const NO_PROJECTS = { projects: [], sectionOf };
 const summarize = (lanes: ReturnType<typeof groupThreadsBy<TestThread>>) =>
   lanes.map((lane) => [lane.value, lane.threads.map((t) => t.id)]);
 
@@ -64,12 +82,25 @@ describe("groupThreadsBy", () => {
           { key: "repo-a", memberProjectKeys: ["env:p1", "env:p2"] },
           { key: "repo-empty", memberProjectKeys: ["env:p4"] },
         ],
+        sectionOf,
       },
     );
     expect(summarize(lanes)).toEqual([
       ["repo-b", ["b"]],
       ["repo-a", ["a", "c"]],
       ["env:p9", ["d"]],
+    ]);
+  });
+
+  it("orders section lanes pinned, active, working and drops empty ones", () => {
+    const lanes = groupThreadsBy(
+      [thread("a", { section: "working" }), thread("b"), thread("c", { section: "working" })],
+      "section",
+      NO_PROJECTS,
+    );
+    expect(summarize(lanes)).toEqual([
+      ["active", ["b"]],
+      ["working", ["a", "c"]],
     ]);
   });
 
@@ -85,5 +116,85 @@ describe("groupThreadsBy", () => {
     expect(threadLaneKey(["project:env:a/b", "priority:low"])).toBe(
       "project%3Aenv%3Aa%2Fb/priority%3Alow",
     );
+  });
+});
+
+describe("threadLaneRows", () => {
+  const threads = [
+    thread("a", { priority: "high", section: "pinned" }),
+    thread("b", { priority: "high" }),
+    thread("c", { priority: "low", section: "working" }),
+  ];
+  const summarizeRows = (rows: ReturnType<typeof threadLaneRows<TestThread>>) =>
+    rows.map((row) =>
+      row.kind === "lane"
+        ? `${"  ".repeat(row.depth)}${row.lane.value}${row.collapsed ? " (collapsed)" : ""}`
+        : `${"  ".repeat(row.depth)}- ${row.thread.id}`,
+    );
+  const expanded = { keys: new Set<string>(), keepWhenCollapsed: () => false };
+
+  it("nests each level inside the one above, either way round", () => {
+    expect(
+      summarizeRows(threadLaneRows(threads, ["section", "priority"], NO_PROJECTS, expanded)),
+    ).toEqual([
+      "pinned",
+      "  high",
+      "  - a",
+      "active",
+      "  high",
+      "  - b",
+      "working",
+      "  low",
+      "  - c",
+    ]);
+    expect(
+      summarizeRows(threadLaneRows(threads, ["priority", "section"], NO_PROJECTS, expanded)),
+    ).toEqual(["high", "  pinned", "  - a", "  active", "  - b", "low", "  working", "  - c"]);
+  });
+
+  it("collapses a lane by its full path without touching same-value lanes elsewhere", () => {
+    const rows = threadLaneRows(threads, ["section", "priority"], NO_PROJECTS, {
+      keys: new Set([threadLaneKey(["section:active", "priority:high"])]),
+      keepWhenCollapsed: () => false,
+    });
+    expect(summarizeRows(rows)).toEqual([
+      "pinned",
+      "  high",
+      "  - a",
+      "active",
+      "  high (collapsed)",
+      "working",
+      "  low",
+      "  - c",
+    ]);
+    expect(rows.flatMap((row) => (row.kind === "lane" ? [row.parentKey] : []))).toEqual([
+      null,
+      "section%3Apinned",
+      null,
+      "section%3Aactive",
+      null,
+      "section%3Aworking",
+    ]);
+  });
+
+  it("hides nested lanes of a collapsed parent but keeps the threads it is told to", () => {
+    const rows = threadLaneRows(threads, ["priority", "section"], NO_PROJECTS, {
+      keys: new Set([threadLaneKey(["priority:high"])]),
+      keepWhenCollapsed: (t) => t.id === "b",
+    });
+    expect(summarizeRows(rows)).toEqual(["high (collapsed)", "- b", "low", "  working", "  - c"]);
+  });
+});
+
+describe("withThreadGroupLevel", () => {
+  it.each([
+    [["section"], 1, "priority", ["section", "priority"]],
+    [["section", "priority"], 0, "priority", ["priority"]],
+    [["section", "priority", "project"], 1, "section", ["section", "project"]],
+    [["section", "priority", "project"], 0, "engagement", ["engagement", "priority", "project"]],
+    [["section", "priority", "project"], 1, null, ["section"]],
+    [["priority"], 0, null, ["priority"]],
+  ] as const)("%j with level %i set to %s gives %j", (levels, index, dimension, expected) => {
+    expect(withThreadGroupLevel(levels, index, dimension)).toEqual(expected);
   });
 });

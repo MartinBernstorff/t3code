@@ -26,8 +26,11 @@ import {
   SidebarProjectSortOrder,
   SidebarRowGlyphKind,
   SidebarThreadSort,
+  SIDEBAR_GROUP_BY_MAX_LEVELS,
   SidebarGroupBy,
+  type SidebarGroupByLevels,
 } from "@t3tools/contracts/settings";
+import { withThreadGroupLevel } from "@t3tools/client-runtime/state/thread-grouping";
 import { AUTO_UPDATE_DISABLED } from "@t3tools/shared/autoUpdate";
 import { desktopUpdateChannelOf } from "@t3tools/shared/cliRelease";
 import { createModelSelection } from "@t3tools/shared/model";
@@ -148,6 +151,57 @@ const SIDEBAR_GROUP_BY_LABELS: Record<SidebarGroupBy, string> = {
   engagement: "Engagement",
 };
 const isSidebarGroupBy = Schema.is(SidebarGroupBy);
+const NO_GROUP_BY_LEVEL = "none";
+
+function SidebarGroupByControl(props: {
+  levels: SidebarGroupByLevels;
+  onChange: (levels: SidebarGroupBy[]) => void;
+}) {
+  // A "Then by" level is offered once the level above it is set.
+  const shownLevels = Math.min(props.levels.length + 1, SIDEBAR_GROUP_BY_MAX_LEVELS);
+  return (
+    <div className="flex w-full flex-wrap justify-end gap-2 sm:w-auto">
+      {Array.from({ length: shownLevels }, (_, index) => {
+        const value = props.levels[index] ?? NO_GROUP_BY_LEVEL;
+        const above = props.levels.slice(0, index);
+        const label = index === 0 ? "Group threads by" : "Then by";
+        return (
+          <Select
+            key={index}
+            value={value}
+            onValueChange={(next) => {
+              if (next === NO_GROUP_BY_LEVEL) {
+                props.onChange(withThreadGroupLevel(props.levels, index, null));
+              } else if (isSidebarGroupBy(next)) {
+                props.onChange(withThreadGroupLevel(props.levels, index, next));
+              }
+            }}
+          >
+            <SelectTrigger size="sm" className="w-full sm:w-32" aria-label={label}>
+              <SelectValue>
+                {value === NO_GROUP_BY_LEVEL ? "Then by…" : SIDEBAR_GROUP_BY_LABELS[value]}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectPopup align="end" alignItemWithTrigger={false}>
+              {index > 0 ? (
+                <SelectItem hideIndicator value={NO_GROUP_BY_LEVEL}>
+                  None
+                </SelectItem>
+              ) : null}
+              {SidebarGroupBy.literals
+                .filter((groupBy) => !above.includes(groupBy))
+                .map((groupBy) => (
+                  <SelectItem hideIndicator key={groupBy} value={groupBy}>
+                    {SIDEBAR_GROUP_BY_LABELS[groupBy]}
+                  </SelectItem>
+                ))}
+            </SelectPopup>
+          </Select>
+        );
+      })}
+    </div>
+  );
+}
 
 const TIMESTAMP_FORMAT_LABELS = {
   locale: "System default",
@@ -505,7 +559,7 @@ export function useSettingsRestore(onRestored?: () => void) {
     ...(settings.sidebarThreadSort !== DEFAULT_UNIFIED_SETTINGS.sidebarThreadSort
       ? ["Thread order"]
       : []),
-    ...(settings.sidebarGroupBy !== DEFAULT_UNIFIED_SETTINGS.sidebarGroupBy
+    ...(!Equal.equals(settings.sidebarGroupBy, DEFAULT_UNIFIED_SETTINGS.sidebarGroupBy)
       ? ["Group threads by"]
       : []),
     ...(settings.sidebarWorkingShelfEnabled !== DEFAULT_UNIFIED_SETTINGS.sidebarWorkingShelfEnabled
@@ -1017,9 +1071,9 @@ export function GeneralSettingsPanel() {
         />
         <SettingsRow
           {...searchableSetting("thread-group-by")}
-          description="Lanes for the sidebar's pinned, active, and working threads. Snoozed and Settled stay at the bottom. The boring sidebar in Labs keeps its project folders."
+          description="Lanes for the sidebar's pinned, active, and working threads, up to three levels deep. Snoozed and Settled stay at the bottom. The boring sidebar in Labs keeps its project folders."
           resetAction={
-            settings.sidebarGroupBy !== DEFAULT_UNIFIED_SETTINGS.sidebarGroupBy ? (
+            !Equal.equals(settings.sidebarGroupBy, DEFAULT_UNIFIED_SETTINGS.sidebarGroupBy) ? (
               <SettingResetButton
                 label="group threads by"
                 onClick={() =>
@@ -1029,25 +1083,10 @@ export function GeneralSettingsPanel() {
             ) : null
           }
           control={
-            <Select
-              value={settings.sidebarGroupBy}
-              onValueChange={(value) => {
-                if (isSidebarGroupBy(value)) {
-                  updateSettings({ sidebarGroupBy: value });
-                }
-              }}
-            >
-              <SelectTrigger size="sm" className="w-full sm:w-44" aria-label="Group threads by">
-                <SelectValue>{SIDEBAR_GROUP_BY_LABELS[settings.sidebarGroupBy]}</SelectValue>
-              </SelectTrigger>
-              <SelectPopup align="end" alignItemWithTrigger={false}>
-                {SidebarGroupBy.literals.map((groupBy) => (
-                  <SelectItem hideIndicator key={groupBy} value={groupBy}>
-                    {SIDEBAR_GROUP_BY_LABELS[groupBy]}
-                  </SelectItem>
-                ))}
-              </SelectPopup>
-            </Select>
+            <SidebarGroupByControl
+              levels={settings.sidebarGroupBy}
+              onChange={(sidebarGroupBy) => updateSettings({ sidebarGroupBy })}
+            />
           }
         />
         <SettingsRow

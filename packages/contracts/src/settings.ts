@@ -90,10 +90,34 @@ export const SidebarThreadSort = Schema.Literals(["manual", "priority", "engagem
 export type SidebarThreadSort = typeof SidebarThreadSort.Type;
 const DEFAULT_SIDEBAR_THREAD_SORT: SidebarThreadSort = "manual";
 
-// "section" is the pinned/active/working/snoozed/settled split.
+// "section" is the pinned/active/working split; Snoozed and Settled always stay as bottom shelves.
 export const SidebarGroupBy = Schema.Literals(["section", "project", "priority", "engagement"]);
 export type SidebarGroupBy = typeof SidebarGroupBy.Type;
-const DEFAULT_SIDEBAR_GROUP_BY: SidebarGroupBy = "section";
+export const SIDEBAR_GROUP_BY_MAX_LEVELS = 3;
+/** Outermost level first; each level differs from the levels above it. */
+export const SidebarGroupByLevels = Schema.Array(SidebarGroupBy).check(
+  Schema.makeFilter(
+    (levels) =>
+      levels.length >= 1 &&
+      levels.length <= SIDEBAR_GROUP_BY_MAX_LEVELS &&
+      new Set(levels).size === levels.length,
+    { expected: "one to three distinct Group by levels" },
+  ),
+);
+export type SidebarGroupByLevels = typeof SidebarGroupByLevels.Type;
+const DEFAULT_SIDEBAR_GROUP_BY: SidebarGroupByLevels = ["section"];
+
+const LegacySidebarGroupBy = SidebarGroupBy.pipe(
+  Schema.decodeTo(
+    SidebarGroupByLevels,
+    SchemaTransformation.transform({
+      decode: (groupBy): SidebarGroupByLevels => [groupBy],
+      encode: (levels) => levels[0] ?? "section",
+    }),
+  ),
+);
+
+const SidebarGroupBySetting = Schema.Union([SidebarGroupByLevels, LegacySidebarGroupBy]);
 
 export const SidebarProjectGroupingMode = Schema.Literals([
   "repository",
@@ -567,7 +591,7 @@ export const ClientSettingsSchema = Schema.Struct({
   sidebarThreadSort: SidebarThreadSort.pipe(
     Schema.withDecodingDefault(Effect.succeed(DEFAULT_SIDEBAR_THREAD_SORT)),
   ),
-  sidebarGroupBy: SidebarGroupBy.pipe(
+  sidebarGroupBy: SidebarGroupBySetting.pipe(
     Schema.withDecodingDefault(Effect.succeed(DEFAULT_SIDEBAR_GROUP_BY)),
   ),
   timestampFormat: TimestampFormat.pipe(
@@ -1939,7 +1963,7 @@ export const ClientSettingsPatch = Schema.Struct({
   sidebarThreadSortOrder: Schema.optionalKey(SidebarThreadSortOrder),
   sidebarRowGlyphs: Schema.optionalKey(SidebarRowGlyphKinds),
   sidebarThreadSort: Schema.optionalKey(SidebarThreadSort),
-  sidebarGroupBy: Schema.optionalKey(SidebarGroupBy),
+  sidebarGroupBy: Schema.optionalKey(SidebarGroupByLevels),
   timestampFormat: Schema.optionalKey(TimestampFormat),
   voiceMicrophone: Schema.optionalKey(Schema.String),
   voiceShortcutMode: Schema.optionalKey(VoiceShortcutMode),

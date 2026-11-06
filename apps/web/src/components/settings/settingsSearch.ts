@@ -441,7 +441,9 @@ export const SETTINGS_SEARCH_ITEMS = [
     id: "thread-group-by",
     title: "Group threads by",
     to: "/settings/general",
-    searchTerms: ["group sidebar lanes section project priority engagement inbox queued"],
+    searchTerms: [
+      "group sidebar lanes nested then by section project priority engagement inbox queued",
+    ],
   },
   {
     id: "snooze-options",

@@ -1,7 +1,11 @@
 import { attachSidebarTree } from "../lib/sidebarTree";
 import { type EnvironmentId, type ScopedProjectRef } from "@t3tools/contracts";
 import type { SidebarThreadSort } from "@t3tools/contracts/settings";
-import { groupThreadsBy } from "@t3tools/client-runtime/state/thread-grouping";
+import {
+  type ThreadGroupInput,
+  type ThreadGroupSection,
+  threadLaneRows,
+} from "@t3tools/client-runtime/state/thread-grouping";
 import type { EnvironmentServerConfig } from "@t3tools/client-runtime/connection";
 import { ThreadContextDragGhost } from "./chat/ThreadContextDragGhost";
 import {
@@ -480,7 +484,9 @@ function useSidebarThreads(input: {
   const threadSort = useClientSettings((s) => s.sidebarThreadSort);
   const groupBy = useClientSettings((s) => s.sidebarGroupBy);
   // Boring mode keeps its project folders; Group by applies to the standard sidebar.
-  const laneDimension = folderGroups === null && groupBy !== "section" ? groupBy : null;
+  // Section alone is today's sidebar, with its drag targets and Working shelf.
+  const laneLevels =
+    folderGroups === null && !(groupBy.length === 1 && groupBy[0] === "section") ? groupBy : null;
   const [collapsedLaneKeys, setCollapsedLaneKeys] = useLocalStorage(
     COLLAPSED_LANES_KEY,
     EMPTY_LANE_KEYS,
@@ -589,29 +595,41 @@ function useSidebarThreads(input: {
           };
         });
   // Lanes replace the pinned, active, and working rows; the snoozed and settled shelves stay.
-  const lanes =
-    laneDimension === null
-      ? null
-      : groupThreadsBy([...pinnedThreads, ...activeThreads, ...workingThreads], laneDimension, {
-          projects: laneProjects.map((group) => ({
-            key: group.projectKey,
-            memberProjectKeys: group.memberProjectRefs.map(
-              (ref) => `${ref.environmentId}:${ref.projectId}`,
-            ),
-          })),
-        }).map((lane) => {
-          const collapsed = collapsedLaneKeys.includes(lane.key);
-          return {
-            ...lane,
-            label: sidebarLaneLabel(lane, laneProjects),
-            collapsed,
-            count: lane.threads.length,
-            threads: collapsed ? routeThreadOnly(lane.threads, routeRowThreadKey) : lane.threads,
-          };
-        });
+  const laneRows = (() => {
+    if (laneLevels === null) return null;
+    const laneThreads = [...pinnedThreads, ...activeThreads, ...workingThreads];
+    const sectionOfThread = new Map<ThreadGroupInput, ThreadGroupSection>();
+    for (const [list, section] of [
+      [pinnedThreads, "pinned"],
+      [activeThreads, "active"],
+      [workingThreads, "working"],
+    ] as const) {
+      for (const thread of list) sectionOfThread.set(thread, section);
+    }
+    return threadLaneRows(
+      laneThreads,
+      laneLevels,
+      {
+        projects: laneProjects.map((group) => ({
+          key: group.projectKey,
+          memberProjectKeys: group.memberProjectRefs.map(
+            (ref) => `${ref.environmentId}:${ref.projectId}`,
+          ),
+        })),
+        sectionOf: (thread) => sectionOfThread.get(thread) ?? "active",
+      },
+      {
+        keys: new Set(collapsedLaneKeys),
+        // A collapsed lane still shows the open thread.
+        keepWhenCollapsed: (thread) => threadShellKey(thread) === routeRowThreadKey,
+      },
+    ).map((row) =>
+      row.kind === "lane" ? { ...row, label: sidebarLaneLabel(row.lane, laneProjects) } : row,
+    );
+  })();
   const orderedThreads = [
-    ...(lanes !== null
-      ? lanes.flatMap((lane) => lane.threads)
+    ...(laneRows !== null
+      ? laneRows.flatMap((row) => (row.kind === "thread" ? [row.thread] : []))
       : [
           ...pinnedThreads,
           ...(projectFolders === null
@@ -660,7 +678,7 @@ function useSidebarThreads(input: {
     workingShelfExpanded,
     toggleWorkingShelf: () => setWorkingShelfExpanded((value) => !value),
     projectFolders,
-    lanes,
+    laneRows,
     toggleLane: (laneKey: string) =>
       setCollapsedLaneKeys((keys) =>
         keys.includes(laneKey) ? keys.filter((key) => key !== laneKey) : [...keys, laneKey],
@@ -1403,7 +1421,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     toggleWorkingShelf,
     projectFolders,
     toggleProjectFolder,
-    lanes,
+    laneRows,
     toggleLane,
     renderedSettledThreads,
     visibleSnoozedThreads,
@@ -2076,8 +2094,9 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     projectFolders
       ?.map((folder) => `${folder.group.projectKey}:${folder.threads.length}`)
       .join("\n") ?? "",
-    lanes?.map((lane) => `${lane.key}:${lane.threads.map(threadShellKey).join(",")}`).join("\n") ??
-      "",
+    laneRows
+      ?.map((row) => (row.kind === "lane" ? `lane:${row.lane.key}` : threadShellKey(row.thread)))
+      .join("\n") ?? "",
     visibleDraftSessionCount,
     routeDraftIdForRows ?? "",
   ].join("\0");
@@ -3483,6 +3502,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                         // The tree row of the project folder this row sits in.
                         folderRow?: string,
                         laneRow?: string,
+                        laneDepth = 0,
                       ) => {
                         const threadKey = scopedThreadKey(
                           scopeThreadRef(thread.environmentId, thread.id),
@@ -3503,13 +3523,14 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                             contextDrag={isContextDrag}
                             sortableDisabled={
                               projectFolders !== null ||
-                              lanes !== null ||
+                              laneRows !== null ||
                               renamingThreadKey === threadKey ||
                               !draggableThreadKeys.has(threadKey) ||
                               optimisticDrop !== null
                             }
                             thread={thread}
                             variant={rowVariant}
+                            laneDepth={laneDepth}
                             navigationParent={
                               folderRow ??
                               laneRow ??
@@ -3602,7 +3623,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                       };
                       const from = isContextDrag ? null : (dragState?.activeSection ?? null);
                       // Lanes hold working threads, so no Working header is shown above the shelves.
-                      const shownWorkingCount = lanes === null ? workingThreads.length : 0;
+                      const shownWorkingCount = laneRows === null ? workingThreads.length : 0;
                       const items: ReactNode[] = [
                         <SidebarDraftBlock
                           key="draft-sessions"
@@ -3615,29 +3636,34 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                         />,
                       ];
                       for (const item of sidebarListItems) {
-                        if (lanes !== null && LANE_REPLACED_ITEMS.has(sidebarListItemPart(item))) {
+                        if (
+                          laneRows !== null &&
+                          LANE_REPLACED_ITEMS.has(sidebarListItemPart(item))
+                        ) {
                           if (item.kind === "marker" && item.marker === "active-placeholder") {
-                            for (const lane of lanes) {
+                            for (const row of laneRows) {
                               items.push(
-                                <SidebarLaneHeader
-                                  key={`lane:${lane.key}`}
-                                  laneKey={lane.key}
-                                  label={lane.label}
-                                  count={lane.count}
-                                  expanded={!lane.collapsed}
-                                  onToggle={toggleLane}
-                                />,
-                              );
-                              for (const thread of lane.threads) {
-                                items.push(
+                                row.kind === "lane" ? (
+                                  <SidebarLaneHeader
+                                    key={`lane:${row.lane.key}`}
+                                    laneKey={row.lane.key}
+                                    parentLaneKey={row.parentKey}
+                                    depth={row.depth}
+                                    label={row.label}
+                                    count={row.lane.threads.length}
+                                    expanded={!row.collapsed}
+                                    onToggle={toggleLane}
+                                  />
+                                ) : (
                                   renderThreadRow(
-                                    thread,
-                                    sectionByThreadKey.get(threadShellKey(thread)) ?? "active",
+                                    row.thread,
+                                    sectionByThreadKey.get(threadShellKey(row.thread)) ?? "active",
                                     undefined,
-                                    sidebarLaneRowId(lane.key),
-                                  ),
-                                );
-                              }
+                                    sidebarLaneRowId(row.laneKey),
+                                    row.depth,
+                                  )
+                                ),
+                              );
                             }
                           }
                           continue;

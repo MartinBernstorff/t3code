@@ -330,6 +330,30 @@ describe("ClientSettings sidebar row glyphs", () => {
   });
 });
 
+describe("ClientSettings sidebar group by", () => {
+  it("migrates the legacy single value to one level", () => {
+    const settings = decodeClientSettings({ sidebarGroupBy: "priority" });
+
+    expect(settings.sidebarGroupBy).toEqual(["priority"]);
+    expect(encodeClientSettings(settings).sidebarGroupBy).toEqual(["priority"]);
+    expect(decodeClientSettings({}).sidebarGroupBy).toEqual(["section"]);
+  });
+
+  it("accepts up to three distinct levels", () => {
+    expect(
+      decodeClientSettingsPatch({ sidebarGroupBy: ["priority", "section", "project"] })
+        .sidebarGroupBy,
+    ).toEqual(["priority", "section", "project"]);
+    for (const invalid of [
+      [],
+      ["priority", "priority"],
+      ["section", "project", "priority", "engagement"],
+    ]) {
+      expect(() => decodeClientSettingsPatch({ sidebarGroupBy: invalid })).toThrow();
+    }
+  });
+});
+
 describe("ClientSettings quit confirmation", () => {
   it.each([
     [true, "hold"],
