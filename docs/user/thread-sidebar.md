@@ -64,6 +64,10 @@ Set **Priority** from a thread's menu, or run **Set priority...** from the comma
 palette for the open thread. The sidebar shows the priority as an icon before the
 thread title. Agents can set it too.
 
+To list active threads by priority, set **Settings > General > Thread order** to
+**Priority**: urgent first, threads without a priority last, oldest first within a
+priority. Dragging still moves threads between sections, but not within the active list.
+
 ## Pin and reorder threads
 
 Pin a thread from its menu to keep it above your active work.

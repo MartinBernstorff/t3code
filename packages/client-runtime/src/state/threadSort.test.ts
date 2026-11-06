@@ -8,6 +8,7 @@ import {
   resolveSettledThreadTimestamp,
   sortActiveThreadsByOrderKey,
   sortSettledThreads,
+  sortSidebarThreads,
   sortThreads,
   type SettledThreadTimestampInput,
   type ThreadSortInput,
@@ -300,5 +301,38 @@ describe("sortActiveThreadsByOrderKey", () => {
     const keys = new Map(assignments.map((assignment) => [assignment.id, assignment.orderKey]));
     const updated = threads.map((thread) => ({ ...thread, activeOrderKey: keys.get(thread.id) }));
     expect(sortActiveThreadsByOrderKey(updated).map((thread) => thread.id)).toEqual(orderedIds);
+  });
+});
+
+describe("sortSidebarThreads", () => {
+  it("sorts by priority, urgent first and none last, then oldest first, then title", () => {
+    const thread = (
+      id: string,
+      priority: "urgent" | "high" | "medium" | "low" | null,
+      createdAt: string,
+      title = "Thread",
+    ) => ({ id, title, createdAt, priority });
+    const sorted = sortSidebarThreads(
+      [
+        thread("none", null, "2026-01-01T00:00:00.000Z"),
+        thread("low", "low", "2026-01-01T00:00:00.000Z"),
+        thread("high-new", "high", "2026-01-03T00:00:00.000Z"),
+        thread("high-old-b", "high", "2026-01-02T00:00:00.000Z", "Beta"),
+        thread("high-old-a", "high", "2026-01-02T00:00:00.000Z", "Alpha"),
+        thread("medium", "medium", "2026-01-01T00:00:00.000Z"),
+        thread("urgent", "urgent", "2026-01-04T00:00:00.000Z"),
+      ],
+      "priority",
+    );
+
+    expect(sorted.map(({ id }) => id)).toEqual([
+      "urgent",
+      "high-old-a",
+      "high-old-b",
+      "high-new",
+      "medium",
+      "low",
+      "none",
+    ]);
   });
 });
