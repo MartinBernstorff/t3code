@@ -212,6 +212,7 @@ import {
   getEnvironmentBrowsePlatform,
   remoteProjectInputPlaceholder,
   reduceCommandPaletteSearchState,
+  isChildSearchMode,
   type SearchOverlayMode,
 } from "./CommandPalette.logic";
 import { resolveEnvironmentOptionLabel } from "./BranchToolbar.logic";
@@ -244,6 +245,7 @@ import {
 import { EnvironmentMachineIcon } from "./EnvironmentMachineIcon";
 import { Checkbox } from "./ui/checkbox";
 import { ProjectFilePicker } from "./files/ProjectFilePicker";
+import { ThreadSearchPalette } from "./ThreadSearchPalette";
 import { openLinkPullRequestDialog } from "./pullRequest/LinkPullRequestDialog";
 import { canShareWithGuestAtom } from "./chat/guestShareAvailability";
 import { openGuestShareDialog } from "./chat/guestShareDialogState";
@@ -308,7 +310,7 @@ export function CommandPalette({ children }: { children: ReactNode }) {
       <CommandDialog
         open={state.open}
         onOpenChange={(open, eventDetails) => {
-          if (!open && eventDetails.reason === "escape-key" && state.mode !== "command") {
+          if (!open && eventDetails.reason === "escape-key" && isChildSearchMode(state.mode)) {
             eventDetails.cancel();
             dispatchCommandPalette({ _tag: "BackToCommand" });
             return;
@@ -352,7 +354,9 @@ function CommandPaletteDialog(props: {
           ? "File picker"
           : props.mode === "content"
             ? "Search project contents"
-            : "Command palette"
+            : props.mode === "threads"
+              ? "Search threads"
+              : "Command palette"
       }
       className={cn("overflow-hidden", props.mode === "content" && "h-105")}
       data-command-palette="true"
@@ -376,6 +380,8 @@ function CommandPaletteDialog(props: {
         <ProjectFilePicker setOpen={props.setOpen} />
       ) : props.mode === "content" ? (
         <ProjectContentSearchDialog onOpenChange={props.setOpen} />
+      ) : props.mode === "threads" ? (
+        <ThreadSearchPalette key={props.session} setOpen={props.setOpen} />
       ) : (
         <OpenCommandPaletteDialog
           key={props.session}
