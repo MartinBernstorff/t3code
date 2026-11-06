@@ -432,6 +432,12 @@ export const SETTINGS_SEARCH_ITEMS = [
     searchTerms: ["sort projects sidebar manual created recent"],
   },
   {
+    id: "thread-order",
+    title: "Thread order",
+    to: "/settings/general",
+    searchTerms: ["sort threads sidebar priority urgent manual"],
+  },
+  {
     id: "snooze-options",
     title: "Snooze options",
     to: "/settings/threads",
@@ -456,6 +462,12 @@ export const SETTINGS_SEARCH_ITEMS = [
     title: "Working section",
     to: "/settings/general",
     searchTerms: ["hide fold running monitoring threads inbox sidebar shelf"],
+  },
+  {
+    id: "sidebar-row-glyphs",
+    title: "Sidebar row glyphs",
+    to: "/settings/general",
+    searchTerms: ["priority waiting icon indicator thread title display options"],
   },
   {
     id: "boring-sidebar",

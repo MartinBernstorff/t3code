@@ -1,6 +1,8 @@
 import { ThreadHoverCard, ThreadHoverCardPopup } from "../ThreadHoverCard";
 import { ThreadTerminalStatusButton } from "../ThreadStatusIndicators";
 import { ThreadPriorityGlyph } from "../ThreadPriorityGlyph";
+import { resolveSidebarRowGlyphs } from "./sidebarRowGlyphs";
+import { useClientSettings } from "../../hooks/useSettings";
 import { discardComposerDraft } from "../../lib/discardComposerDraft";
 import { requestCustomSnooze } from "../CustomSnoozeDialog";
 import { useSupportsMultiplePullRequests } from "~/hooks/useSupportsMultiplePullRequests";
@@ -704,6 +706,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
   );
   const pr = linkedPullRequestStatus?.pr ?? null;
   const supportsMultiplePullRequests = useSupportsMultiplePullRequests(thread.environmentId);
+  const sidebarRowGlyphKinds = useClientSettings((settings) => settings.sidebarRowGlyphs);
   const currentLinkedPr = supportsMultiplePullRequests
     ? resolveThreadCurrentPullRequestLink(thread.pullRequests)
     : null;
@@ -1051,14 +1054,18 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
     </span>
   );
   const accessibleTitle = isRenaming ? null : <span className="sr-only">{thread.title}</span>;
-  const priorityGlyph = thread.priority ? <ThreadPriorityGlyph priority={thread.priority} /> : null;
-  const waitingGlyph = thread.waitingOnOthers ? (
-    <HourglassIcon
-      role="img"
-      aria-label="Waiting on others"
-      className="size-3 shrink-0 text-muted-foreground"
-    />
-  ) : null;
+  const rowGlyphs = resolveSidebarRowGlyphs(thread, sidebarRowGlyphKinds).map((glyph) =>
+    glyph.kind === "priority" ? (
+      <ThreadPriorityGlyph key={glyph.kind} priority={glyph.priority} />
+    ) : (
+      <HourglassIcon
+        key={glyph.kind}
+        role="img"
+        aria-label="Waiting on others"
+        className="size-3 shrink-0 text-muted-foreground"
+      />
+    ),
+  );
 
   const prBadgeShape = supportsMultiplePullRequests
     ? resolveThreadPullRequestBadge(thread.pullRequests)
@@ -1263,8 +1270,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
                 </span>
               )}
               {draftIndicator}
-              {priorityGlyph}
-              {waitingGlyph}
+              {rowGlyphs}
               {title}
               {multiline ? titleLineIcons : null}
               {pinIndicator}
@@ -1590,8 +1596,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
               {props.sweepAction !== null ? dragDestination : null}
             </div>
             <div className="mt-1 flex min-w-0 items-center gap-1.5">
-              {priorityGlyph}
-              {waitingGlyph}
+              {rowGlyphs}
               {title}
               {isRegeneratingTitle ? (
                 <span role="status" className="sr-only">

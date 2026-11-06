@@ -24,6 +24,8 @@ import {
   type ResponseStreamingMode,
   type QuitConfirmationMode,
   SidebarProjectSortOrder,
+  SidebarRowGlyphKind,
+  SidebarThreadSort,
 } from "@t3tools/contracts/settings";
 import { AUTO_UPDATE_DISABLED } from "@t3tools/shared/autoUpdate";
 import { desktopUpdateChannelOf } from "@t3tools/shared/cliRelease";
@@ -101,6 +103,7 @@ import {
   SettingsSection,
 } from "./settingsLayout";
 import { searchableSetting } from "./settingsSearch";
+import { SIDEBAR_ROW_GLYPH_LABELS, toggleSidebarRowGlyphKind } from "../sidebar/sidebarRowGlyphs";
 import { BackgroundActivitySettingsRow } from "./BackgroundActivitySettings";
 import { AdvancedSettings } from "./AdvancedSettings";
 import { PullRequestLinksOpenInAppSetting } from "./IntegrationsSettings";
@@ -129,6 +132,12 @@ const SIDEBAR_PROJECT_SORT_ORDER_LABELS: Record<SidebarProjectSortOrder, string>
   manual: "Manual",
 };
 const isSidebarProjectSortOrder = Schema.is(SidebarProjectSortOrder);
+
+const SIDEBAR_THREAD_SORT_LABELS: Record<SidebarThreadSort, string> = {
+  manual: "Manual",
+  priority: "Priority",
+};
+const isSidebarThreadSort = Schema.is(SidebarThreadSort);
 
 const TIMESTAMP_FORMAT_LABELS = {
   locale: "System default",
@@ -483,8 +492,14 @@ export function useSettingsRestore(onRestored?: () => void) {
     ...(settings.sidebarProjectSortOrder !== DEFAULT_UNIFIED_SETTINGS.sidebarProjectSortOrder
       ? ["Project order"]
       : []),
+    ...(settings.sidebarThreadSort !== DEFAULT_UNIFIED_SETTINGS.sidebarThreadSort
+      ? ["Thread order"]
+      : []),
     ...(settings.sidebarWorkingShelfEnabled !== DEFAULT_UNIFIED_SETTINGS.sidebarWorkingShelfEnabled
       ? ["Working section"]
+      : []),
+    ...(!Equal.equals(settings.sidebarRowGlyphs, DEFAULT_UNIFIED_SETTINGS.sidebarRowGlyphs)
+      ? ["Sidebar row glyphs"]
       : []),
     ...(settings.sidebarAutoSettleAfterDays !== DEFAULT_UNIFIED_SETTINGS.sidebarAutoSettleAfterDays
       ? ["Auto-settle inactive threads"]
@@ -663,7 +678,9 @@ export function useSettingsRestore(onRestored?: () => void) {
       panelAnimationDurationMs: DEFAULT_UNIFIED_SETTINGS.panelAnimationDurationMs,
       sidebarProjectGroupingMode: DEFAULT_UNIFIED_SETTINGS.sidebarProjectGroupingMode,
       sidebarProjectSortOrder: DEFAULT_UNIFIED_SETTINGS.sidebarProjectSortOrder,
+      sidebarThreadSort: DEFAULT_UNIFIED_SETTINGS.sidebarThreadSort,
       sidebarWorkingShelfEnabled: DEFAULT_UNIFIED_SETTINGS.sidebarWorkingShelfEnabled,
+      sidebarRowGlyphs: DEFAULT_UNIFIED_SETTINGS.sidebarRowGlyphs,
       sidebarAutoSettleAfterDays: DEFAULT_UNIFIED_SETTINGS.sidebarAutoSettleAfterDays,
       sidebarAutoSettleKeepPullRequests: DEFAULT_UNIFIED_SETTINGS.sidebarAutoSettleKeepPullRequests,
       sidebarAutoSettleOnMerge: DEFAULT_UNIFIED_SETTINGS.sidebarAutoSettleOnMerge,
@@ -950,6 +967,41 @@ export function GeneralSettingsPanel() {
           }
         />
         <SettingsRow
+          {...searchableSetting("thread-order")}
+          description="Order of the sidebar's Active threads. Priority lists urgent first and no priority last, oldest first within a priority."
+          resetAction={
+            settings.sidebarThreadSort !== DEFAULT_UNIFIED_SETTINGS.sidebarThreadSort ? (
+              <SettingResetButton
+                label="thread order"
+                onClick={() =>
+                  updateSettings({ sidebarThreadSort: DEFAULT_UNIFIED_SETTINGS.sidebarThreadSort })
+                }
+              />
+            ) : null
+          }
+          control={
+            <Select
+              value={settings.sidebarThreadSort}
+              onValueChange={(value) => {
+                if (isSidebarThreadSort(value)) {
+                  updateSettings({ sidebarThreadSort: value });
+                }
+              }}
+            >
+              <SelectTrigger size="sm" className="w-full sm:w-44" aria-label="Thread order">
+                <SelectValue>{SIDEBAR_THREAD_SORT_LABELS[settings.sidebarThreadSort]}</SelectValue>
+              </SelectTrigger>
+              <SelectPopup align="end" alignItemWithTrigger={false}>
+                {SidebarThreadSort.literals.map((sort) => (
+                  <SelectItem hideIndicator key={sort} value={sort}>
+                    {SIDEBAR_THREAD_SORT_LABELS[sort]}
+                  </SelectItem>
+                ))}
+              </SelectPopup>
+            </Select>
+          }
+        />
+        <SettingsRow
           {...searchableSetting("working-shelf")}
           description="Fold working and monitoring threads into a Working section. They return to the top of the inbox when they need you. The boring sidebar in Labs has no Working section."
           resetAction={
@@ -973,6 +1025,42 @@ export function GeneralSettingsPanel() {
               }
               aria-label="Working section"
             />
+          }
+        />
+        <SettingsRow
+          {...searchableSetting("sidebar-row-glyphs")}
+          description="Choose which glyphs appear before thread titles in the sidebar."
+          resetAction={
+            !Equal.equals(settings.sidebarRowGlyphs, DEFAULT_UNIFIED_SETTINGS.sidebarRowGlyphs) ? (
+              <SettingResetButton
+                label="sidebar row glyphs"
+                onClick={() =>
+                  updateSettings({ sidebarRowGlyphs: DEFAULT_UNIFIED_SETTINGS.sidebarRowGlyphs })
+                }
+              />
+            ) : null
+          }
+          control={
+            <div className="flex flex-wrap items-center gap-3">
+              {SidebarRowGlyphKind.literals.map((kind) => (
+                <label key={kind} className="flex items-center gap-2 text-sm">
+                  {SIDEBAR_ROW_GLYPH_LABELS[kind]}
+                  <Switch
+                    checked={settings.sidebarRowGlyphs.includes(kind)}
+                    onCheckedChange={(checked) =>
+                      updateSettings({
+                        sidebarRowGlyphs: toggleSidebarRowGlyphKind(
+                          settings.sidebarRowGlyphs,
+                          kind,
+                          Boolean(checked),
+                        ),
+                      })
+                    }
+                    aria-label={`${SIDEBAR_ROW_GLYPH_LABELS[kind]} glyph`}
+                  />
+                </label>
+              ))}
+            </div>
           }
         />
       </SettingsSection>

@@ -1,6 +1,7 @@
 import { useAtomValue } from "@effect/atom-react";
 import { useState } from "react";
 
+import { useClientSettings } from "../hooks/useSettings";
 import { useThreadRouteRef } from "../hooks/useThreadRouteTarget";
 import { useVisibleThreadShells } from "../state/entities";
 import { primaryServerKeybindingsAtom } from "../state/server";
@@ -17,6 +18,7 @@ export function ThreadSearchPalette(props: { readonly setOpen: (open: boolean) =
   const [now] = useState(() => new Date().toISOString());
   const keybindings = useAtomValue(primaryServerKeybindingsAtom);
   const threads = useVisibleThreadShells();
+  const threadSort = useClientSettings((settings) => settings.sidebarThreadSort);
   const { projectByKey } = useProjectLookups();
   const routeThreadRef = useThreadRouteRef();
   const { threadItems } = useCommandPaletteThreadItems({
@@ -32,6 +34,7 @@ export function ThreadSearchPalette(props: { readonly setOpen: (open: boolean) =
     projectTitleOf: (thread) =>
       projectByKey.get(`${thread.environmentId}:${thread.projectId}`)?.title ?? null,
     now,
+    threadSort,
   }).flatMap((thread) => itemByValue.get(`thread:${thread.environmentId}:${thread.id}`) ?? []);
 
   return (
