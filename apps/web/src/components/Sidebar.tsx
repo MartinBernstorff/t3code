@@ -4,6 +4,7 @@ import type { SidebarThreadSort } from "@t3tools/contracts/settings";
 import {
   type ThreadGroupInput,
   type ThreadGroupSection,
+  threadLaneDropChanges,
   threadLaneRows,
 } from "@t3tools/client-runtime/state/thread-grouping";
 import type { EnvironmentServerConfig } from "@t3tools/client-runtime/connection";
@@ -225,6 +226,7 @@ import {
 } from "./Sidebar.logic";
 import {
   createSidebarCollisionDetection,
+  createSidebarLaneCollisionDetection,
   createSidebarSortingStrategy,
   restrictBelowSidebarLabel,
 } from "./Sidebar.drag";
@@ -1153,6 +1155,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     readonly occurredAt: string;
     readonly activationY: number | null;
     readonly targetSection: SidebarSection | null;
+    readonly targetLane: string | null;
     readonly contextDrag: boolean;
   } | null>(null);
   const dragSensorRef = useRef<SidebarPointerSensor | null>(null);
@@ -1815,7 +1818,10 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     };
   };
 
-  const isContextDrag = dragState?.contextDrag === true || dragState?.activeSection === "working";
+  // Working rows only drag out as context, except onto Group by lane headers.
+  const isContextDrag =
+    dragState?.contextDrag === true ||
+    (dragState?.activeSection === "working" && laneRows === null);
   const dragTargetSection = isContextDrag ? null : (dragState?.targetSection ?? null);
   const finishThreadDrag = (started: boolean) => {
     dragSensorRef.current = null;
@@ -2013,7 +2019,8 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     setDragState({
       activeKey,
       activeSection,
-      targetSection: activeSection,
+      targetSection: laneRows === null ? activeSection : null,
+      targetLane: null,
       contextDrag: false,
       occurredAt: new Date().toISOString(),
       activationY:
@@ -2112,7 +2119,33 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     previousShelfExpansionKeyRef.current = shelfExpansionKey;
     listMotionRef.current?.update(listMotionPass.animate && shelvesUnchanged);
   }, [listMotionPass, shelfExpansionKey]);
+  const lanePathByRowId = new Map(
+    (laneRows ?? []).flatMap((row) =>
+      row.kind === "lane" ? [[sidebarLaneRowId(row.lane.key), row.lane.path] as const] : [],
+    ),
+  );
+  const laneDropChanges = (threadKey: string, laneRowId: string) => {
+    const path = lanePathByRowId.get(laneRowId);
+    const thread = threadByKey.get(threadKey);
+    const section = sectionByThreadKey.get(threadKey);
+    if (path === undefined || thread === undefined || section === undefined) return [];
+    return threadLaneDropChanges(path, {
+      priority: thread.priority,
+      engagement: thread.engagement,
+      pinned: thread.pinnedAt != null,
+      section,
+    });
+  };
   const handleThreadDragOver = (event: DragOverEvent) => {
+    if (laneRows !== null) {
+      const overId = event.over === null ? null : String(event.over.id);
+      setDragState((current) =>
+        current === null || current.activeKey !== String(event.active.id)
+          ? current
+          : { ...current, targetLane: overId },
+      );
+      return;
+    }
     const target = event.over
       ? resolveSidebarDropTarget(sidebarListItems, String(event.active.id), String(event.over.id))
       : null;
@@ -2137,7 +2170,8 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
         });
   const sidebarSortingStrategy = createSidebarSortingStrategy({
     items: sidebarListItems,
-    enabled: !isContextDrag,
+    // Group by drops only set fields, so rows hold still.
+    enabled: !isContextDrag && laneRows === null,
     boundaryLabelHeight: SIDEBAR_DRAG_LABEL_HEIGHT,
     settledOrder: draggedSettledOrder,
     ...(draggedActiveOrder === undefined ? {} : { activeOrder: draggedActiveOrder }),
@@ -2150,6 +2184,11 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
   const draggedFromSection = dragState?.activeSection;
   const dragActivationY = dragState?.activationY;
   const dndCollisionDetection = (() => {
+    if (laneRows !== null) {
+      return createSidebarLaneCollisionDetection(
+        (id) => draggedThreadKey !== undefined && laneDropChanges(draggedThreadKey, id).length > 0,
+      );
+    }
     if (draggedThreadKey === undefined || draggedFromSection === undefined)
       return createSidebarCollisionDetection(() => true);
     const source = threadByKey.get(draggedThreadKey);
@@ -2182,8 +2221,50 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
       },
     );
   })();
+  const handleLaneDrop = (activeKey: string, laneRowId: string) => {
+    const thread = threadByKey.get(activeKey);
+    const changes = laneDropChanges(activeKey, laneRowId);
+    if (thread === undefined || changes.length === 0 || !checkThreadOperations([thread])) return;
+    const threadRef = scopeThreadRef(thread.environmentId, thread.id);
+    void (async () => {
+      for (const change of changes) {
+        const [operation, title] =
+          change.kind === "priority"
+            ? [setThreadPriority(threadRef, change.priority), "Failed to set thread priority"]
+            : change.kind === "engagement"
+              ? [
+                  setThreadEngagement(threadRef, change.engagement),
+                  "Failed to set thread engagement",
+                ]
+              : change.kind === "pin"
+                ? [pinThread(threadRef, {}), "Failed to pin thread"]
+                : change.kind === "unpin"
+                  ? [unpinThread(threadRef), "Failed to unpin thread"]
+                  : change.kind === "unsettle"
+                    ? [unsettleThread(threadRef), "Failed to un-settle thread"]
+                    : [unsnoozeThread(threadRef), "Failed to wake thread"];
+        const result = await operation;
+        if (result._tag === "Success") continue;
+        if (!isAtomCommandInterrupted(result)) {
+          const error = squashAtomCommandFailure(result);
+          toastManager.add(
+            stackedThreadToast({
+              type: "error",
+              title,
+              description: error instanceof Error ? error.message : "An error occurred.",
+            }),
+          );
+        }
+        return;
+      }
+    })();
+  };
   const handleThreadDragEnd = (event: DragEndEvent) => {
     const activeKey = String(event.active.id);
+    if (laneRows !== null) {
+      if (event.over !== null) handleLaneDrop(activeKey, String(event.over.id));
+      return;
+    }
     const activeSection = sectionByThreadKey.get(activeKey);
     const target =
       event.over === null
@@ -3520,7 +3601,6 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                             contextDrag={isContextDrag}
                             sortableDisabled={
                               projectFolders !== null ||
-                              laneRows !== null ||
                               renamingThreadKey === threadKey ||
                               !draggableThreadKeys.has(threadKey) ||
                               optimisticDrop !== null
@@ -3649,6 +3729,10 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                                     label={row.label}
                                     count={row.lane.threads.length}
                                     expanded={!row.collapsed}
+                                    isDropTarget={
+                                      !isContextDrag &&
+                                      dragState?.targetLane === sidebarLaneRowId(row.lane.key)
+                                    }
                                     onToggle={toggleLane}
                                   />
                                 ) : (

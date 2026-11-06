@@ -221,3 +221,66 @@ export function threadLaneRows<T extends ThreadGroupInput>(
   visit(threads, 0, null);
   return rows;
 }
+
+export type ThreadLaneDropChange =
+  | { readonly kind: "priority"; readonly priority: ThreadPriority | null }
+  | { readonly kind: "engagement"; readonly engagement: ThreadEngagement }
+  | { readonly kind: "pin" }
+  | { readonly kind: "unpin" }
+  | { readonly kind: "unsettle" }
+  | { readonly kind: "unsnooze" };
+
+export interface ThreadLaneDropInput {
+  readonly priority: ThreadPriority | null;
+  readonly engagement: ThreadEngagement;
+  readonly pinned: boolean;
+  /** The thread's sidebar placement, including the Snoozed and Settled shelves. */
+  readonly section: ThreadGroupSection | "snoozed" | "settled";
+}
+
+/**
+ * The changes that move a thread into the lane at `path`, one per settable level.
+ * Project, Agent state and the Working section are not settable and are skipped.
+ * An empty result means the header is not a drop target for this thread.
+ */
+export function threadLaneDropChanges(
+  path: readonly string[],
+  thread: ThreadLaneDropInput,
+): ThreadLaneDropChange[] {
+  let priority: ThreadPriority | null | undefined;
+  let engagement: ThreadEngagement | undefined;
+  let section: string | undefined;
+  for (const segment of path) {
+    const separator = segment.indexOf(":");
+    const value = segment.slice(separator + 1);
+    switch (segment.slice(0, separator)) {
+      case "priority":
+        priority =
+          value === NO_PRIORITY_LANE ? null : ThreadPriority.literals.find((p) => p === value);
+        break;
+      case "engagement":
+        engagement = ThreadEngagement.literals.find((e) => e === value);
+        break;
+      case "section":
+        section = value;
+        break;
+    }
+  }
+  const changes: ThreadLaneDropChange[] = [];
+  let engagementAfter = thread.engagement;
+  if (priority !== undefined && priority !== thread.priority) {
+    changes.push({ kind: "priority", priority });
+    // UI priority changes engage the thread (see `setThreadPriority`).
+    if (priority !== null) engagementAfter = "engaged";
+  }
+  if (engagement !== undefined && engagement !== engagementAfter) {
+    changes.push({ kind: "engagement", engagement });
+  }
+  if (section === "pinned" && !thread.pinned) changes.push({ kind: "pin" });
+  if (section === "active") {
+    if (thread.pinned) changes.push({ kind: "unpin" });
+    if (thread.section === "settled") changes.push({ kind: "unsettle" });
+    if (thread.section === "snoozed") changes.push({ kind: "unsnooze" });
+  }
+  return changes;
+}

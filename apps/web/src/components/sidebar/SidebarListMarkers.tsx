@@ -1,4 +1,5 @@
 import { CollapsibleSectionHeader } from "../ui/collapsible-section-header";
+import { useDroppable } from "@dnd-kit/core";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { type ReactNode, useLayoutEffect } from "react";
@@ -151,7 +152,7 @@ export function sidebarLaneRowId(laneKey: string) {
   return `lane:${laneKey}`;
 }
 
-/** A Group by lane header. Lanes do not take part in drag reordering. */
+/** A Group by lane header. Dropping a thread on it sets the lane's fields; lanes do not reorder. */
 export function SidebarLaneHeader(props: {
   laneKey: string;
   /** The enclosing lane of a nested header, for keyboard tree navigation. */
@@ -160,10 +161,14 @@ export function SidebarLaneHeader(props: {
   label: string;
   count: number;
   expanded: boolean;
+  /** The dragged thread is over this header and the drop would change it. */
+  isDropTarget: boolean;
   onToggle: (laneKey: string) => void;
 }) {
+  const { setNodeRef } = useDroppable({ id: sidebarLaneRowId(props.laneKey) });
   return (
     <li
+      ref={setNodeRef}
       data-thread-selection-safe
       className={cn("relative mx-0.5 h-8 list-none", SIDEBAR_LANE_DEPTH_INSET[props.depth])}
     >
@@ -174,7 +179,7 @@ export function SidebarLaneHeader(props: {
         }
         onClick={() => props.onToggle(props.laneKey)}
         expanded={props.expanded}
-        tone="muted"
+        tone={props.isDropTarget ? "accent" : "muted"}
         accessory={<span className="font-normal tabular-nums">{props.count}</span>}
       >
         {props.label}

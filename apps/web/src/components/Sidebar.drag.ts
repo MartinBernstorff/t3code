@@ -1,4 +1,9 @@
-import { closestCenter, type CollisionDetection, type Modifier } from "@dnd-kit/core";
+import {
+  closestCenter,
+  pointerWithin,
+  type CollisionDetection,
+  type Modifier,
+} from "@dnd-kit/core";
 import { verticalListSortingStrategy, type SortingStrategy } from "@dnd-kit/sortable";
 import {
   resolveSidebarDropTarget,
@@ -87,6 +92,19 @@ export function createSidebarCollisionDetection(
     validity.set(id, valid);
     return valid ? collisions : collisions.filter((collision) => collision.id === args.active.id);
   };
+}
+
+/** Group by drags only land on lane headers under the pointer that `isLaneTarget` accepts. */
+export function createSidebarLaneCollisionDetection(
+  isLaneTarget: (id: string) => boolean,
+): CollisionDetection {
+  return (args) =>
+    pointerWithin({
+      ...args,
+      droppableContainers: args.droppableContainers.filter((container) =>
+        isLaneTarget(String(container.id)),
+      ),
+    });
 }
 
 export function createSidebarSortingStrategy(input: {

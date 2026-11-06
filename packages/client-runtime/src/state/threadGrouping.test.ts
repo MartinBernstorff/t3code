@@ -6,6 +6,7 @@ import {
   threadAgentState,
   type ThreadGroupInput,
   type ThreadGroupSection,
+  threadLaneDropChanges,
   threadLaneKey,
   threadLaneRows,
   withThreadGroupLevel,
@@ -261,5 +262,73 @@ describe("withThreadGroupLevel", () => {
     [["priority"], 0, null, ["priority"]],
   ] as const)("%j with level %i set to %s gives %j", (levels, index, dimension, expected) => {
     expect(withThreadGroupLevel(levels, index, dimension)).toEqual(expected);
+  });
+});
+
+describe("threadLaneDropChanges", () => {
+  const plain = { priority: null, engagement: "inbox", pinned: false, section: "active" } as const;
+
+  it.each([
+    ["sets priority", ["priority:high"], plain, [{ kind: "priority", priority: "high" }]],
+    [
+      "clears priority",
+      ["priority:none"],
+      { ...plain, priority: "low" },
+      [{ kind: "priority", priority: null }],
+    ],
+    [
+      "sets engagement",
+      ["engagement:queued"],
+      plain,
+      [{ kind: "engagement", engagement: "queued" }],
+    ],
+    ["pins", ["section:pinned"], plain, [{ kind: "pin" }]],
+    ["unpins onto Active", ["section:active"], { ...plain, pinned: true }, [{ kind: "unpin" }]],
+    [
+      "wakes a snoozed thread onto Active",
+      ["section:active"],
+      { ...plain, section: "snoozed" },
+      [{ kind: "unsnooze" }],
+    ],
+    [
+      "un-settles a settled thread onto Active",
+      ["section:active"],
+      { ...plain, section: "settled" },
+      [{ kind: "unsettle" }],
+    ],
+    [
+      "ignores the lane the thread is already in",
+      ["priority:high"],
+      { ...plain, priority: "high" },
+      [],
+    ],
+    ["has no Working target", ["section:working"], plain, []],
+    ["has no Project or Agent state target", ["project:env:p1", "agentState:needsYou"], plain, []],
+    [
+      "sets every settable level of a nested path",
+      ["project:env:p1", "engagement:queued", "priority:urgent"],
+      plain,
+      [
+        { kind: "priority", priority: "urgent" },
+        { kind: "engagement", engagement: "queued" },
+      ],
+    ],
+    [
+      "restores engagement after a priority drop engages the thread",
+      ["priority:high", "engagement:inbox"],
+      plain,
+      [
+        { kind: "priority", priority: "high" },
+        { kind: "engagement", engagement: "inbox" },
+      ],
+    ],
+    [
+      "skips engagement a priority drop already sets",
+      ["priority:high", "engagement:engaged"],
+      plain,
+      [{ kind: "priority", priority: "high" }],
+    ],
+  ] as const)("%s", (_name, path, input, expected) => {
+    expect(threadLaneDropChanges(path, input)).toEqual(expected);
   });
 });
