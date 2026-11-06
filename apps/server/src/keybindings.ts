@@ -491,8 +491,11 @@ const make = Effect.gen(function* () {
       }
       let movedAnyDefault = false;
       const customConfig = runtimeConfig.keybindings.map((entry) => {
-        const moved = pendingMovedDefaults.find((candidate) =>
-          isSameKeybindingRule(entry, candidate.from),
+        const moved = pendingMovedDefaults.find(
+          (candidate) =>
+            isSameKeybindingRule(entry, candidate.from) &&
+            // Moving onto a shortcut the user already binds would make a duplicate.
+            !runtimeConfig.keybindings.some((other) => hasSameShortcutContext(other, candidate.to)),
         );
         if (moved === undefined) return entry;
         movedAnyDefault = true;
