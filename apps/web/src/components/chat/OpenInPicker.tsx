@@ -1,7 +1,6 @@
 import { ThreadDetailsControl } from "./ThreadDetailsControl";
 import {
   AuthOrchestrationOperateScope,
-  buildRemoteOpenUrl,
   EditorId,
   type EnvironmentId,
   type ResolvedKeybindingsConfig,
@@ -10,14 +9,9 @@ import { memo, use, useRef } from "react";
 import { BackgroundThreadContext } from "./backgroundThread";
 import { shortcutLabelForCommand } from "../../keybindings";
 import { OPEN_FAVORITE_EDITOR_ATTRIBUTE } from "./OpenInPickerShortcut";
-import { usePreferredEditor } from "../../editorPreferences";
+import { useOpenInLastUsedEditor } from "../../openInLastUsedEditor";
 import { editorLabelForPlatform } from "../../editorLabels";
-import {
-  openRemoteEditorUrl,
-  useRemoteCapableEditors,
-  useRemoteOpenHint,
-  useRemoteOpenState,
-} from "../../remoteOpen";
+import { useRemoteOpenHint } from "../../remoteOpen";
 import { useEnvironment } from "../../state/environments";
 import { ChevronDownIcon, FolderClosedIcon, SquareArrowOutUpRightIcon } from "lucide-react";
 
@@ -62,8 +56,6 @@ import {
 } from "../JetBrainsIcons";
 import { announce } from "~/lib/announce";
 import { cn, isMacPlatform, isWindowsPlatform } from "~/lib/utils";
-import { shellEnvironment } from "~/state/shell";
-import { useAtomCommand } from "~/state/use-atom-command";
 import {
   THREAD_DETAILS_PANEL_CHEVRON_CLASS,
   THREAD_DETAILS_PANEL_ICON_CLASS,
@@ -71,7 +63,7 @@ import {
   THREAD_DETAILS_PANEL_SPLIT_GROUP_CLASS,
   THREAD_DETAILS_PANEL_SPLIT_SEPARATOR_CLASS,
 } from "./threadDetailsPanelStyles";
-import { readEnvironmentScope, useEnvironmentScope } from "~/state/session";
+import { useEnvironmentScope } from "~/state/session";
 import { useComposerMenuState } from "./useComposerMenuState";
 
 type OpenInOption = {
@@ -229,51 +221,22 @@ export const OpenInPicker = memo(function OpenInPicker({
   const isPanel = displayMode === "panel";
   const ActionGroup = isPanel ? "div" : Group;
   const panelAnchorRef = useRef<HTMLDivElement | null>(null);
-  const openInEditorMutation = useAtomCommand(shellEnvironment.openInEditor, "open in editor");
-  const remote = useRemoteOpenState(environmentId);
+  const {
+    remote,
+    editors: effectiveEditors,
+    preferredEditor,
+    open,
+  } = useOpenInLastUsedEditor(environmentId, availableEditors);
   const canOperateHost = useEnvironmentScope(environmentId, AuthOrchestrationOperateScope);
   const isHostEditorDenied = remote.mode === "local-exec" && !canOperateHost;
   const canOpenEditor = remote.mode !== "remote-unavailable" && !isHostEditorDenied;
   const [menuOpen, setMenuOpen] = useComposerMenuState(isHostEditorDenied);
-  const remoteCapableEditors = useRemoteCapableEditors();
-  const [remoteHintSeen, markRemoteHintSeen] = useRemoteOpenHint();
+  const [remoteHintSeen] = useRemoteOpenHint();
   const environmentLabel = useEnvironment(environmentId)?.label ?? "this machine";
-  // Remote editors run on the viewing machine; only desktop can probe that PATH.
-  const effectiveEditors = remote.mode === "local-exec" ? availableEditors : remoteCapableEditors;
-  const [preferredEditor, setPreferredEditor] = usePreferredEditor(effectiveEditors);
 
-  const openInEditor = async (editorId: EditorId | null): Promise<boolean> => {
-    if (!openInCwd) return false;
-    const editor = editorId ?? preferredEditor;
-    if (!editor) return false;
-    if (remote.mode === "remote-unavailable") return false;
-    if (remote.mode === "remote-links") {
-      const url = buildRemoteOpenUrl({
-        editor,
-        ...remote.host,
-        absolutePath: openInCwd,
-        isFile: openInCwdIsFile,
-      });
-      if (url === undefined) return false;
-      // Only record hint-seen/preferred when the shell actually accepted
-      // the URL (an older desktop build can refuse the editor scheme).
-      const opened = await openRemoteEditorUrl(url);
-      if (!opened) return false;
-      markRemoteHintSeen();
-      setPreferredEditor(editor);
-      return true;
-    }
-    if (!readEnvironmentScope(environmentId, AuthOrchestrationOperateScope)) return false;
-    const result = openInEditorMutation({
-      environmentId,
-      input: {
-        cwd: openInCwd,
-        editor,
-        ...(revealFileManager && editor === "file-manager" ? { reveal: true } : {}),
-      },
-    });
-    setPreferredEditor(editor);
-    return (await result)._tag === "Success";
+  const openInEditor = async (editor: EditorId | null): Promise<boolean> => {
+    if (!openInCwd || !editor) return false;
+    return open(openInCwd, { editor, isFile: openInCwdIsFile, revealFileManager });
   };
 
   const openFavoriteEditorShortcutLabel = shortcutLabelForCommand(
@@ -304,13 +267,7 @@ export const OpenInPicker = memo(function OpenInPicker({
               density={presentation === "menu" ? "touch" : "default"}
               disabled={!openInCwd || !canOpenEditor}
               key={value}
-              onClick={() => {
-                if (presentation === "menu") {
-                  void openInEditor(value);
-                } else {
-                  setPreferredEditor(value);
-                }
-              }}
+              onClick={() => void openInEditor(value)}
             >
               <Icon aria-hidden="true" className={getOpenInIconClass(kind)} />
               <MenuItemLabel>{label}</MenuItemLabel>

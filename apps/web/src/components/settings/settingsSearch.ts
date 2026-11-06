@@ -1,4 +1,5 @@
 import { HOSTED_APP_CHANNEL } from "~/branding";
+import { AUTO_UPDATE_DISABLED } from "@t3tools/shared/autoUpdate";
 import { isElectron, isSecretsFeatureEnabled } from "~/env";
 import { isMacPlatform, isWindowsPlatform, normalizeSearchText } from "~/lib/utils";
 import { STATIC_KEYBINDING_COMMANDS, type KeybindingCommand } from "@t3tools/contracts";
@@ -702,6 +703,12 @@ export const SETTINGS_SEARCH_ITEMS = [
     searchTerms: ["enter return command ctrl multiline prompt new line composer"],
   },
   {
+    id: "weekly-usage-meter",
+    title: "Weekly usage meter",
+    to: "/settings/chat",
+    searchTerms: ["usage limits quota weekly rate limit meter composer"],
+  },
+  {
     id: "follow-up-behavior",
     title: "Follow-up behavior",
     to: "/settings/chat",
@@ -870,6 +877,13 @@ export const SETTINGS_SEARCH_ITEMS = [
     title: "Context window indicator (legacy)",
     to: "/settings/labs",
     searchTerms: ["composer meter usage tokens circle old"],
+  },
+  {
+    id: "legacy-context-window-indicator-cap",
+    title: "Context window indicator cap",
+    to: "/settings/labs",
+    targetId: "legacy-context-window-indicator",
+    searchTerms: ["composer meter usage tokens limit maximum scale 200k"],
   },
   {
     id: "keybindings",
@@ -1465,7 +1479,8 @@ export function settingsForThisPlatform(
   return items.filter(
     (item) =>
       (isElectron || item.desktopOnly !== true) &&
-      (!item.releaseChannelOnly || isElectron || HOSTED_APP_CHANNEL !== null) &&
+      (!item.releaseChannelOnly ||
+        (!AUTO_UPDATE_DISABLED && (isElectron || HOSTED_APP_CHANNEL !== null))) &&
       (!item.secretsFeatureOnly || isSecretsFeatureEnabled) &&
       (!item.macOnly || isMacPlatform(platform)) &&
       (!item.windowsOnly || isWindowsPlatform(platform)),

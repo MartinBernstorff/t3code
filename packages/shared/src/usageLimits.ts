@@ -624,6 +624,27 @@ export function limitsNotice(limits: ServerProviderUsageLimits): string | null {
   return limits.windows.length === 0 ? "No limits reported." : null;
 }
 
+/** The thread's account, else the report's first; its most-used weekly window drives the meter. */
+export function selectWeeklyUsage(
+  report: UsageLimitsReport,
+  instanceId: ProviderInstanceId,
+): {
+  readonly account: UsageLimitsReport["accounts"][number];
+  readonly window: ServerProviderUsageWindow;
+} | null {
+  const account =
+    report.accounts.find((candidate) => candidate.instanceId === instanceId) ?? report.accounts[0];
+  if (!account || limitsNotice(account.limits) !== null) return null;
+  const window = account.limits.windows
+    .filter((candidate) => candidate.kind === "weekly")
+    .reduce<ServerProviderUsageWindow | null>(
+      (most, candidate) =>
+        most === null || candidate.usedPercent > most.usedPercent ? candidate : most,
+      null,
+    );
+  return window === null ? null : { account, window };
+}
+
 export function remainingPercent(window: ServerProviderUsageWindow): number {
   return Math.round(100 - Math.max(0, Math.min(100, window.usedPercent)));
 }
