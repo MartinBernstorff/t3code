@@ -2801,9 +2801,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
           projectByKey.get(`${thread.environmentId}:${thread.projectId}`)?.workspaceRoot ??
           null;
         const configLoaded = serverConfigs.has(thread.environmentId);
-        const supportsAutoSettleOptOut =
-          serverConfigs.get(thread.environmentId)?.environment.capabilities
-            .threadAutoSettleOptOut === true;
+        const capabilities = serverConfigs.get(thread.environmentId)?.environment.capabilities;
         const isRegeneratingTitle = thread.titleRegeneration != null;
         const isSettled = settledThreadKeysRef.current.has(threadKey);
         const isSnoozed = snoozedThreadKeysRef.current.has(threadKey);
@@ -2854,10 +2852,14 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
               canTurnIntoProject: canTurnThreadIntoProject(threadRef),
               supports: {
                 settlement: configLoaded,
-                autoSettleOptOut: supportsAutoSettleOptOut,
+                autoSettleOptOut: capabilities?.threadAutoSettleOptOut === true,
                 snooze: configLoaded,
                 pinning: configLoaded,
                 titleRegeneration: configLoaded,
+                priority: capabilities?.threadPriority === true,
+                engagement: capabilities?.threadEngagement === true,
+                waiting: capabilities?.threadWaitingOnOthers === true,
+                linearIssue: capabilities?.threadLinearIssue === true,
               },
               snoozePresets,
             }),

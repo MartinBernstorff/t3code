@@ -23,6 +23,10 @@ const baseState: ThreadActionMenuState = {
     snooze: true,
     pinning: true,
     titleRegeneration: true,
+    priority: true,
+    engagement: true,
+    waiting: true,
+    linearIssue: true,
   },
   snoozePresets: [
     { id: "hour", label: "In 1 hour", whenLabel: "3:00 PM", snoozedUntil: "2026-08-07T15:00:00Z" },
@@ -77,6 +81,22 @@ describe("buildThreadActionMenuItems", () => {
       ).toBe(true);
     },
   );
+
+  it("omits triage fields the server cannot decode", () => {
+    const ids = buildThreadActionMenuItems({
+      ...baseState,
+      supports: {
+        ...baseState.supports,
+        priority: false,
+        engagement: false,
+        waiting: false,
+        linearIssue: false,
+      },
+    }).map((item) => item.id);
+    for (const id of ["priority", "engagement", "waiting-on", "linear-issue"]) {
+      expect(ids).not.toContain(id);
+    }
+  });
 
   it("disables archive and turning into a project while the thread is running", () => {
     const items = buildThreadActionMenuItems({

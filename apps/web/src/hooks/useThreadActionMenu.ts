@@ -32,7 +32,7 @@ import { useOrchestrationCommand } from "../state/use-orchestration-command";
 import { readEnvironmentScope } from "../state/session";
 import {
   readEnvironmentServerConfigLoaded,
-  readEnvironmentSupportsAutoSettleOptOut,
+  readEnvironmentCapabilities,
   readThreadShell,
   useProjects,
 } from "../state/entities";
@@ -131,12 +131,17 @@ export function useThreadActionMenu(input: {
       if (!thread) return;
       const now = new Date();
       const configLoaded = readEnvironmentServerConfigLoaded(threadRef.environmentId);
+      const capabilities = readEnvironmentCapabilities(threadRef.environmentId);
       const supports = {
         settlement: configLoaded,
-        autoSettleOptOut: readEnvironmentSupportsAutoSettleOptOut(threadRef.environmentId),
+        autoSettleOptOut: capabilities?.threadAutoSettleOptOut === true,
         snooze: configLoaded,
         pinning: configLoaded,
         titleRegeneration: configLoaded,
+        priority: capabilities?.threadPriority === true,
+        engagement: capabilities?.threadEngagement === true,
+        waiting: capabilities?.threadWaitingOnOthers === true,
+        linearIssue: capabilities?.threadLinearIssue === true,
       };
       const isRegeneratingTitle = thread.titleRegeneration != null;
       const snoozePresets = resolveSnoozePresets(now, timestampFormat, threadRef.environmentId);

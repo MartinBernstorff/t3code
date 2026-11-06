@@ -1448,7 +1448,8 @@ function OpenCommandPaletteDialog(props: {
     });
   }
 
-  if (activeThread !== null) {
+  const activeThreadCapabilities = activeThreadServerConfig?.environment.capabilities;
+  if (activeThread !== null && activeThreadCapabilities?.threadPriority === true) {
     const { environmentId, id: threadId, priority: currentPriority } = activeThread;
     const priorityItem = (
       priority: ThreadPriority | null,
@@ -1501,53 +1502,57 @@ function OpenCommandPaletteDialog(props: {
       engagement: currentEngagement,
       linearIssue: currentIssue,
     } = activeThread;
-    actionItems.push({
-      kind: "submenu",
-      value: "action:set-engagement",
-      searchTerms: ["engagement", "engaged", "inbox", "queued"],
-      title: "Set engagement...",
-      icon: <InboxIcon className={ITEM_ICON_CLASS} />,
-      addonIcon: <InboxIcon className={ADDON_ICON_CLASS} />,
-      groups: [
-        {
-          value: "engagements",
-          label: "Engagement",
-          items: THREAD_ENGAGEMENT_OPTIONS.map((option): CommandPaletteActionItem => ({
-            kind: "action",
-            value: `action:set-engagement:${option.value}`,
-            searchTerms: [option.label, "engagement"],
-            title: option.label,
-            icon: <InboxIcon className={ITEM_ICON_CLASS} />,
-            ...(option.value === currentEngagement
-              ? { titleTrailingContent: <CheckIcon className={ITEM_ICON_CLASS} /> }
-              : {}),
-            run: async () => {
-              const result = await setThreadEngagement({
-                environmentId,
-                input: { threadId, engagement: option.value },
-              });
-              if (result._tag === "Failure") throw squashAtomCommandFailure(result);
-            },
-          })),
+    if (activeThreadCapabilities?.threadEngagement === true) {
+      actionItems.push({
+        kind: "submenu",
+        value: "action:set-engagement",
+        searchTerms: ["engagement", "engaged", "inbox", "queued"],
+        title: "Set engagement...",
+        icon: <InboxIcon className={ITEM_ICON_CLASS} />,
+        addonIcon: <InboxIcon className={ADDON_ICON_CLASS} />,
+        groups: [
+          {
+            value: "engagements",
+            label: "Engagement",
+            items: THREAD_ENGAGEMENT_OPTIONS.map((option): CommandPaletteActionItem => ({
+              kind: "action",
+              value: `action:set-engagement:${option.value}`,
+              searchTerms: [option.label, "engagement"],
+              title: option.label,
+              icon: <InboxIcon className={ITEM_ICON_CLASS} />,
+              ...(option.value === currentEngagement
+                ? { titleTrailingContent: <CheckIcon className={ITEM_ICON_CLASS} /> }
+                : {}),
+              run: async () => {
+                const result = await setThreadEngagement({
+                  environmentId,
+                  input: { threadId, engagement: option.value },
+                });
+                if (result._tag === "Failure") throw squashAtomCommandFailure(result);
+              },
+            })),
+          },
+        ],
+      });
+    }
+    if (activeThreadCapabilities?.threadLinearIssue === true) {
+      actionItems.push({
+        kind: "action",
+        value: "action:set-linear-issue",
+        searchTerms: ["linear", "issue", "ticket", "link"],
+        title: currentIssue ? `Linear issue ${currentIssue}...` : "Link Linear issue...",
+        icon: <LinkIcon className={ITEM_ICON_CLASS} />,
+        run: async () => {
+          const linearIssue = await requestLinearIssue(currentIssue);
+          if (linearIssue === undefined) return;
+          const result = await setThreadLinearIssue({
+            environmentId,
+            input: { threadId, linearIssue },
+          });
+          if (result._tag === "Failure") throw squashAtomCommandFailure(result);
         },
-      ],
-    });
-    actionItems.push({
-      kind: "action",
-      value: "action:set-linear-issue",
-      searchTerms: ["linear", "issue", "ticket", "link"],
-      title: currentIssue ? `Linear issue ${currentIssue}...` : "Link Linear issue...",
-      icon: <LinkIcon className={ITEM_ICON_CLASS} />,
-      run: async () => {
-        const linearIssue = await requestLinearIssue(currentIssue);
-        if (linearIssue === undefined) return;
-        const result = await setThreadLinearIssue({
-          environmentId,
-          input: { threadId, linearIssue },
-        });
-        if (result._tag === "Failure") throw squashAtomCommandFailure(result);
-      },
-    });
+      });
+    }
   }
 
   if (activeThread !== null && canShareActiveThreadWithGuest) {

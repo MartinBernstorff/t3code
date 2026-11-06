@@ -108,6 +108,10 @@ export interface ThreadActionMenuState {
     readonly snooze: boolean;
     readonly pinning: boolean;
     readonly titleRegeneration: boolean;
+    readonly priority: boolean;
+    readonly engagement: boolean;
+    readonly waiting: boolean;
+    readonly linearIssue: boolean;
   };
   readonly snoozePresets: ReadonlyArray<SnoozePreset>;
   /** Guest links need their own grant, so the caller checks it instead of `canOperate`. */
@@ -200,42 +204,58 @@ export function buildThreadActionMenuItems(
               },
         ]
       : []),
-    {
-      id: "priority",
-      label: "Priority",
-      icon: "chart-no-axes-column-increasing",
-      children: [
-        ...THREAD_PRIORITY_OPTIONS.map((option) => ({
-          id: `priority:${option.value}` as const,
-          label: option.label,
-          checked: state.priority === option.value,
-        })),
-        {
-          id: "priority:none" as const,
-          label: NO_PRIORITY_LABEL,
-          checked: state.priority === null,
-          separatorBefore: true,
-        },
-      ],
-    },
-    {
-      id: "engagement",
-      label: "Engagement",
-      icon: "inbox",
-      children: THREAD_ENGAGEMENT_OPTIONS.map((option) => ({
-        id: `engagement:${option.value}` as const,
-        label: option.label,
-        checked: state.engagement === option.value,
-      })),
-    },
-    state.waitingOnOthers
-      ? { id: "waiting-off" as const, label: "Stop waiting on others", icon: "hourglass" }
-      : { id: "waiting-on" as const, label: "Mark waiting on others", icon: "hourglass" },
-    {
-      id: "linear-issue",
-      label: state.linearIssue ? `Linear issue ${state.linearIssue}…` : "Link Linear issue…",
-      icon: "link",
-    },
+    ...(state.supports.priority
+      ? [
+          {
+            id: "priority" as const,
+            label: "Priority",
+            icon: "chart-no-axes-column-increasing",
+            children: [
+              ...THREAD_PRIORITY_OPTIONS.map((option) => ({
+                id: `priority:${option.value}` as const,
+                label: option.label,
+                checked: state.priority === option.value,
+              })),
+              {
+                id: "priority:none" as const,
+                label: NO_PRIORITY_LABEL,
+                checked: state.priority === null,
+                separatorBefore: true,
+              },
+            ],
+          },
+        ]
+      : []),
+    ...(state.supports.engagement
+      ? [
+          {
+            id: "engagement" as const,
+            label: "Engagement",
+            icon: "inbox",
+            children: THREAD_ENGAGEMENT_OPTIONS.map((option) => ({
+              id: `engagement:${option.value}` as const,
+              label: option.label,
+              checked: state.engagement === option.value,
+            })),
+          },
+        ]
+      : []),
+    ...(state.supports.waiting
+      ? [
+          state.waitingOnOthers
+            ? { id: "waiting-off" as const, label: "Stop waiting on others", icon: "hourglass" }
+            : { id: "waiting-on" as const, label: "Mark waiting on others", icon: "hourglass" },
+        ]
+      : []),
+    ...(state.supports.linearIssue
+      ? [
+          {
+            id: "linear-issue" as const,
+            label: state.linearIssue ? `Linear issue ${state.linearIssue}…` : "Link Linear issue…",
+            icon: "link",
+          },
+        ]
+      : []),
     { id: "rename", label: "Rename thread", icon: "pencil", separatorBefore: true },
     ...(state.supports.titleRegeneration
       ? [
