@@ -702,6 +702,12 @@ export const SETTINGS_SEARCH_ITEMS = [
     searchTerms: ["enter return command ctrl multiline prompt new line composer"],
   },
   {
+    id: "weekly-usage-meter",
+    title: "Weekly usage meter",
+    to: "/settings/chat",
+    searchTerms: ["usage limits quota weekly rate limit meter composer"],
+  },
+  {
     id: "follow-up-behavior",
     title: "Follow-up behavior",
     to: "/settings/chat",

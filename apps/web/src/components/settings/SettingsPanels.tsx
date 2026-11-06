@@ -525,6 +525,9 @@ export function useSettingsRestore(onRestored?: () => void) {
       ? ["Rich text composer"]
       : []),
     ...(settings.sendShortcut !== DEFAULT_UNIFIED_SETTINGS.sendShortcut ? ["Send shortcut"] : []),
+    ...(settings.weeklyUsageMeterEnabled !== DEFAULT_UNIFIED_SETTINGS.weeklyUsageMeterEnabled
+      ? ["Weekly usage meter"]
+      : []),
     ...(settings.followUpBehavior !== DEFAULT_UNIFIED_SETTINGS.followUpBehavior
       ? ["Follow-up behavior"]
       : []),
@@ -644,6 +647,7 @@ export function useSettingsRestore(onRestored?: () => void) {
       showSkillsInSlashMenu: DEFAULT_UNIFIED_SETTINGS.showSkillsInSlashMenu,
       composerRichTextEnabled: DEFAULT_UNIFIED_SETTINGS.composerRichTextEnabled,
       sendShortcut: DEFAULT_UNIFIED_SETTINGS.sendShortcut,
+      weeklyUsageMeterEnabled: DEFAULT_UNIFIED_SETTINGS.weeklyUsageMeterEnabled,
       followUpBehavior: DEFAULT_UNIFIED_SETTINGS.followUpBehavior,
       contextWindowMeterEnabled: DEFAULT_UNIFIED_SETTINGS.contextWindowMeterEnabled,
       environmentIdentificationMode: DEFAULT_UNIFIED_SETTINGS.environmentIdentificationMode,
@@ -1159,6 +1163,32 @@ export function ChatSettingsPanel() {
                 ))}
               </SelectPopup>
             </Select>
+          }
+        />
+        <SettingsRow
+          {...searchableSetting("weekly-usage-meter")}
+          description="Show the provider's weekly usage limit next to the send button."
+          resetAction={
+            settings.weeklyUsageMeterEnabled !==
+            DEFAULT_UNIFIED_SETTINGS.weeklyUsageMeterEnabled ? (
+              <SettingResetButton
+                label="weekly usage meter"
+                onClick={() =>
+                  updateSettings({
+                    weeklyUsageMeterEnabled: DEFAULT_UNIFIED_SETTINGS.weeklyUsageMeterEnabled,
+                  })
+                }
+              />
+            ) : null
+          }
+          control={
+            <Switch
+              checked={settings.weeklyUsageMeterEnabled}
+              onCheckedChange={(checked) =>
+                updateSettings({ weeklyUsageMeterEnabled: Boolean(checked) })
+              }
+              aria-label="Weekly usage meter"
+            />
           }
         />
         <AdvancedSettings targetIds={[searchableSetting("skills-in-slash-menu").id]}>

@@ -220,6 +220,7 @@ import {
   resolveContextWindowModelDisplayName,
   shouldReserveContextWindowMeter,
 } from "./ContextWindowMeter.logic";
+import { type WeeklyUsage, WeeklyUsageMeter } from "./WeeklyUsageMeter";
 import {
   buildAttachmentVideoPreview,
   buildExpandedImagePreview,
@@ -384,6 +385,7 @@ export interface ChatComposerProps {
   isCompacting: boolean;
   bannerItems: readonly ComposerBannerStackItem[];
   resumeCompactionTokens: number | null;
+  weeklyUsage: WeeklyUsage | null;
   keepFullHistory: boolean;
   onToggleKeepFullHistory: () => void;
   onUsageLimitsCommand?: (() => void) | undefined;
@@ -3620,6 +3622,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                   >
                     {composerControls}
                   </div>
+                  {props.weeklyUsage ? <WeeklyUsageMeter usage={props.weeklyUsage} /> : null}
                   <ComposerFooterPrimaryActions
                     compact={isComposerPrimaryActionsCompact}
                     canOperateThread={canOperateThread}
