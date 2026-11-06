@@ -31,6 +31,7 @@ import { useEnvironments, usePrimaryEnvironmentId } from "../../state/environmen
 import { useThreadShells, waitForProjectRemoval } from "../../state/entities";
 import { projectEnvironment } from "../../state/projects";
 import { ProjectFavicon } from "../ProjectFavicon";
+import { parseLinearWorkspaceInput } from "../../linearIssue";
 import { Alert, AlertDescription } from "../ui/alert";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -604,6 +605,40 @@ function ProjectDetail({
                   Choose file
                 </Button>
               </div>
+            }
+          />
+          <SettingsRow
+            title="Linear workspace"
+            description="Linked Linear issues open in this workspace, from linear.app/<workspace>."
+            control={
+              <Input
+                key={`${group.projectKey}:${representative.linearWorkspaceSlug ?? ""}`}
+                size="sm"
+                className="w-full sm:w-64"
+                aria-label="Linear workspace"
+                placeholder="acme"
+                disabled={!canEditGroup}
+                defaultValue={representative.linearWorkspaceSlug ?? ""}
+                onBlur={(event) => {
+                  const slug = parseLinearWorkspaceInput(event.currentTarget.value);
+                  if (slug === undefined) {
+                    toastManager.add({
+                      type: "warning",
+                      title: "Enter a Linear workspace like acme, or a linear.app link",
+                    });
+                    return;
+                  }
+                  if (slug === (representative.linearWorkspaceSlug ?? null)) return;
+                  void updateAllMembers(
+                    { linearWorkspaceSlug: slug },
+                    "Failed to set Linear workspace",
+                  );
+                }}
+                onKeyDown={(event) => {
+                  if (event.nativeEvent.isComposing || event.keyCode === 229) return;
+                  if (event.key === "Enter") event.currentTarget.blur();
+                }}
+              />
             }
           />
           {canOrganize ? (

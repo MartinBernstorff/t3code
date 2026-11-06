@@ -1,4 +1,4 @@
-import type { ContextMenuItem, ThreadPriority } from "@t3tools/contracts";
+import type { ContextMenuItem, LinearIssueId, ThreadPriority } from "@t3tools/contracts";
 import type { SnoozePreset } from "@t3tools/client-runtime/state/thread-settled";
 
 import { NO_PRIORITY_LABEL, THREAD_PRIORITY_OPTIONS } from "../threadPriority";
@@ -21,6 +21,7 @@ export type ThreadActionMenuId =
   | "unsnooze"
   | "priority"
   | `priority:${ThreadPriority | "none"}`
+  | "linear-issue"
   | "rename"
   | "regenerate-title"
   | "mark-unread"
@@ -85,6 +86,7 @@ export interface ThreadActionMenuState {
   readonly isSnoozed: boolean;
   readonly canSnoozeNow: boolean;
   readonly priority: ThreadPriority | null;
+  readonly linearIssue: LinearIssueId | null;
   readonly isRegeneratingTitle: boolean;
   /** Archive rejects attached providers, so disable it while running. */
   readonly isRunning: boolean;
@@ -196,6 +198,11 @@ export function buildThreadActionMenuItems(
           separatorBefore: true,
         },
       ],
+    },
+    {
+      id: "linear-issue",
+      label: state.linearIssue ? `Linear issue ${state.linearIssue}…` : "Link Linear issue…",
+      icon: "link",
     },
     { id: "rename", label: "Rename thread", icon: "pencil", separatorBefore: true },
     ...(state.supports.titleRegeneration

@@ -7,6 +7,7 @@ import {
   ProjectId,
   ProjectScript,
   ThreadEnvMode,
+  LinearWorkspaceSlug,
 } from "@t3tools/contracts";
 import * as Context from "effect/Context";
 import * as NodeSqliteClient from "@t3tools/shared/nodeSqliteClient";
@@ -38,6 +39,7 @@ export const ProjectRow = Schema.Struct({
   autoPull: Schema.Boolean,
   faviconPath: Schema.NullOr(Schema.String),
   projectIcon: Schema.NullOr(StoredProjectIcon),
+  linearWorkspaceSlug: Schema.optional(Schema.NullOr(LinearWorkspaceSlug)),
   scripts: Schema.Array(ProjectScript),
   pinnedAt: Schema.NullOr(IsoDateTime),
   archivedAt: Schema.NullOr(IsoDateTime),
@@ -66,6 +68,7 @@ function toShell(row: ProjectRow): OrchestrationProjectShell {
     autoPull: row.autoPull,
     faviconPath: row.faviconPath,
     projectIcon: row.projectIcon,
+    linearWorkspaceSlug: row.linearWorkspaceSlug ?? null,
     scripts: row.scripts,
     pinnedAt: row.pinnedAt,
     archivedAt: row.archivedAt,
@@ -123,6 +126,7 @@ export const make = Effect.gen(function* () {
         auto_pull AS "autoPull",
         favicon_path AS "faviconPath",
         project_icon_json AS "projectIcon",
+        linear_workspace_slug AS "linearWorkspaceSlug",
         scripts_json AS "scripts",
         pinned_at AS "pinnedAt",
         archived_at AS "archivedAt",
@@ -155,6 +159,7 @@ export const make = Effect.gen(function* () {
             auto_pull,
             favicon_path,
             project_icon_json,
+            linear_workspace_slug,
             scripts_json,
             pinned_at,
             archived_at,
@@ -171,6 +176,7 @@ export const make = Effect.gen(function* () {
             ${encoded.autoPull},
             ${encoded.faviconPath},
             ${encoded.projectIcon},
+            ${encoded.linearWorkspaceSlug ?? null},
             ${encoded.scripts},
             ${encoded.pinnedAt},
             ${encoded.archivedAt},
@@ -187,6 +193,7 @@ export const make = Effect.gen(function* () {
             auto_pull = excluded.auto_pull,
             favicon_path = excluded.favicon_path,
             project_icon_json = excluded.project_icon_json,
+            linear_workspace_slug = excluded.linear_workspace_slug,
             scripts_json = excluded.scripts_json,
             pinned_at = excluded.pinned_at,
             archived_at = excluded.archived_at,
@@ -269,6 +276,9 @@ export const make = Effect.gen(function* () {
         ...(payload.autoPull === undefined ? {} : { autoPull: payload.autoPull }),
         ...(payload.faviconPath === undefined ? {} : { faviconPath: payload.faviconPath }),
         ...(payload.projectIcon === undefined ? {} : { projectIcon: payload.projectIcon }),
+        ...(payload.linearWorkspaceSlug === undefined
+          ? {}
+          : { linearWorkspaceSlug: payload.linearWorkspaceSlug }),
         ...(payload.scripts === undefined ? {} : { scripts: payload.scripts }),
         ...(payload.pinnedAt === undefined ? {} : { pinnedAt: payload.pinnedAt }),
         ...(payload.archivedAt === undefined ? {} : { archivedAt: payload.archivedAt }),

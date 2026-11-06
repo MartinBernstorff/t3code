@@ -12,6 +12,7 @@ const baseState: ThreadActionMenuState = {
   isSnoozed: false,
   canSnoozeNow: true,
   priority: null,
+  linearIssue: null,
   isRegeneratingTitle: false,
   isRunning: false,
   supports: {
@@ -43,6 +44,7 @@ describe("buildThreadActionMenuItems", () => {
             "unsettle",
             "unsnooze",
             "priority",
+            "linear-issue",
             "rename",
             "regenerate-title",
             "auto-settle",
@@ -54,6 +56,7 @@ describe("buildThreadActionMenuItems", () => {
             "settle",
             "snooze",
             "priority",
+            "linear-issue",
             "rename",
             "regenerate-title",
             "auto-settle",

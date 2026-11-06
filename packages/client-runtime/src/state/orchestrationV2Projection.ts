@@ -297,6 +297,7 @@ export function applyOrchestrationV2ProjectionEvent(
     case "thread.visited":
     case "thread.tags-updated":
     case "thread.priority-updated":
+    case "thread.linear-issue-updated":
     case "thread.marked-unread":
       return { ...projection, thread: event.payload };
     case "run.created":

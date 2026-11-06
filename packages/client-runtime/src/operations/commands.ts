@@ -25,6 +25,8 @@ import {
   type RuntimeRequestId,
   type ThreadId,
   type ThreadPriority,
+  type LinearIssueId,
+  type LinearWorkspaceSlug,
   type ThreadEnvMode,
   type UploadChatAttachment,
   type GuestMessageId,
@@ -59,6 +61,7 @@ export interface UpdateProjectInput extends CommandMetadata {
   readonly autoPull?: boolean;
   readonly projectIcon?: ProjectIconOverride | null;
   readonly faviconPath?: string | null;
+  readonly linearWorkspaceSlug?: LinearWorkspaceSlug | null;
   readonly defaultThreadEnvMode?: ThreadEnvMode | null;
   readonly scripts?: ReadonlyArray<ProjectScript>;
   readonly pinned?: boolean;
@@ -376,6 +379,9 @@ export const updateProject = Effect.fn("EnvironmentCommands.updateProject")(func
     ...(input.autoPull === undefined ? {} : { autoPull: input.autoPull }),
     ...(input.projectIcon === undefined ? {} : { projectIcon: input.projectIcon }),
     ...(input.faviconPath === undefined ? {} : { faviconPath: input.faviconPath }),
+    ...(input.linearWorkspaceSlug === undefined
+      ? {}
+      : { linearWorkspaceSlug: input.linearWorkspaceSlug }),
     ...(input.defaultThreadEnvMode === undefined
       ? {}
       : { defaultThreadEnvMode: input.defaultThreadEnvMode }),
@@ -523,6 +529,20 @@ export const setThreadPriority = Effect.fn("EnvironmentCommands.setThreadPriorit
     priority: input.priority,
   });
 });
+
+export interface SetThreadLinearIssueInput extends ThreadCommandInput {
+  readonly linearIssue: LinearIssueId | null;
+}
+export const setThreadLinearIssue = Effect.fn("EnvironmentCommands.setThreadLinearIssue")(
+  function* (input: SetThreadLinearIssueInput) {
+    return yield* dispatch({
+      type: "thread.linear-issue.set",
+      commandId: yield* allocateCommandId(input),
+      threadId: input.threadId,
+      linearIssue: input.linearIssue,
+    });
+  },
+);
 
 export interface SetThreadAutoSettleInput extends ThreadCommandInput {
   readonly enabled: boolean;

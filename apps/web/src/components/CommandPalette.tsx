@@ -176,6 +176,7 @@ import {
 import { buildThreadRouteParams } from "../threadRoutes";
 import { NO_PRIORITY_LABEL, THREAD_PRIORITY_OPTIONS } from "../threadPriority";
 import { ThreadPriorityGlyph } from "./ThreadPriorityGlyph";
+import { requestLinearIssue } from "./LinearIssueDialog";
 import { useAvailableSettingsSearchItems } from "./settings/useAvailableSettingsSearchItems";
 import {
   applyWslEnvironmentConfiguration,
@@ -470,6 +471,9 @@ function OpenCommandPaletteDialog(props: {
     reportFailure: false,
   });
   const setThreadPriority = useAtomCommand(threadEnvironment.setPriority, {
+    reportFailure: false,
+  });
+  const setThreadLinearIssue = useAtomCommand(threadEnvironment.setLinearIssue, {
     reportFailure: false,
   });
   const refreshProviders = useAtomCommand(serverEnvironment.refreshProviders, {
@@ -1482,6 +1486,26 @@ function OpenCommandPaletteDialog(props: {
           ],
         },
       ],
+    });
+  }
+
+  if (activeThread !== null) {
+    const { environmentId, id: threadId, linearIssue: currentIssue } = activeThread;
+    actionItems.push({
+      kind: "action",
+      value: "action:set-linear-issue",
+      searchTerms: ["linear", "issue", "ticket", "link"],
+      title: currentIssue ? `Linear issue ${currentIssue}...` : "Link Linear issue...",
+      icon: <LinkIcon className={ITEM_ICON_CLASS} />,
+      run: async () => {
+        const linearIssue = await requestLinearIssue(currentIssue);
+        if (linearIssue === undefined) return;
+        const result = await setThreadLinearIssue({
+          environmentId,
+          input: { threadId, linearIssue },
+        });
+        if (result._tag === "Failure") throw squashAtomCommandFailure(result);
+      },
     });
   }
 

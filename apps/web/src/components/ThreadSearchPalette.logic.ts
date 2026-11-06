@@ -24,6 +24,7 @@ function threadPaletteSearchTerms(
       `#${pullRequest.number}`,
       pullRequest.title ?? "",
     ]),
+    thread.linearIssue ?? "",
   ];
 }
 

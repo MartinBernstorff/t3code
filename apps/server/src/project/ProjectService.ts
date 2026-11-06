@@ -189,6 +189,7 @@ export const make = Effect.gen(function* () {
     defaultThreadEnvMode: row.defaultThreadEnvMode,
     autoPull: row.autoPull,
     projectIcon: row.projectIcon,
+    linearWorkspaceSlug: row.linearWorkspaceSlug ?? null,
     scripts: row.scripts,
     pinnedAt: row.pinnedAt,
     archivedAt: row.archivedAt,
@@ -397,6 +398,9 @@ export const make = Effect.gen(function* () {
         ...(input.autoPull === undefined ? {} : { autoPull: input.autoPull }),
         ...(input.projectIcon === undefined ? {} : { projectIcon: input.projectIcon }),
         ...(input.faviconPath === undefined ? {} : { faviconPath: input.faviconPath }),
+        ...(input.linearWorkspaceSlug === undefined
+          ? {}
+          : { linearWorkspaceSlug: input.linearWorkspaceSlug }),
         ...(input.defaultThreadEnvMode === undefined
           ? {}
           : { defaultThreadEnvMode: input.defaultThreadEnvMode }),

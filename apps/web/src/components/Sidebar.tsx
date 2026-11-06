@@ -9,6 +9,7 @@ import {
 } from "./chat/threadContextDrag";
 import { discardComposerDraft } from "../lib/discardComposerDraft";
 import { requestCustomSnooze } from "./CustomSnoozeDialog";
+import { requestLinearIssue } from "./LinearIssueDialog";
 import { useAtomValue } from "@effect/atom-react";
 import * as Option from "effect/Option";
 import { Atom } from "effect/reactivity";
@@ -926,6 +927,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     confirmAndUnpinThread,
     setThreadAutoSettle,
     setThreadPriority,
+    setThreadLinearIssue,
     turnThreadIntoProject,
     reorderPinnedThread,
     reorderActiveThread,
@@ -2637,6 +2639,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
               isSnoozed,
               canSnoozeNow: canSnooze(thread, { now: new Date().toISOString() }),
               priority: thread.priority,
+              linearIssue: thread.linearIssue,
               isRegeneratingTitle,
               isRunning: !threadRuntimeCanArchive(thread.runtime),
               canShareWithGuest: appAtomRegistry.get(
@@ -2679,6 +2682,22 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
               stackedThreadToast({
                 type: "error",
                 title: "Failed to set thread priority",
+                description: error instanceof Error ? error.message : "An error occurred.",
+              }),
+            );
+          }
+          return;
+        }
+        if (clicked.value === "linear-issue") {
+          const issue = await requestLinearIssue(thread.linearIssue);
+          if (issue === undefined) return;
+          const result = await setThreadLinearIssue(threadRef, issue);
+          if (result._tag === "Failure" && !isAtomCommandInterrupted(result)) {
+            const error = squashAtomCommandFailure(result);
+            toastManager.add(
+              stackedThreadToast({
+                type: "error",
+                title: "Failed to link Linear issue",
                 description: error instanceof Error ? error.message : "An error occurred.",
               }),
             );

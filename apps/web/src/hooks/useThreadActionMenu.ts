@@ -1,5 +1,6 @@
 import { scopeProjectRef } from "@t3tools/client-runtime/environment";
 import { requestCustomSnooze } from "../components/CustomSnoozeDialog";
+import { requestLinearIssue } from "../components/LinearIssueDialog";
 import { openGuestShareDialog } from "../components/chat/guestShareDialogState";
 import {
   type AtomCommandResult,
@@ -85,6 +86,7 @@ export function useThreadActionMenu(input: {
     confirmAndUnpinThread,
     setThreadAutoSettle,
     setThreadPriority,
+    setThreadLinearIssue,
     archiveThread,
     deleteThread,
     markThreadUnread,
@@ -146,6 +148,7 @@ export function useThreadActionMenu(input: {
         isSnoozed: supports.snooze && effectiveSnoozed(thread, { now: now.toISOString() }),
         canSnoozeNow: canSnooze(thread, { now: now.toISOString() }),
         priority: thread.priority,
+        linearIssue: thread.linearIssue,
         isRegeneratingTitle,
         isRunning: !threadRuntimeCanArchive(thread.runtime),
         supports,
@@ -197,6 +200,15 @@ export function useThreadActionMenu(input: {
         await reportFailure("Failed to set thread priority", () =>
           setThreadPriority(threadRef, priority),
         );
+        return;
+      }
+      if (action === "linear-issue") {
+        const issue = await requestLinearIssue(thread.linearIssue);
+        if (issue !== undefined) {
+          await reportFailure("Failed to link Linear issue", () =>
+            setThreadLinearIssue(threadRef, issue),
+          );
+        }
         return;
       }
       switch (action) {

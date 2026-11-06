@@ -1,4 +1,5 @@
 import {
+  LinearIssueId,
   OrchestratorMcpFailure,
   OrchestratorMcpThreadListResult,
   OrchestratorMcpThreadReadResult,
@@ -767,6 +768,17 @@ const threadShowCommand = Command.make("show", {
 
 const ThreadSetResult = Schema.Struct({ sequence: Schema.Number });
 
+const decodeLinearIssueId = Schema.decodeUnknownEffect(LinearIssueId);
+const decodeLinearFlag = (value: string) =>
+  value.trim().toLowerCase() === "none"
+    ? Effect.succeed(null)
+    : decodeLinearIssueId(value.trim().toUpperCase()).pipe(
+        Effect.mapError(
+          () =>
+            new ThreadUsageError({ detail: `'${value}' is not a Linear issue id like MB-123.` }),
+        ),
+      );
+
 /** Each flag maps to one `t3_thread_organize` `set` field; omitted flags leave the field unchanged. */
 const threadSetCommand = Command.make("set", {
   ...projectLocationFlags,
@@ -778,17 +790,25 @@ const threadSetCommand = Command.make("set", {
     ["low", "low"],
     ["none", null],
   ]).pipe(Flag.withDescription("Thread priority, or none to clear it."), Flag.optional),
+  linear: Flag.String("linear").pipe(
+    Flag.withDescription("Linear issue id, such as MB-123, or none to unlink it."),
+    Flag.optional,
+  ),
   json: jsonFlag,
 }).pipe(
   Command.withDescription("Change a thread's fields, such as its priority."),
   Command.withHandler((flags) =>
     Effect.gen(function* () {
       const threadId = yield* decodeThreadId(flags.thread);
+      const linearIssue = Option.isSome(flags.linear)
+        ? yield* decodeLinearFlag(flags.linear.value)
+        : undefined;
       const fields = {
         ...Option.match(flags.priority, {
           onNone: () => ({}),
           onSome: (priority) => ({ priority }),
         }),
+        ...(linearIssue === undefined ? {} : { linearIssue }),
       };
       if (Object.keys(fields).length === 0) {
         return yield* new ThreadUsageError({ detail: "Pass a field to set, such as --priority." });
