@@ -399,60 +399,61 @@ it.effect("rejects an unknown organize target instead of archiving the calling t
   );
 });
 
-it.effect("organize set dispatches one command per field and rejects a set with no fields", () => {
-  const dispatched: Array<unknown> = [];
-  return Effect.gen(function* () {
-    const server = yield* McpServer.McpServer;
-    const organize = (args: Record<string, unknown>) =>
-      server
-        .callTool({ name: "t3_thread_organize", arguments: { action: "set", ...args } })
-        .pipe(
-          Effect.provideService(McpInvocationContext.McpInvocationContext, scope),
-          Effect.provideService(McpSchema.McpServerClient, client),
-        );
-    expect((yield* organize({ priority: "high" })).isError).not.toBe(true);
-    expect((yield* organize({ priority: null })).isError).not.toBe(true);
-    expect((yield* organize({ priority: "low", waitingOnOthers: true })).isError).not.toBe(true);
-    expect((yield* organize({ engagement: "queued" })).isError).not.toBe(true);
-    expect(declaredFailure(yield* organize({}))).toMatchObject({ code: "invalid_request" });
-    expect((yield* organize({ linearIssue: "MB-123" })).isError).not.toBe(true);
-    expect((yield* organize({ priority: "low", linearIssue: null })).isError).not.toBe(true);
-    yield* Effect.flip(organize({ linearIssue: "not an issue" }));
-    expect(dispatched).toMatchObject([
-      { type: "thread.priority.set", threadId, priority: "high" },
-      { type: "thread.priority.set", threadId, priority: null },
-      { type: "thread.priority.set", threadId, priority: "low" },
-      { type: "thread.waiting.set", threadId, waitingOnOthers: true },
-      { type: "thread.engagement.set", threadId, engagement: "queued" },
-      { type: "thread.linear-issue.set", threadId, linearIssue: "MB-123" },
-      { type: "thread.priority.set", threadId, priority: "low" },
-      { type: "thread.linear-issue.set", threadId, linearIssue: null },
-    ]);
-    expect(dispatched).toHaveLength(8);
-    // Only the UI engages a thread when it sets a priority.
-    expect(dispatched[0]).not.toHaveProperty("engage");
-  }).pipe(
-    Effect.provide(
-      layerThreadToolkit.pipe(
-        Layer.provideMerge(McpHttpServer.layerInProcessMcpServer),
-        Layer.provide(NodeCrypto.layer),
-        Layer.provide(
-          Layer.mock(ThreadManagement.ThreadManagementService)({
-            getThreadShell: (id) => Effect.succeed(McpToolAccessTestkit.liveThreadShell(id)),
-            getProjectThreadRecords: ({ threadId: id }) =>
-              Effect.succeed(
-                McpToolAccessTestkit.idleThreadProjection(McpToolAccessTestkit.liveThreadShell(id)),
-              ),
-            dispatch: (command) => {
-              dispatched.push(command);
-              return Effect.succeed({ sequence: 1 } as never);
-            },
-          }),
+it.effect(
+  "organize set passes its fields to one service call and rejects a set with no fields",
+  () => {
+    const calls: Array<unknown> = [];
+    return Effect.gen(function* () {
+      const server = yield* McpServer.McpServer;
+      const organize = (args: Record<string, unknown>) =>
+        server
+          .callTool({ name: "t3_thread_organize", arguments: { action: "set", ...args } })
+          .pipe(
+            Effect.provideService(McpInvocationContext.McpInvocationContext, scope),
+            Effect.provideService(McpSchema.McpServerClient, client),
+          );
+      expect((yield* organize({ priority: "high" })).isError).not.toBe(true);
+      expect((yield* organize({ priority: null })).isError).not.toBe(true);
+      expect((yield* organize({ priority: "low", waitingOnOthers: true })).isError).not.toBe(true);
+      expect((yield* organize({ engagement: "queued" })).isError).not.toBe(true);
+      expect(declaredFailure(yield* organize({}))).toMatchObject({ code: "invalid_request" });
+      expect((yield* organize({ linearIssue: "MB-123" })).isError).not.toBe(true);
+      expect((yield* organize({ priority: "low", linearIssue: null })).isError).not.toBe(true);
+      yield* Effect.flip(organize({ linearIssue: "not an issue" }));
+      expect(calls).toMatchObject([
+        { threadId, priority: "high" },
+        { threadId, priority: null },
+        { threadId, priority: "low", waitingOnOthers: true },
+        { threadId, engagement: "queued" },
+        { threadId, linearIssue: "MB-123" },
+        { threadId, priority: "low", linearIssue: null },
+      ]);
+      expect(calls).toHaveLength(6);
+    }).pipe(
+      Effect.provide(
+        layerThreadToolkit.pipe(
+          Layer.provideMerge(McpHttpServer.layerInProcessMcpServer),
+          Layer.provide(NodeCrypto.layer),
+          Layer.provide(
+            Layer.mock(ThreadManagement.ThreadManagementService)({
+              getThreadShell: (id) => Effect.succeed(McpToolAccessTestkit.liveThreadShell(id)),
+              getProjectThreadRecords: ({ threadId: id }) =>
+                Effect.succeed(
+                  McpToolAccessTestkit.idleThreadProjection(
+                    McpToolAccessTestkit.liveThreadShell(id),
+                  ),
+                ),
+              setThreadFields: (input) => {
+                calls.push(input);
+                return Effect.succeed({ sequence: 1 });
+              },
+            }),
+          ),
         ),
       ),
-    ),
-  );
-});
+    );
+  },
+);
 
 it.effect("keeps unexpected handler defects private through the production registration", () =>
   Effect.gen(function* () {

@@ -31,6 +31,7 @@ import {
   type OrchestrationV2ThreadTranscript,
   type OrchestrationV2ThreadShell,
   type OrchestrationV2TurnItem,
+  type LinearIssueId,
   ProjectId,
   PROVIDER_SEND_TURN_MAX_FILE_BYTES,
   ProviderInstanceId,
@@ -39,6 +40,8 @@ import {
   RunId,
   type ScheduledTaskId,
   ThreadId,
+  type ThreadEngagement,
+  type ThreadPriority,
   type TurnItemId,
 } from "@t3tools/contracts";
 import { delegatedTaskProgress } from "@t3tools/provider-core/server/subagentProjection";
@@ -464,6 +467,18 @@ export interface ThreadManagementServiceShape {
     readonly byOwnAgent: boolean;
   }) => Effect.Effect<
     { readonly sequence: number } | { readonly settlesWhenTurnEnds: true },
+    Orchestrator.OrchestratorV2Error | ThreadManagementProviderInstanceDisabledError
+  >;
+  /** Sets each given organizing field in turn; each command is idempotent by its id. */
+  readonly setThreadFields: (input: {
+    readonly threadId: ThreadId;
+    readonly commandId: CommandId;
+    readonly priority?: ThreadPriority | null | undefined;
+    readonly waitingOnOthers?: boolean | undefined;
+    readonly engagement?: ThreadEngagement | undefined;
+    readonly linearIssue?: LinearIssueId | null | undefined;
+  }) => Effect.Effect<
+    { readonly sequence: number },
     Orchestrator.OrchestratorV2Error | ThreadManagementProviderInstanceDisabledError
   >;
   readonly interruptThread: (
@@ -1139,6 +1154,49 @@ const make = Effect.gen(function* () {
     return { sequence: result.sequence };
   });
 
+  const setThreadFields: ThreadManagementServiceShape["setThreadFields"] = Effect.fn(
+    "orchestrationV2.threadManagement.setThreadFields",
+  )(function* (input) {
+    const common = (field: string) => ({
+      commandId: CommandId.make(`${input.commandId}:${field}`),
+      threadId: input.threadId,
+    });
+    const commands: Array<OrchestrationV2ServerCommand> = [];
+    if (input.priority !== undefined) {
+      commands.push({
+        ...common("priority"),
+        type: "thread.priority.set",
+        priority: input.priority,
+      });
+    }
+    if (input.waitingOnOthers !== undefined) {
+      commands.push({
+        ...common("waiting"),
+        type: "thread.waiting.set",
+        waitingOnOthers: input.waitingOnOthers,
+      });
+    }
+    if (input.engagement !== undefined) {
+      commands.push({
+        ...common("engagement"),
+        type: "thread.engagement.set",
+        engagement: input.engagement,
+      });
+    }
+    if (input.linearIssue !== undefined) {
+      commands.push({
+        ...common("linear-issue"),
+        type: "thread.linear-issue.set",
+        linearIssue: input.linearIssue,
+      });
+    }
+    let sequence = 0;
+    for (const command of commands) {
+      sequence = (yield* dispatch(command)).sequence;
+    }
+    return { sequence };
+  });
+
   const interruptThread: ThreadManagementServiceShape["interruptThread"] = Effect.fn(
     "ThreadManagementService.interruptThread",
   )(function* (input) {
@@ -1622,6 +1680,7 @@ const make = Effect.gen(function* () {
     waitForThread,
     settleAfterRun,
     settleThread,
+    setThreadFields,
     interruptThread,
     stopDelegatedTasks,
     stopWorkflow,

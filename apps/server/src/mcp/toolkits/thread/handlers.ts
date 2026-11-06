@@ -342,46 +342,26 @@ export const layer = McpToolAccess.toLayer(ThreadToolkit, {
           .pipe(Effect.mapError(dispatchFailure));
       }
       if (input.action === "set") {
-        const commands: Array<OrchestrationV2Command> = [];
-        if (input.priority !== undefined) {
-          commands.push({ ...common, type: "thread.priority.set", priority: input.priority });
-        }
-        if (input.waitingOnOthers !== undefined) {
-          commands.push({
-            commandId: yield* newCommandId(),
-            threadId: common.threadId,
-            type: "thread.waiting.set",
-            waitingOnOthers: input.waitingOnOthers,
-          });
-        }
-        if (input.engagement !== undefined) {
-          commands.push({
-            commandId: yield* newCommandId(),
-            threadId: common.threadId,
-            type: "thread.engagement.set",
-            engagement: input.engagement,
-          });
-        }
-        if (input.linearIssue !== undefined) {
-          commands.push({
-            commandId: yield* newCommandId(),
-            threadId: common.threadId,
-            type: "thread.linear-issue.set",
-            linearIssue: input.linearIssue,
-          });
-        }
-        if (commands.length === 0) {
+        if (
+          input.priority === undefined &&
+          input.waitingOnOthers === undefined &&
+          input.engagement === undefined &&
+          input.linearIssue === undefined
+        ) {
           return yield* new OrchestratorMcpFailure({
             code: "invalid_request",
             message: "set requires a field to change, such as priority.",
           });
         }
-        let sequence = 0;
-        for (const command of commands) {
-          const result = yield* threads.dispatch(command).pipe(Effect.mapError(dispatchFailure));
-          sequence = result.sequence;
-        }
-        return { sequence };
+        return yield* threads
+          .setThreadFields({
+            ...common,
+            priority: input.priority,
+            waitingOnOthers: input.waitingOnOthers,
+            engagement: input.engagement,
+            linearIssue: input.linearIssue,
+          })
+          .pipe(Effect.mapError(dispatchFailure));
       }
       let command: OrchestrationV2Command;
       switch (input.action) {

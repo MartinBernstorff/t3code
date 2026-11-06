@@ -154,6 +154,27 @@ it.effect(
   },
 );
 
+it.effect("setThreadFields dispatches one command per given field", () => {
+  const dispatched: Array<string> = [];
+  return Effect.gen(function* () {
+    const threads = yield* ThreadManagementService.ThreadManagementService;
+    const result = yield* threads.setThreadFields({
+      threadId: ThreadId.make("thread:thread-management:chokepoint"),
+      commandId: CommandId.make("command:thread-management:set-fields"),
+      priority: "low",
+      waitingOnOthers: true,
+      engagement: undefined,
+      linearIssue: null,
+    });
+    expect(result).toEqual({ sequence: 1 });
+    expect(dispatched).toEqual([
+      "thread.priority.set",
+      "thread.waiting.set",
+      "thread.linear-issue.set",
+    ]);
+  }).pipe(Effect.provide(layerDispatchChokepointTest(ServerSettings.layerTest())(dispatched)));
+});
+
 it.effect(
   "a replay of an already-accepted command id dispatches despite the instance now being disabled",
   () => {
