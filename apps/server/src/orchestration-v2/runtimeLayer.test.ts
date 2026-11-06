@@ -2665,8 +2665,20 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
         });
         assert.equal(shellOf(yield* orchestrator.getShellSnapshot()).engagement, expected, step);
       }
+      for (const waitingOnOthers of [true, false]) {
+        yield* orchestrator.dispatch({
+          type: "thread.waiting.set",
+          commandId: CommandId.make(`runtime-layer-lifecycle-waiting-${waitingOnOthers}`),
+          threadId,
+          waitingOnOthers,
+        });
+        assert.equal(
+          shellOf(yield* orchestrator.getShellSnapshot()).waitingOnOthers ?? false,
+          waitingOnOthers,
+        );
+      }
       const taggedShell = shellOf(yield* orchestrator.getShellSnapshot());
-      // Tags, priority, and engagement are not activity, so the thread keeps its place in thread lists.
+      // Tags, priority, engagement, and waiting are not activity, so the thread keeps its place.
       assert.equal(
         DateTime.toEpochMillis(taggedShell.updatedAt),
         DateTime.toEpochMillis(untaggedShell.updatedAt),

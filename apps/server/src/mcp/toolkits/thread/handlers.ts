@@ -342,21 +342,26 @@ export const layer = McpToolAccess.toLayer(ThreadToolkit, {
           .pipe(Effect.mapError(dispatchFailure));
       }
       if (input.action === "set") {
-        const commands: Array<OrchestrationV2Command> = [
-          ...(input.priority === undefined
-            ? []
-            : [{ ...common, type: "thread.priority.set" as const, priority: input.priority }]),
-          ...(input.engagement === undefined
-            ? []
-            : [
-                {
-                  commandId: yield* newCommandId(),
-                  threadId: common.threadId,
-                  type: "thread.engagement.set" as const,
-                  engagement: input.engagement,
-                },
-              ]),
-        ];
+        const commands: Array<OrchestrationV2Command> = [];
+        if (input.priority !== undefined) {
+          commands.push({ ...common, type: "thread.priority.set", priority: input.priority });
+        }
+        if (input.waitingOnOthers !== undefined) {
+          commands.push({
+            commandId: yield* newCommandId(),
+            threadId: common.threadId,
+            type: "thread.waiting.set",
+            waitingOnOthers: input.waitingOnOthers,
+          });
+        }
+        if (input.engagement !== undefined) {
+          commands.push({
+            commandId: yield* newCommandId(),
+            threadId: common.threadId,
+            type: "thread.engagement.set",
+            engagement: input.engagement,
+          });
+        }
         if (commands.length === 0) {
           return yield* new OrchestratorMcpFailure({
             code: "invalid_request",
@@ -365,8 +370,8 @@ export const layer = McpToolAccess.toLayer(ThreadToolkit, {
         }
         let sequence = 0;
         for (const command of commands) {
-          sequence = (yield* threads.dispatch(command).pipe(Effect.mapError(dispatchFailure)))
-            .sequence;
+          const result = yield* threads.dispatch(command).pipe(Effect.mapError(dispatchFailure));
+          sequence = result.sequence;
         }
         return { sequence };
       }

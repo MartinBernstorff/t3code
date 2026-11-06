@@ -72,6 +72,13 @@ thread's menu, or run **Set engagement...** from the command palette. Threads yo
 create in the app start as Engaged; threads that agents, scripts, or scheduled tasks
 create start in the Inbox. Setting a priority in the app also marks the thread Engaged.
 
+## Threads waiting on others
+
+An agent waiting on CI or a review can mark its thread as waiting on others. The
+sidebar shows an hourglass on the thread, and its finished turns do not notify you
+or mark the thread unread. Your next message in the thread clears the mark. You can
+also set or clear it from the thread's menu.
+
 ## Pin and reorder threads
 
 Pin a thread from its menu to keep it above your active work.

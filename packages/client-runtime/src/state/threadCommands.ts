@@ -47,6 +47,7 @@ import {
   setThreadAutoSettle,
   setThreadPriority,
   setThreadEngagement,
+  setThreadWaiting,
   settleThread,
   snoozeThread,
   startThreadTurn,
@@ -208,6 +209,12 @@ export function createThreadEnvironmentAtoms<R, E>(
     setEngagement: createEnvironmentCommand(runtime, {
       label: "environment-data:commands:thread:set-engagement",
       execute: setThreadEngagement,
+      scheduler,
+      concurrency,
+    }),
+    setWaiting: createEnvironmentCommand(runtime, {
+      label: "environment-data:commands:thread:set-waiting",
+      execute: setThreadWaiting,
       scheduler,
       concurrency,
     }),

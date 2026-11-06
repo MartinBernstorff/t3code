@@ -135,6 +135,7 @@ export const layer: Layer.Layer<ThreadForkServiceV2> = Layer.succeed(
         pinnedAt: null,
         pinOrderKey: null,
         priority: null,
+        waitingOnOthers: false,
         activeOrderKey: null,
         autoSettleDisabledAt: null,
         // A guest link belongs to the thread it was made for.

@@ -496,6 +496,8 @@ export const OrchestrationV2AppThread = Schema.Struct({
   tags: Schema.optional(StoredThreadTags),
   priority: Schema.optional(Schema.NullOr(ThreadPriority)),
   engagement: Schema.optional(ThreadEngagement),
+  /** An agent declared it is waiting on others (CI, review); the next user message clears it. */
+  waitingOnOthers: Schema.optional(Schema.Boolean),
   lastVisitedAt: Schema.NullOr(Schema.DateTimeUtc).pipe(
     Schema.withDecodingDefault(Effect.succeed(null)),
   ),
@@ -1900,6 +1902,7 @@ export const OrchestrationV2DomainEvent = Schema.Union([
       "thread.tags-updated",
       "thread.priority-updated",
       "thread.engagement-updated",
+      "thread.waiting-updated",
       "thread.visited",
       "thread.marked-unread",
       "thread.metadata-updated",
@@ -2156,6 +2159,7 @@ export const OrchestrationV2ThreadShell = Schema.Struct({
   tags: Schema.optional(StoredThreadTags),
   priority: Schema.optional(Schema.NullOr(ThreadPriority)),
   engagement: Schema.optional(ThreadEngagement),
+  waitingOnOthers: Schema.optional(Schema.Boolean),
   lastVisitedAt: Schema.optional(Schema.NullOr(Schema.DateTimeUtc)),
   opens: Schema.optional(LenientThreadOpens),
   titleRegeneration: Schema.optional(
@@ -2789,6 +2793,7 @@ export const OrchestrationV2DomainEventJson = Schema.Union([
       "thread.tags-updated",
       "thread.priority-updated",
       "thread.engagement-updated",
+      "thread.waiting-updated",
       "thread.visited",
       "thread.marked-unread",
       "thread.pull-request-synced",
@@ -3053,6 +3058,12 @@ export const OrchestrationV2Command = Schema.Union([
     commandId: CommandId,
     threadId: ThreadId,
     engagement: ThreadEngagement,
+  }),
+  Schema.Struct({
+    type: Schema.Literal("thread.waiting.set"),
+    commandId: CommandId,
+    threadId: ThreadId,
+    waitingOnOthers: Schema.Boolean,
   }),
   Schema.Struct({
     type: Schema.Literal("thread.pin.reorder"),

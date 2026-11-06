@@ -540,6 +540,20 @@ export const setThreadEngagement = Effect.fn("EnvironmentCommands.setThreadEngag
   });
 });
 
+export interface SetThreadWaitingInput extends ThreadCommandInput {
+  readonly waitingOnOthers: boolean;
+}
+export const setThreadWaiting = Effect.fn("EnvironmentCommands.setThreadWaiting")(function* (
+  input: SetThreadWaitingInput,
+) {
+  return yield* dispatch({
+    type: "thread.waiting.set",
+    commandId: yield* allocateCommandId(input),
+    threadId: input.threadId,
+    waitingOnOthers: input.waitingOnOthers,
+  });
+});
+
 export interface SetThreadAutoSettleInput extends ThreadCommandInput {
   readonly enabled: boolean;
 }

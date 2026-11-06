@@ -260,6 +260,59 @@ it.effect("marks a never-visited thread's first completion unread", () =>
   }).pipe(Effect.provide(layerTest)),
 );
 
+it.effect("the user's next message clears waiting on others, an agent's does not", () =>
+  Effect.gen(function* () {
+    const orchestrator = yield* Orchestrator.OrchestratorV2;
+    const projections = yield* ProjectionStore.ProjectionStoreV2;
+    const threadId = ThreadId.make("thread:waiting-on-others");
+    yield* orchestrator.dispatch({
+      type: "thread.create",
+      commandId: CommandId.make("create-waiting-on-others"),
+      threadId,
+      projectId: ProjectId.make("project:waiting-on-others"),
+      title: "Waiting on CI",
+      modelSelection,
+      runtimeMode: "full-access",
+      interactionMode: "default",
+      branch: null,
+      worktreePath: null,
+      createdBy: "user",
+      creationSource: "web",
+    });
+    yield* orchestrator.dispatch({
+      type: "thread.waiting.set",
+      commandId: CommandId.make("set-waiting-on-others"),
+      threadId,
+      waitingOnOthers: true,
+    });
+    const dispatch = (id: string, createdBy: "user" | "agent") =>
+      orchestrator.dispatch({
+        type: "message.dispatch",
+        commandId: CommandId.make(id),
+        threadId,
+        messageId: MessageId.make(id),
+        text: "Check the build",
+        attachments: [],
+        dispatchMode: { type: "defer_start" },
+        createdBy,
+        creationSource: createdBy === "user" ? "web" : "mcp",
+      });
+
+    yield* dispatch("agent-message-while-waiting", "agent");
+    assert.isTrue((yield* projections.getThreadShell(threadId))?.waitingOnOthers);
+    yield* orchestrator.dispatch({
+      type: "run.interrupt",
+      commandId: CommandId.make("interrupt-agent-message-while-waiting"),
+      threadId,
+      runId: (yield* projections.getThreadProjection(threadId)).runs[0]!.id,
+    });
+    yield* TestClock.adjust("1 second");
+    yield* dispatch("user-message-while-waiting", "user");
+    assert.isUndefined((yield* projections.getThreadShell(threadId))?.waitingOnOthers);
+    assert.isFalse((yield* projections.getThread(threadId)).waitingOnOthers);
+  }).pipe(Effect.provide(layerTest)),
+);
+
 const completeAndSnoozeThread = Effect.fn("test.completeAndSnoozeThread")(function* (
   name: string,
   snoozeMinutes: number,

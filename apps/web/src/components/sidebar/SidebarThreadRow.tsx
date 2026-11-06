@@ -40,6 +40,7 @@ import {
   CircleDotDashedIcon,
   ClockIcon,
   GitBranchIcon,
+  HourglassIcon,
   MessageCircleQuestionIcon,
   PinIcon,
   PinOffIcon,
@@ -1051,6 +1052,13 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
   );
   const accessibleTitle = isRenaming ? null : <span className="sr-only">{thread.title}</span>;
   const priorityGlyph = thread.priority ? <ThreadPriorityGlyph priority={thread.priority} /> : null;
+  const waitingGlyph = thread.waitingOnOthers ? (
+    <HourglassIcon
+      role="img"
+      aria-label="Waiting on others"
+      className="size-3 shrink-0 text-muted-foreground"
+    />
+  ) : null;
 
   const prBadgeShape = supportsMultiplePullRequests
     ? resolveThreadPullRequestBadge(thread.pullRequests)
@@ -1256,6 +1264,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
               )}
               {draftIndicator}
               {priorityGlyph}
+              {waitingGlyph}
               {title}
               {multiline ? titleLineIcons : null}
               {pinIndicator}
@@ -1582,6 +1591,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
             </div>
             <div className="mt-1 flex min-w-0 items-center gap-1.5">
               {priorityGlyph}
+              {waitingGlyph}
               {title}
               {isRegeneratingTitle ? (
                 <span role="status" className="sr-only">

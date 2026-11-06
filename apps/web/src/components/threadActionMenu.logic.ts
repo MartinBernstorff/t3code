@@ -24,6 +24,8 @@ export type ThreadActionMenuId =
   | `priority:${ThreadPriority | "none"}`
   | "engagement"
   | `engagement:${ThreadEngagement}`
+  | "waiting-on"
+  | "waiting-off"
   | "rename"
   | "regenerate-title"
   | "mark-unread"
@@ -89,6 +91,7 @@ export interface ThreadActionMenuState {
   readonly canSnoozeNow: boolean;
   readonly priority: ThreadPriority | null;
   readonly engagement: ThreadEngagement;
+  readonly waitingOnOthers: boolean;
   readonly isRegeneratingTitle: boolean;
   /** Archive rejects attached providers, so disable it while running. */
   readonly isRunning: boolean;
@@ -218,6 +221,9 @@ export function buildThreadActionMenuItems(
         checked: state.engagement === option.value,
       })),
     },
+    state.waitingOnOthers
+      ? { id: "waiting-off" as const, label: "Stop waiting on others", icon: "hourglass" }
+      : { id: "waiting-on" as const, label: "Mark waiting on others", icon: "hourglass" },
     { id: "rename", label: "Rename thread", icon: "pencil", separatorBefore: true },
     ...(state.supports.titleRegeneration
       ? [

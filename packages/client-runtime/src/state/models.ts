@@ -187,6 +187,7 @@ export interface EnvironmentThreadShell {
   readonly activeOrderKey: string | null;
   readonly priority: ThreadPriority | null;
   readonly engagement: ThreadEngagement;
+  readonly waitingOnOthers: boolean;
   readonly pullRequests: ReadonlyArray<import("@t3tools/contracts").ThreadPullRequestLink>;
   readonly linkedPullRequest?: ThreadLinkedPullRequest | null;
   readonly branchPullRequest?: ThreadLinkedPullRequest | null;
@@ -344,6 +345,7 @@ export function presentThreadShell(
     activeOrderKey: thread.activeOrderKey ?? null,
     priority: thread.priority ?? null,
     engagement: thread.engagement ?? "inbox",
+    waitingOnOthers: thread.waitingOnOthers ?? false,
     ...(thread.lastVisitedAt === undefined
       ? {}
       : { lastVisitedAt: nullableIso(thread.lastVisitedAt) }),

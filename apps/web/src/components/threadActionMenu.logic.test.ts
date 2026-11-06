@@ -13,6 +13,7 @@ const baseState: ThreadActionMenuState = {
   canSnoozeNow: true,
   priority: null,
   engagement: "inbox",
+  waitingOnOthers: false,
   isRegeneratingTitle: false,
   isRunning: false,
   supports: {
@@ -37,6 +38,7 @@ describe("buildThreadActionMenuItems", () => {
         isPinned: reversed,
         isSettled: reversed,
         isSnoozed: reversed,
+        waitingOnOthers: reversed,
       });
       const expected = reversed
         ? [
@@ -45,6 +47,7 @@ describe("buildThreadActionMenuItems", () => {
             "unsnooze",
             "priority",
             "engagement",
+            "waiting-off",
             "rename",
             "regenerate-title",
             "auto-settle",
@@ -57,6 +60,7 @@ describe("buildThreadActionMenuItems", () => {
             "snooze",
             "priority",
             "engagement",
+            "waiting-on",
             "rename",
             "regenerate-title",
             "auto-settle",

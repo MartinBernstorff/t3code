@@ -87,6 +87,7 @@ export function useThreadActionMenu(input: {
     setThreadAutoSettle,
     setThreadPriority,
     setThreadEngagement,
+    setThreadWaiting,
     archiveThread,
     deleteThread,
     markThreadUnread,
@@ -149,6 +150,7 @@ export function useThreadActionMenu(input: {
         canSnoozeNow: canSnooze(thread, { now: now.toISOString() }),
         priority: thread.priority,
         engagement: thread.engagement,
+        waitingOnOthers: thread.waitingOnOthers,
         isRegeneratingTitle,
         isRunning: !threadRuntimeCanArchive(thread.runtime),
         supports,
@@ -206,6 +208,12 @@ export function useThreadActionMenu(input: {
       if (engagement !== undefined) {
         await reportFailure("Failed to set thread engagement", () =>
           setThreadEngagement(threadRef, engagement),
+        );
+        return;
+      }
+      if (action === "waiting-on" || action === "waiting-off") {
+        await reportFailure("Failed to update waiting on others", () =>
+          setThreadWaiting(threadRef, action === "waiting-on"),
         );
         return;
       }

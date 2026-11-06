@@ -928,6 +928,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     setThreadAutoSettle,
     setThreadPriority,
     setThreadEngagement,
+    setThreadWaiting,
     turnThreadIntoProject,
     reorderPinnedThread,
     reorderActiveThread,
@@ -2640,6 +2641,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
               canSnoozeNow: canSnooze(thread, { now: new Date().toISOString() }),
               priority: thread.priority,
               engagement: thread.engagement,
+              waitingOnOthers: thread.waitingOnOthers,
               isRegeneratingTitle,
               isRunning: !threadRuntimeCanArchive(thread.runtime),
               canShareWithGuest: appAtomRegistry.get(
@@ -2697,6 +2699,20 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
               stackedThreadToast({
                 type: "error",
                 title: "Failed to set thread engagement",
+                description: error instanceof Error ? error.message : "An error occurred.",
+              }),
+            );
+          }
+          return;
+        }
+        if (clicked.value === "waiting-on" || clicked.value === "waiting-off") {
+          const result = await setThreadWaiting(threadRef, clicked.value === "waiting-on");
+          if (result._tag === "Failure" && !isAtomCommandInterrupted(result)) {
+            const error = squashAtomCommandFailure(result);
+            toastManager.add(
+              stackedThreadToast({
+                type: "error",
+                title: "Failed to update waiting on others",
                 description: error instanceof Error ? error.message : "An error occurred.",
               }),
             );
