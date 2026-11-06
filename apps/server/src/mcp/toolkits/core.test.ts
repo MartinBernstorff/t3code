@@ -399,7 +399,7 @@ it.effect("rejects an unknown organize target instead of archiving the calling t
   );
 });
 
-it.effect("organize set dispatches a priority command and rejects a set with no fields", () => {
+it.effect("organize set dispatches one command per field and rejects a set with no fields", () => {
   const dispatched: Array<unknown> = [];
   return Effect.gen(function* () {
     const server = yield* McpServer.McpServer;
@@ -412,10 +412,13 @@ it.effect("organize set dispatches a priority command and rejects a set with no 
         );
     expect((yield* organize({ priority: "high" })).isError).not.toBe(true);
     expect((yield* organize({ priority: null })).isError).not.toBe(true);
+    expect((yield* organize({ priority: "low", waitingOnOthers: true })).isError).not.toBe(true);
     expect(declaredFailure(yield* organize({}))).toMatchObject({ code: "invalid_request" });
     expect(dispatched).toMatchObject([
       { type: "thread.priority.set", threadId, priority: "high" },
       { type: "thread.priority.set", threadId, priority: null },
+      { type: "thread.priority.set", threadId, priority: "low" },
+      { type: "thread.waiting.set", threadId, waitingOnOthers: true },
     ]);
   }).pipe(
     Effect.provide(

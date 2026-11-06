@@ -156,21 +156,20 @@ it.effect("set sends each flag as a t3_thread_organize set field", () =>
       }),
     );
     const run = (...args: ReadonlyArray<string>) =>
-      Command.runWith(threadCommand, { version: "0.0.0" })([
-        "set",
-        threadId,
-        ...args,
-        "--base-dir",
-        baseDir,
-      ]);
+      Command.runWith(threadCommand, { version: "0.0.0" })(["set", ...args, "--base-dir", baseDir]);
 
-    yield* run("--priority", "urgent");
-    yield* run("--priority", "none");
-    const empty = yield* Effect.flip(run());
+    yield* run(threadId, "--priority", "urgent");
+    yield* run(threadId, "--priority", "none");
+    yield* run(threadId, "--waiting", "on");
+    // Without a thread id, the agent's T3CODE_THREAD_ID picks the thread.
+    yield* run("--waiting", "off");
+    const empty = yield* Effect.flip(run(threadId));
 
     assert.deepStrictEqual(calls, [
       { tool: "t3_thread_organize", args: { threadId, action: "set", priority: "urgent" } },
       { tool: "t3_thread_organize", args: { threadId, action: "set", priority: null } },
+      { tool: "t3_thread_organize", args: { threadId, action: "set", waitingOnOthers: true } },
+      { tool: "t3_thread_organize", args: { threadId, action: "set", waitingOnOthers: false } },
     ]);
     assert.strictEqual(empty._tag, "ThreadUsageError");
   }).pipe(
@@ -180,7 +179,9 @@ it.effect("set sends each flag as a t3_thread_organize set field", () =>
         NodeServices.layer,
         NodeCrypto.layer,
         NetService.layer,
-        ConfigProvider.layer(ConfigProvider.fromEnv({ env: { T3CODE_PORT: "3773" } })),
+        ConfigProvider.layer(
+          ConfigProvider.fromEnv({ env: { T3CODE_PORT: "3773", T3CODE_THREAD_ID: threadId } }),
+        ),
       ),
     ),
   ),

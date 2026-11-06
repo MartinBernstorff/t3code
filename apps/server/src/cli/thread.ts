@@ -13,6 +13,7 @@ import {
   type OrchestratorMcpThreadTimelineItem,
 } from "@t3tools/contracts";
 import * as HostProcess from "@t3tools/shared/HostProcess";
+import * as Config from "effect/Config";
 import * as Console from "effect/Console";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
@@ -770,7 +771,10 @@ const ThreadSetResult = Schema.Struct({ sequence: Schema.Number });
 /** Each flag maps to one `t3_thread_organize` `set` field; omitted flags leave the field unchanged. */
 const threadSetCommand = Command.make("set", {
   ...projectLocationFlags,
-  thread: threadArgument,
+  thread: Argument.String("thread").pipe(
+    Argument.withDescription("Thread id. Defaults to the agent's own thread when run by an agent."),
+    Argument.optional,
+  ),
   priority: Flag.ChoiceWithValue("priority", [
     ["urgent", "urgent"],
     ["high", "high"],
@@ -778,16 +782,33 @@ const threadSetCommand = Command.make("set", {
     ["low", "low"],
     ["none", null],
   ]).pipe(Flag.withDescription("Thread priority, or none to clear it."), Flag.optional),
+  waiting: Flag.ChoiceWithValue("waiting", [
+    ["on", true],
+    ["off", false],
+  ]).pipe(
+    Flag.withDescription("Whether the thread is waiting on others, such as CI or a review."),
+    Flag.optional,
+  ),
   json: jsonFlag,
 }).pipe(
   Command.withDescription("Change a thread's fields, such as its priority."),
   Command.withHandler((flags) =>
     Effect.gen(function* () {
-      const threadId = yield* decodeThreadId(flags.thread);
+      // Agents launch with T3CODE_THREAD_ID set to their thread (PortScanner.AGENT_THREAD_ENV).
+      const agentThread = yield* Config.option(Config.String("T3CODE_THREAD_ID"));
+      const thread = Option.orElse(flags.thread, () => agentThread);
+      if (Option.isNone(thread)) {
+        return yield* new ThreadUsageError({ detail: "Pass a thread id." });
+      }
+      const threadId = yield* decodeThreadId(thread.value);
       const fields = {
         ...Option.match(flags.priority, {
           onNone: () => ({}),
           onSome: (priority) => ({ priority }),
+        }),
+        ...Option.match(flags.waiting, {
+          onNone: () => ({}),
+          onSome: (waitingOnOthers) => ({ waitingOnOthers }),
         }),
       };
       if (Object.keys(fields).length === 0) {
