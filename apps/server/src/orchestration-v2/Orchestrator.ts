@@ -571,6 +571,7 @@ function commandThreadId(command: OrchestrationV2ServerCommand): ThreadId {
     case "thread.active.reorder":
     case "thread.tag.set":
     case "thread.priority.set":
+    case "thread.waiting.set":
     case "thread.linear-issue.set":
     case "thread.visit":
     case "thread.mark-unread":
@@ -3245,6 +3246,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
           | "thread.pin.reorder"
           | "thread.tag.set"
           | "thread.priority.set"
+          | "thread.waiting.set"
           | "thread.linear-issue.set"
           | "thread.active.reorder"
           | "thread.mark-unread"
@@ -3815,6 +3817,8 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
         }
         case "thread.priority.set":
           return { ...thread, priority: command.priority };
+        case "thread.waiting.set":
+          return { ...thread, waitingOnOthers: command.waitingOnOthers };
         case "thread.linear-issue.set":
           return { ...thread, linearIssue: command.linearIssue };
         case "thread.mark-unread": {
@@ -4192,6 +4196,8 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
           return "thread.tags-updated" as const;
         case "thread.priority.set":
           return "thread.priority-updated" as const;
+        case "thread.waiting.set":
+          return "thread.waiting-updated" as const;
         case "thread.linear-issue.set":
           return "thread.linear-issue-updated" as const;
         case "thread.mark-unread":
@@ -5797,6 +5803,23 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
         providerInstanceId: thread.providerInstanceId,
         occurredAt: now,
         payload: thread,
+      });
+      projection = applyToProjection(projection, event);
+    }
+    if (
+      projection.thread.waitingOnOthers === true &&
+      command.createdBy === "user" &&
+      !automaticWake
+    ) {
+      const event = yield* emit(
+        events,
+        command,
+      )({
+        type: "thread.waiting-updated",
+        threadId: command.threadId,
+        providerInstanceId: projection.thread.providerInstanceId,
+        occurredAt: yield* DateTime.now,
+        payload: { ...projection.thread, waitingOnOthers: false },
       });
       projection = applyToProjection(projection, event);
     }
@@ -13490,6 +13513,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
       case "thread.active.reorder":
       case "thread.tag.set":
       case "thread.priority.set":
+      case "thread.waiting.set":
       case "thread.linear-issue.set":
       case "thread.mark-unread":
       case "thread.metadata.update":

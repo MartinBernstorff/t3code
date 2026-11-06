@@ -927,6 +927,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     confirmAndUnpinThread,
     setThreadAutoSettle,
     setThreadPriority,
+    setThreadWaiting,
     setThreadLinearIssue,
     turnThreadIntoProject,
     reorderPinnedThread,
@@ -2639,6 +2640,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
               isSnoozed,
               canSnoozeNow: canSnooze(thread, { now: new Date().toISOString() }),
               priority: thread.priority,
+              waitingOnOthers: thread.waitingOnOthers,
               linearIssue: thread.linearIssue,
               isRegeneratingTitle,
               isRunning: !threadRuntimeCanArchive(thread.runtime),
@@ -2682,6 +2684,20 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
               stackedThreadToast({
                 type: "error",
                 title: "Failed to set thread priority",
+                description: error instanceof Error ? error.message : "An error occurred.",
+              }),
+            );
+          }
+          return;
+        }
+        if (clicked.value === "waiting-on" || clicked.value === "waiting-off") {
+          const result = await setThreadWaiting(threadRef, clicked.value === "waiting-on");
+          if (result._tag === "Failure" && !isAtomCommandInterrupted(result)) {
+            const error = squashAtomCommandFailure(result);
+            toastManager.add(
+              stackedThreadToast({
+                type: "error",
+                title: "Failed to update waiting on others",
                 description: error instanceof Error ? error.message : "An error occurred.",
               }),
             );

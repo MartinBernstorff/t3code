@@ -2647,6 +2647,18 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
         });
         assert.equal(shellOf(yield* orchestrator.getShellSnapshot()).priority ?? null, priority);
       }
+      for (const waitingOnOthers of [true, false]) {
+        yield* orchestrator.dispatch({
+          type: "thread.waiting.set",
+          commandId: CommandId.make(`runtime-layer-lifecycle-waiting-${waitingOnOthers}`),
+          threadId,
+          waitingOnOthers,
+        });
+        assert.equal(
+          shellOf(yield* orchestrator.getShellSnapshot()).waitingOnOthers ?? false,
+          waitingOnOthers,
+        );
+      }
       for (const linearIssue of ["MB-123", null] as const) {
         yield* orchestrator.dispatch({
           type: "thread.linear-issue.set",
@@ -2660,7 +2672,7 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
         );
       }
       const taggedShell = shellOf(yield* orchestrator.getShellSnapshot());
-      // Tags and priority are not activity, so the thread keeps its place in thread lists.
+      // Tags, priority, and waiting are not activity, so the thread keeps its place in thread lists.
       assert.equal(
         DateTime.toEpochMillis(taggedShell.updatedAt),
         DateTime.toEpochMillis(untaggedShell.updatedAt),

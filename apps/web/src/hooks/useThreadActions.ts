@@ -303,6 +303,9 @@ export function useThreadActions() {
   const setThreadPriorityMutation = useOrchestrationCommand(threadEnvironment.setPriority, {
     reportFailure: false,
   });
+  const setThreadWaitingMutation = useOrchestrationCommand(threadEnvironment.setWaiting, {
+    reportFailure: false,
+  });
   const setThreadLinearIssueMutation = useOrchestrationCommand(threadEnvironment.setLinearIssue, {
     reportFailure: false,
   });
@@ -701,6 +704,12 @@ export function useThreadActions() {
       input: { threadId: target.threadId, priority },
     });
 
+  const setThreadWaiting = (target: ScopedThreadRef, waitingOnOthers: boolean) =>
+    setThreadWaitingMutation({
+      environmentId: target.environmentId,
+      input: { threadId: target.threadId, waitingOnOthers },
+    });
+
   const setThreadLinearIssue = (target: ScopedThreadRef, linearIssue: LinearIssueId | null) =>
     setThreadLinearIssueMutation({
       environmentId: target.environmentId,
@@ -986,6 +995,7 @@ export function useThreadActions() {
     markThreadUnread,
     setThreadAutoSettle,
     setThreadPriority,
+    setThreadWaiting,
     setThreadLinearIssue,
     turnThreadIntoProject: (target: ScopedThreadRef) =>
       createProjectFromThread({

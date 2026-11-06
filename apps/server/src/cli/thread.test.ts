@@ -156,24 +156,37 @@ it.effect("set sends each flag as a t3_thread_organize set field", () =>
       }),
     );
     const run = (...args: ReadonlyArray<string>) =>
-      Command.runWith(threadCommand, { version: "0.0.0" })([
-        "set",
-        threadId,
-        ...args,
-        "--base-dir",
-        baseDir,
-      ]);
+      Command.runWith(threadCommand, { version: "0.0.0" })(["set", ...args, "--base-dir", baseDir]);
 
-    yield* run("--priority", "urgent");
-    yield* run("--priority", "none");
-    const empty = yield* Effect.flip(run());
-    yield* run("--linear", "mb-123", "--priority", "low");
-    yield* run("--linear", "none");
-    const badLinear = yield* Effect.flip(run("--linear", "MB123"));
+    yield* run(threadId, "--priority", "urgent");
+    yield* run(threadId, "--priority", "none");
+    yield* run(threadId, "--waiting", "on");
+    // Without a thread id, the agent's T3CODE_THREAD_ID picks the thread.
+    yield* run("--waiting", "off");
+    yield* run(threadId, "--priority", "low", "--snooze", "2h");
+    yield* run(threadId, "--snooze", "2030-01-02T09:00:00+01:00");
+    yield* run(threadId, "--snooze", "none");
+    const empty = yield* Effect.flip(run(threadId));
+    const badSnooze = yield* Effect.flip(run(threadId, "--snooze", "tomorrow"));
+    yield* run(threadId, "--linear", "mb-123", "--priority", "low");
+    yield* run(threadId, "--linear", "none");
+    const badLinear = yield* Effect.flip(run(threadId, "--linear", "MB123"));
 
     assert.deepStrictEqual(calls, [
       { tool: "t3_thread_organize", args: { threadId, action: "set", priority: "urgent" } },
       { tool: "t3_thread_organize", args: { threadId, action: "set", priority: null } },
+      { tool: "t3_thread_organize", args: { threadId, action: "set", waitingOnOthers: true } },
+      { tool: "t3_thread_organize", args: { threadId, action: "set", waitingOnOthers: false } },
+      { tool: "t3_thread_organize", args: { threadId, action: "set", priority: "low" } },
+      {
+        tool: "t3_thread_organize",
+        args: { threadId, action: "snooze", snoozedUntil: "1970-01-01T02:00:00.000Z" },
+      },
+      {
+        tool: "t3_thread_organize",
+        args: { threadId, action: "snooze", snoozedUntil: "2030-01-02T08:00:00.000Z" },
+      },
+      { tool: "t3_thread_organize", args: { threadId, action: "unsnooze" } },
       {
         tool: "t3_thread_organize",
         args: { threadId, action: "set", priority: "low", linearIssue: "MB-123" },
@@ -181,6 +194,7 @@ it.effect("set sends each flag as a t3_thread_organize set field", () =>
       { tool: "t3_thread_organize", args: { threadId, action: "set", linearIssue: null } },
     ]);
     assert.strictEqual(empty._tag, "ThreadUsageError");
+    assert.strictEqual(badSnooze._tag, "ThreadUsageError");
     assert.strictEqual(badLinear._tag, "ThreadUsageError");
   }).pipe(
     Effect.scoped,
@@ -189,7 +203,9 @@ it.effect("set sends each flag as a t3_thread_organize set field", () =>
         NodeServices.layer,
         NodeCrypto.layer,
         NetService.layer,
-        ConfigProvider.layer(ConfigProvider.fromEnv({ env: { T3CODE_PORT: "3773" } })),
+        ConfigProvider.layer(
+          ConfigProvider.fromEnv({ env: { T3CODE_PORT: "3773", T3CODE_THREAD_ID: threadId } }),
+        ),
       ),
     ),
   ),

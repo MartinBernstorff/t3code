@@ -9,6 +9,14 @@ export interface ThreadNotificationObservation {
   readonly completedAt: number | null;
 }
 
+/** Stopped runs and threads whose agent waits on others finish without a completion notification. */
+export function isQuietCompletion(thread: {
+  readonly latestRunStopRequested?: boolean | undefined;
+  readonly waitingOnOthers?: boolean | undefined;
+}): boolean {
+  return thread.latestRunStopRequested === true || thread.waitingOnOthers === true;
+}
+
 export function createThreadNotificationGate<Key>(
   notify: (key: Key, kind: ThreadNotificationKind) => void,
 ) {

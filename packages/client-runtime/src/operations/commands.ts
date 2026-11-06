@@ -530,6 +530,20 @@ export const setThreadPriority = Effect.fn("EnvironmentCommands.setThreadPriorit
   });
 });
 
+export interface SetThreadWaitingInput extends ThreadCommandInput {
+  readonly waitingOnOthers: boolean;
+}
+export const setThreadWaiting = Effect.fn("EnvironmentCommands.setThreadWaiting")(function* (
+  input: SetThreadWaitingInput,
+) {
+  return yield* dispatch({
+    type: "thread.waiting.set",
+    commandId: yield* allocateCommandId(input),
+    threadId: input.threadId,
+    waitingOnOthers: input.waitingOnOthers,
+  });
+});
+
 export interface SetThreadLinearIssueInput extends ThreadCommandInput {
   readonly linearIssue: LinearIssueId | null;
 }

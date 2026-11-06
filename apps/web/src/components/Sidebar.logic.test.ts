@@ -953,6 +953,19 @@ describe("unseen completion with background work", () => {
     expect(isSidebarThreadWorking(thread)).toBe(expected.receded);
     expect(resolveThreadStatusPill({ thread })).toMatchObject({ label: expected.pill });
   });
+
+  it("is not unread while the agent waits on others", () => {
+    const thread = presentThreadShell(localEnvironmentId, {
+      ...makeThreadFixture().source,
+      latestRunId: RunId.make("run-waiting-completion"),
+      status: "completed",
+      latestRunCompletedAt: DateTime.makeUnsafe("2026-06-20T01:00:00.000Z"),
+      lastVisitedAt: DateTime.makeUnsafe("2026-06-20T00:59:00.000Z"),
+      waitingOnOthers: true,
+    });
+
+    expect(hasUnseenCompletion(thread)).toBe(false);
+  });
 });
 
 describe("Working shelf (beta)", () => {

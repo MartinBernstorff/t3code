@@ -861,6 +861,7 @@ export function applyToProjection(
     case "thread.active-reordered":
     case "thread.tags-updated":
     case "thread.priority-updated":
+    case "thread.waiting-updated":
     case "thread.linear-issue-updated":
     case "thread.pull-request-synced":
       return {
@@ -1698,6 +1699,7 @@ export function threadShellFromProjection(
     pinOrderKey: projection.thread.pinOrderKey ?? null,
     ...(projection.thread.tags?.length ? { tags: projection.thread.tags } : {}),
     ...(projection.thread.priority ? { priority: projection.thread.priority } : {}),
+    ...(projection.thread.waitingOnOthers ? { waitingOnOthers: true } : {}),
     ...(projection.thread.linearIssue ? { linearIssue: projection.thread.linearIssue } : {}),
     lastVisitedAt: projection.thread.lastVisitedAt,
     opens: projection.thread.opens ?? null,
@@ -1966,6 +1968,7 @@ function shellFromState(input: {
     pinOrderKey: input.state.thread.pinOrderKey ?? null,
     ...(input.state.thread.tags?.length ? { tags: input.state.thread.tags } : {}),
     ...(input.state.thread.priority ? { priority: input.state.thread.priority } : {}),
+    ...(input.state.thread.waitingOnOthers ? { waitingOnOthers: true } : {}),
     ...(input.state.thread.linearIssue ? { linearIssue: input.state.thread.linearIssue } : {}),
     lastVisitedAt: input.state.thread.lastVisitedAt,
     opens: input.state.thread.opens ?? null,
@@ -2027,6 +2030,7 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
             case "thread.active-reordered":
             case "thread.tags-updated":
             case "thread.priority-updated":
+            case "thread.waiting-updated":
             case "thread.linear-issue-updated":
             case "thread.visited":
             case "thread.marked-unread":
@@ -2843,6 +2847,7 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
             event.type !== "thread.active-reordered" &&
             event.type !== "thread.tags-updated" &&
             event.type !== "thread.priority-updated" &&
+            event.type !== "thread.waiting-updated" &&
             event.type !== "thread.linear-issue-updated" &&
             event.type !== "thread.visited" &&
             event.type !== "thread.marked-unread" &&

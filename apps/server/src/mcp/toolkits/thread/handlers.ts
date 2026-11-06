@@ -342,25 +342,35 @@ export const layer = McpToolAccess.toLayer(ThreadToolkit, {
           .pipe(Effect.mapError(dispatchFailure));
       }
       if (input.action === "set") {
-        const fieldCommands = [
-          ...(input.priority === undefined
-            ? []
-            : [{ type: "thread.priority.set", priority: input.priority } as const]),
-          ...(input.linearIssue === undefined
-            ? []
-            : [{ type: "thread.linear-issue.set", linearIssue: input.linearIssue } as const]),
-        ];
-        if (fieldCommands.length === 0) {
+        const commands: Array<OrchestrationV2Command> = [];
+        if (input.priority !== undefined) {
+          commands.push({ ...common, type: "thread.priority.set", priority: input.priority });
+        }
+        if (input.waitingOnOthers !== undefined) {
+          commands.push({
+            commandId: yield* newCommandId(),
+            threadId: common.threadId,
+            type: "thread.waiting.set",
+            waitingOnOthers: input.waitingOnOthers,
+          });
+        }
+        if (input.linearIssue !== undefined) {
+          commands.push({
+            commandId: yield* newCommandId(),
+            threadId: common.threadId,
+            type: "thread.linear-issue.set",
+            linearIssue: input.linearIssue,
+          });
+        }
+        if (commands.length === 0) {
           return yield* new OrchestratorMcpFailure({
             code: "invalid_request",
             message: "set requires a field to change, such as priority.",
           });
         }
         let sequence = 0;
-        for (const fields of fieldCommands) {
-          const result = yield* threads
-            .dispatch({ ...fields, commandId: yield* newCommandId(), threadId: common.threadId })
-            .pipe(Effect.mapError(dispatchFailure));
+        for (const command of commands) {
+          const result = yield* threads.dispatch(command).pipe(Effect.mapError(dispatchFailure));
           sequence = result.sequence;
         }
         return { sequence };

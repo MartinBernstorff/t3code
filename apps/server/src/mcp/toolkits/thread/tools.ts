@@ -33,7 +33,7 @@ import * as McpInvocationContext from "../../McpInvocationContext.ts";
 
 const ThreadOrganizeTool = Tool.make("t3_thread_organize", {
   description:
-    "Pin, snooze, settle, archive, or mark a thread unread, or `set` its fields. Omit `threadId` for this thread. `snooze` needs `snoozedUntil`. Settling this thread applies at turn end. A failed turn or queued message leaves it active. `set` changes only the fields you pass; null clears one.",
+    "Pin, snooze, settle, archive, or mark a thread unread, or `set` its fields. Omit `threadId` for this thread. `snooze` needs `snoozedUntil`. Settling this thread applies at turn end. A failed turn or queued message leaves it active. `set` changes only the fields you pass; null clears one. Set `waitingOnOthers` while you wait on CI or a review; the user's next message clears it.",
   parameters: Schema.Struct({
     environmentId: OrchestratorMcpEnvironmentTarget,
     threadId: Schema.optional(ThreadId),
@@ -51,6 +51,7 @@ const ThreadOrganizeTool = Tool.make("t3_thread_organize", {
     ]),
     snoozedUntil: Schema.optional(IsoDateTime),
     priority: Schema.optional(Schema.NullOr(ThreadPriority)),
+    waitingOnOthers: Schema.optional(Schema.Boolean),
     linearIssue: Schema.optional(
       Schema.NullOr(LinearIssueId).annotate({
         description: "Linear issue you work on, e.g. MB-123.",

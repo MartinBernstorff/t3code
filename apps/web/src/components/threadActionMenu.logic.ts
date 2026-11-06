@@ -21,6 +21,8 @@ export type ThreadActionMenuId =
   | "unsnooze"
   | "priority"
   | `priority:${ThreadPriority | "none"}`
+  | "waiting-on"
+  | "waiting-off"
   | "linear-issue"
   | "rename"
   | "regenerate-title"
@@ -86,6 +88,7 @@ export interface ThreadActionMenuState {
   readonly isSnoozed: boolean;
   readonly canSnoozeNow: boolean;
   readonly priority: ThreadPriority | null;
+  readonly waitingOnOthers: boolean;
   readonly linearIssue: LinearIssueId | null;
   readonly isRegeneratingTitle: boolean;
   /** Archive rejects attached providers, so disable it while running. */
@@ -199,6 +202,9 @@ export function buildThreadActionMenuItems(
         },
       ],
     },
+    state.waitingOnOthers
+      ? { id: "waiting-off" as const, label: "Stop waiting on others", icon: "hourglass" }
+      : { id: "waiting-on" as const, label: "Mark waiting on others", icon: "hourglass" },
     {
       id: "linear-issue",
       label: state.linearIssue ? `Linear issue ${state.linearIssue}…` : "Link Linear issue…",

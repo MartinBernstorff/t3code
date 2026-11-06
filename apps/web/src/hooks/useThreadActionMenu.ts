@@ -86,6 +86,7 @@ export function useThreadActionMenu(input: {
     confirmAndUnpinThread,
     setThreadAutoSettle,
     setThreadPriority,
+    setThreadWaiting,
     setThreadLinearIssue,
     archiveThread,
     deleteThread,
@@ -148,6 +149,7 @@ export function useThreadActionMenu(input: {
         isSnoozed: supports.snooze && effectiveSnoozed(thread, { now: now.toISOString() }),
         canSnoozeNow: canSnooze(thread, { now: now.toISOString() }),
         priority: thread.priority,
+        waitingOnOthers: thread.waitingOnOthers,
         linearIssue: thread.linearIssue,
         isRegeneratingTitle,
         isRunning: !threadRuntimeCanArchive(thread.runtime),
@@ -199,6 +201,12 @@ export function useThreadActionMenu(input: {
       if (priority !== undefined) {
         await reportFailure("Failed to set thread priority", () =>
           setThreadPriority(threadRef, priority),
+        );
+        return;
+      }
+      if (action === "waiting-on" || action === "waiting-off") {
+        await reportFailure("Failed to update waiting on others", () =>
+          setThreadWaiting(threadRef, action === "waiting-on"),
         );
         return;
       }
