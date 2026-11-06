@@ -1,5 +1,7 @@
-import type { ContextMenuItem } from "@t3tools/contracts";
+import type { ContextMenuItem, ThreadPriority } from "@t3tools/contracts";
 import type { SnoozePreset } from "@t3tools/client-runtime/state/thread-settled";
+
+import { THREAD_PRIORITY_OPTIONS } from "../threadPriority";
 
 export type ThreadActionMenuId =
   | "find"
@@ -17,6 +19,8 @@ export type ThreadActionMenuId =
   | "snooze"
   | `snooze:${string}`
   | "unsnooze"
+  | "priority"
+  | `priority:${ThreadPriority | "none"}`
   | "rename"
   | "regenerate-title"
   | "mark-unread"
@@ -80,6 +84,7 @@ export interface ThreadActionMenuState {
   readonly autoSettleEnabled: boolean;
   readonly isSnoozed: boolean;
   readonly canSnoozeNow: boolean;
+  readonly priority: ThreadPriority | null;
   readonly isRegeneratingTitle: boolean;
   /** Archive rejects attached providers, so disable it while running. */
   readonly isRunning: boolean;
@@ -95,6 +100,15 @@ export interface ThreadActionMenuState {
   readonly canShareWithGuest?: boolean;
   /** A No project thread with its own folder, on a server that can promote it. */
   readonly canTurnIntoProject?: boolean;
+}
+
+/** The priority a menu action sets, or undefined when the action is not a priority choice. */
+export function priorityFromThreadAction(
+  action: ThreadActionMenuId,
+): ThreadPriority | null | undefined {
+  if (!action.startsWith("priority:")) return undefined;
+  const value = action.slice("priority:".length);
+  return THREAD_PRIORITY_OPTIONS.find((option) => option.value === value)?.value ?? null;
 }
 
 /** Local navigation, read markers, and copying remain available to read-only clients. */
@@ -166,6 +180,24 @@ export function buildThreadActionMenuItems(
               },
         ]
       : []),
+    {
+      id: "priority",
+      label: "Priority",
+      icon: "chart-no-axes-column-increasing",
+      children: [
+        ...THREAD_PRIORITY_OPTIONS.map((option) => ({
+          id: `priority:${option.value}` as const,
+          label: option.label,
+          checked: state.priority === option.value,
+        })),
+        {
+          id: "priority:none" as const,
+          label: "No priority",
+          checked: state.priority === null,
+          separatorBefore: true,
+        },
+      ],
+    },
     { id: "rename", label: "Rename thread", icon: "pencil", separatorBefore: true },
     ...(state.supports.titleRegeneration
       ? [

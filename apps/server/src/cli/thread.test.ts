@@ -134,6 +134,58 @@ it.effect(
     ),
 );
 
+it.effect("set sends each flag as a t3_thread_organize set field", () =>
+  Effect.gen(function* () {
+    const fs = yield* FileSystem.FileSystem;
+    const path = yield* Path.Path;
+    const baseDir = yield* fs.makeTempDirectoryScoped({ prefix: "t3-thread-set-" });
+    yield* persistServerRuntimeState({
+      path: path.join(baseDir, "userdata", "server-runtime.json"),
+      state: yield* makePersistedServerRuntimeState({
+        config: { host: "127.0.0.1", devUrl: undefined },
+        port: 3_773,
+      }),
+    });
+    const calls: Array<{ readonly tool: string; readonly args: unknown }> = [];
+    using _session = vi.spyOn(McpBridge, "mcpToolSession").mockReturnValue(
+      Effect.succeed({
+        call: (tool, args) => {
+          calls.push({ tool, args });
+          return Effect.succeed({ structuredContent: { sequence: 1 } });
+        },
+      }),
+    );
+    const run = (...args: ReadonlyArray<string>) =>
+      Command.runWith(threadCommand, { version: "0.0.0" })([
+        "set",
+        threadId,
+        ...args,
+        "--base-dir",
+        baseDir,
+      ]);
+
+    yield* run("--priority", "urgent");
+    yield* run("--priority", "none");
+    const empty = yield* Effect.flip(run());
+
+    assert.deepStrictEqual(calls, [
+      { tool: "t3_thread_organize", args: { threadId, action: "set", priority: "urgent" } },
+      { tool: "t3_thread_organize", args: { threadId, action: "set", priority: null } },
+    ]);
+    assert.strictEqual(empty._tag, "ThreadUsageError");
+  }).pipe(
+    Effect.scoped,
+    Effect.provide(
+      Layer.mergeAll(
+        NodeServices.layer,
+        NodeCrypto.layer,
+        NetService.layer,
+        ConfigProvider.layer(ConfigProvider.fromEnv({ env: { T3CODE_PORT: "3773" } })),
+      ),
+    ),
+  ),
+);
+
 /** Answers each tool call with the next scripted response for that tool. */
 const scriptedTools = (script: Record<string, Array<unknown>>) => {
   const calls: Array<{ readonly tool: string; readonly args: unknown }> = [];

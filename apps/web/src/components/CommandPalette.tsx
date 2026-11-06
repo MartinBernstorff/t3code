@@ -51,12 +51,14 @@ import {
   SourceControlProviderKind,
   PRIMARY_LOCAL_ENVIRONMENT_ID,
   resolveEnvironmentMachineKind,
+  type ThreadPriority,
 } from "@t3tools/contracts";
 import { useLocation, useNavigate } from "@tanstack/react-router";
 import {
   ArrowLeftIcon,
   BugIcon,
   ChartNoAxesColumnIcon,
+  ChartNoAxesColumnIncreasingIcon,
   CheckIcon,
   ChevronRightIcon,
   CornerLeftUpIcon,
@@ -76,6 +78,7 @@ import {
   SquarePenIcon,
   TextSearchIcon,
   UserPlusIcon,
+  XIcon,
 } from "lucide-react";
 import { openThreadFind } from "./chat/threadFindStore";
 import {
@@ -171,6 +174,8 @@ import {
   newProjectId,
 } from "../lib/utils";
 import { buildThreadRouteParams } from "../threadRoutes";
+import { THREAD_PRIORITY_OPTIONS } from "../threadPriority";
+import { ThreadPriorityGlyph } from "./ThreadPriorityGlyph";
 import { useAvailableSettingsSearchItems } from "./settings/useAvailableSettingsSearchItems";
 import {
   applyWslEnvironmentConfiguration,
@@ -456,6 +461,9 @@ function OpenCommandPaletteDialog(props: {
     reportFailure: false,
   });
   const stopThreadSession = useAtomCommand(threadEnvironment.stopSession, {
+    reportFailure: false,
+  });
+  const setThreadPriority = useAtomCommand(threadEnvironment.setPriority, {
     reportFailure: false,
   });
   const refreshProviders = useAtomCommand(serverEnvironment.refreshProviders, {
@@ -1422,6 +1430,52 @@ function OpenCommandPaletteDialog(props: {
       run: async () => {
         useRightPanelStore.getState().open(threadRef, "pull-requests");
       },
+    });
+  }
+
+  if (activeThread !== null) {
+    const { environmentId, id: threadId, priority: currentPriority } = activeThread;
+    const priorityItem = (
+      priority: ThreadPriority | null,
+      label: string,
+      icon: ReactNode,
+    ): CommandPaletteActionItem => ({
+      kind: "action",
+      value: `action:set-priority:${priority ?? "none"}`,
+      searchTerms: [label, "priority"],
+      title: label,
+      icon,
+      ...(priority === currentPriority
+        ? { titleTrailingContent: <CheckIcon className={ITEM_ICON_CLASS} /> }
+        : {}),
+      run: async () => {
+        const result = await setThreadPriority({ environmentId, input: { threadId, priority } });
+        if (result._tag === "Failure") throw squashAtomCommandFailure(result);
+      },
+    });
+    actionItems.push({
+      kind: "submenu",
+      value: "action:set-priority",
+      searchTerms: ["priority", "urgent", "high", "medium", "low"],
+      title: "Set priority...",
+      icon: <ChartNoAxesColumnIncreasingIcon className={ITEM_ICON_CLASS} />,
+      addonIcon: <ChartNoAxesColumnIncreasingIcon className={ADDON_ICON_CLASS} />,
+      groups: [
+        {
+          value: "priorities",
+          label: "Priority",
+          items: [
+            ...THREAD_PRIORITY_OPTIONS.map((option) =>
+              priorityItem(
+                option.value,
+                option.label,
+                <ThreadPriorityGlyph priority={option.value} className="size-4" />,
+              ),
+            ),
+            priorityItem(null, "No priority", <XIcon className={ITEM_ICON_CLASS} />),
+          ],
+        },
+      ],
     });
   }
 
