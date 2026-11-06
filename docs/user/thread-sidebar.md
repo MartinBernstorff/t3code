@@ -184,6 +184,15 @@ needs you. Use the pen button on a folder, or right-click it, to start a thread 
 Pinned threads stay above the folders, and Snoozed and Settled stay below them. In this mode you
 cannot drag threads, and the Working section is off. Each device keeps its own choice.
 
+### Group threads into lanes
+
+**Settings → General → Group threads by** splits pinned, active, and working threads into lanes
+by **Project**, **Priority**, or **Engagement**. **Section**, the default, keeps the sidebar as
+described above. Each lane header shows its thread count; click it to collapse the lane. The
+Engagement lanes always show, even when empty. Snoozed and Settled stay at the bottom. While
+grouped, you cannot drag threads. The boring sidebar keeps its project folders and ignores this
+setting.
+
 ## Settle finished work
 
 Choose **Settle thread** from its menu to move finished work out of the active list
