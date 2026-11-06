@@ -863,6 +863,7 @@ export function applyToProjection(
     case "thread.priority-updated":
     case "thread.engagement-updated":
     case "thread.waiting-updated":
+    case "thread.linear-issue-updated":
     case "thread.pull-request-synced":
       return {
         ...base,
@@ -1045,6 +1046,7 @@ type ShellThreadRow = {
   readonly pending_link_request_payload_json: string | null;
   readonly latest_user_message_at: string | null;
   readonly latest_user_authored_message_at: string | null;
+  readonly user_turn_count: number | null;
   readonly has_actionable_proposed_plan: number;
 };
 
@@ -1579,8 +1581,8 @@ export function threadShellFromProjection(
       (left, right) =>
         DateTime.toEpochMillis(right.updatedAt) - DateTime.toEpochMillis(left.updatedAt),
     );
-  const latestUserAuthoredMessageAt =
-    userMessages.find((message) => message.createdBy === "user")?.updatedAt ?? null;
+  const userAuthoredMessages = userMessages.filter((message) => message.createdBy === "user");
+  const latestUserAuthoredMessageAt = userAuthoredMessages[0]?.updatedAt ?? null;
   if (pendingRuntimeRequest === null || pendingRuntimeRequest.kind === "user_input") {
     const waitingCard = secretRequestAsPendingInput(
       projection.turnItems
@@ -1671,6 +1673,7 @@ export function threadShellFromProjection(
     latestVisibleMessage: null,
     latestUserMessageAt: latestUserMessage?.updatedAt ?? null,
     latestUserAuthoredMessageAt,
+    userTurnCount: userAuthoredMessages.length,
     hasActionableProposedPlan: projection.plans.some(
       (plan) => plan.kind === "proposed_plan" && plan.status === "active",
     ),
@@ -1701,6 +1704,7 @@ export function threadShellFromProjection(
     ...(projection.thread.priority ? { priority: projection.thread.priority } : {}),
     ...(projection.thread.engagement ? { engagement: projection.thread.engagement } : {}),
     ...(projection.thread.waitingOnOthers ? { waitingOnOthers: true } : {}),
+    ...(projection.thread.linearIssue ? { linearIssue: projection.thread.linearIssue } : {}),
     lastVisitedAt: projection.thread.lastVisitedAt,
     opens: projection.thread.opens ?? null,
     titleRegeneration: projection.thread.titleRegeneration ?? null,
@@ -1785,6 +1789,8 @@ type ShellThreadState = {
   readonly pendingRuntimeRequest: OrchestrationV2PendingRuntimeRequestSummary | null;
   readonly latestUserMessageAt: DateTime.Utc | null;
   readonly latestUserAuthoredMessageAt: DateTime.Utc | null;
+  /** Absent where the read skips counting, such as agent awareness. */
+  readonly userTurnCount: number | undefined;
   readonly hasActionableProposedPlan: boolean;
   readonly pendingBackgroundTasks: OrchestrationV2ThreadShell["pendingBackgroundTasks"];
   readonly providerInstanceHistory: OrchestrationV2ThreadShell["providerInstanceHistory"];
@@ -1948,6 +1954,9 @@ function shellFromState(input: {
     latestVisibleMessage: null,
     latestUserMessageAt: input.state.latestUserMessageAt,
     latestUserAuthoredMessageAt: input.state.latestUserAuthoredMessageAt,
+    ...(input.state.userTurnCount === undefined
+      ? {}
+      : { userTurnCount: input.state.userTurnCount }),
     hasActionableProposedPlan: input.state.hasActionableProposedPlan,
     pendingBackgroundTasks: input.state.pendingBackgroundTasks,
     providerInstanceHistory: input.state.providerInstanceHistory,
@@ -1970,6 +1979,7 @@ function shellFromState(input: {
     ...(input.state.thread.priority ? { priority: input.state.thread.priority } : {}),
     ...(input.state.thread.engagement ? { engagement: input.state.thread.engagement } : {}),
     ...(input.state.thread.waitingOnOthers ? { waitingOnOthers: true } : {}),
+    ...(input.state.thread.linearIssue ? { linearIssue: input.state.thread.linearIssue } : {}),
     lastVisitedAt: input.state.thread.lastVisitedAt,
     opens: input.state.thread.opens ?? null,
     titleRegeneration: input.state.thread.titleRegeneration ?? null,
@@ -2032,6 +2042,7 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
             case "thread.priority-updated":
             case "thread.engagement-updated":
             case "thread.waiting-updated":
+            case "thread.linear-issue-updated":
             case "thread.visited":
             case "thread.marked-unread":
             case "thread.metadata-updated":
@@ -2849,6 +2860,7 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
             event.type !== "thread.priority-updated" &&
             event.type !== "thread.engagement-updated" &&
             event.type !== "thread.waiting-updated" &&
+            event.type !== "thread.linear-issue-updated" &&
             event.type !== "thread.visited" &&
             event.type !== "thread.marked-unread" &&
             event.type !== "thread.metadata-updated" &&
@@ -6207,7 +6219,11 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
         worktreePath,
         threadIds,
         listedOnly = false,
-      }: ShellSnapshotOptions & { readonly listedOnly?: boolean } = {},
+        countUserTurns = true,
+      }: ShellSnapshotOptions & {
+        readonly listedOnly?: boolean;
+        readonly countUserTurns?: boolean;
+      } = {},
     ) =>
       sql<ShellThreadRow>`
             SELECT
@@ -6346,6 +6362,18 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
                 ORDER BY message.updated_at DESC, message.message_id DESC
                 LIMIT 1
               ) AS latest_user_authored_message_at,
+              ${
+                countUserTurns
+                  ? sql`(
+                SELECT COUNT(*)
+                FROM orchestration_v2_projection_messages message
+                WHERE message.thread_id = t.thread_id
+                  AND message.role = 'user'
+                  AND json_extract(message.payload_json, '$.createdBy') = 'user'
+                  AND NOT ${isIdleCompactionMessage("message")}
+              )`
+                  : sql`NULL`
+              } AS user_turn_count,
               EXISTS (
                 SELECT 1
                 FROM orchestration_v2_projection_plans plan
@@ -6951,6 +6979,7 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
               ? null
               : DateTime.makeUnsafe(row.latest_user_message_at),
           latestUserAuthoredMessageAt,
+          userTurnCount: row.user_turn_count ?? undefined,
           hasActionableProposedPlan: row.has_actionable_proposed_plan === 1,
           pendingBackgroundTasks,
           providerInstanceHistory: providerInstanceHistoryForShell({
@@ -7140,7 +7169,9 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
             Effect.gen(function* () {
               const threadRows = yield* selectShellThreadRows(
                 threadId,
-                threadId === undefined ? { location: "active", listedOnly: true } : {},
+                threadId === undefined
+                  ? { location: "active", listedOnly: true, countUserTurns: false }
+                  : { countUserTurns: false },
               );
               const ids = threadRows.map((row) => ThreadId.make(row.thread_id));
               const providerThreadRows =

@@ -573,6 +573,7 @@ function commandThreadId(command: OrchestrationV2ServerCommand): ThreadId {
     case "thread.priority.set":
     case "thread.engagement.set":
     case "thread.waiting.set":
+    case "thread.linear-issue.set":
     case "thread.visit":
     case "thread.mark-unread":
     case "thread.metadata.update":
@@ -3249,6 +3250,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
           | "thread.priority.set"
           | "thread.engagement.set"
           | "thread.waiting.set"
+          | "thread.linear-issue.set"
           | "thread.active.reorder"
           | "thread.mark-unread"
           | "thread.metadata.update"
@@ -3826,6 +3828,8 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
           return { ...thread, engagement: command.engagement };
         case "thread.waiting.set":
           return { ...thread, waitingOnOthers: command.waitingOnOthers };
+        case "thread.linear-issue.set":
+          return { ...thread, linearIssue: command.linearIssue };
         case "thread.mark-unread": {
           // Retire the wake before rewinding the visit, preserving its settlement timer.
           const snoozeExpired =
@@ -4205,6 +4209,8 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
           return "thread.engagement-updated" as const;
         case "thread.waiting.set":
           return "thread.waiting-updated" as const;
+        case "thread.linear-issue.set":
+          return "thread.linear-issue-updated" as const;
         case "thread.mark-unread":
           return "thread.marked-unread" as const;
         case "thread.metadata.update":
@@ -13520,6 +13526,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
       case "thread.priority.set":
       case "thread.engagement.set":
       case "thread.waiting.set":
+      case "thread.linear-issue.set":
       case "thread.mark-unread":
       case "thread.metadata.update":
       case "thread.pull-request.link":

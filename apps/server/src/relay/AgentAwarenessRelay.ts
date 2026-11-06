@@ -113,6 +113,7 @@ function shouldPublishAgentAwarenessEvent(
     case "thread.priority-updated":
     case "thread.engagement-updated":
     case "thread.waiting-updated":
+    case "thread.linear-issue-updated":
     case "thread.visited":
     case "thread.marked-unread":
     case "thread.runtime-mode-updated":

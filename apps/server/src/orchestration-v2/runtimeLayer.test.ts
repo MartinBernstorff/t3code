@@ -2677,6 +2677,18 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
           waitingOnOthers,
         );
       }
+      for (const linearIssue of ["MB-123", null] as const) {
+        yield* orchestrator.dispatch({
+          type: "thread.linear-issue.set",
+          commandId: CommandId.make(`runtime-layer-lifecycle-linear-issue-${linearIssue}`),
+          threadId,
+          linearIssue,
+        });
+        assert.equal(
+          shellOf(yield* orchestrator.getShellSnapshot()).linearIssue ?? null,
+          linearIssue,
+        );
+      }
       const taggedShell = shellOf(yield* orchestrator.getShellSnapshot());
       // Tags, priority, engagement, and waiting are not activity, so the thread keeps its place.
       assert.equal(

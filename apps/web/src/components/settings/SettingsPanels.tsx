@@ -136,6 +136,7 @@ const isSidebarProjectSortOrder = Schema.is(SidebarProjectSortOrder);
 const SIDEBAR_THREAD_SORT_LABELS: Record<SidebarThreadSort, string> = {
   manual: "Manual",
   priority: "Priority",
+  engagement: "Engagement",
 };
 const isSidebarThreadSort = Schema.is(SidebarThreadSort);
 
@@ -968,7 +969,7 @@ export function GeneralSettingsPanel() {
         />
         <SettingsRow
           {...searchableSetting("thread-order")}
-          description="Order of the sidebar's Active threads. Priority lists urgent first and no priority last, oldest first within a priority."
+          description="Order of the sidebar's Active threads. Priority: urgent first, oldest first within a priority. Engagement: most messages from you first, then most recently messaged."
           resetAction={
             settings.sidebarThreadSort !== DEFAULT_UNIFIED_SETTINGS.sidebarThreadSort ? (
               <SettingResetButton

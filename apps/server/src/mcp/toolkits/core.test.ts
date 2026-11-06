@@ -415,13 +415,20 @@ it.effect("organize set dispatches one command per field and rejects a set with 
     expect((yield* organize({ priority: "low", waitingOnOthers: true })).isError).not.toBe(true);
     expect((yield* organize({ engagement: "queued" })).isError).not.toBe(true);
     expect(declaredFailure(yield* organize({}))).toMatchObject({ code: "invalid_request" });
+    expect((yield* organize({ linearIssue: "MB-123" })).isError).not.toBe(true);
+    expect((yield* organize({ priority: "low", linearIssue: null })).isError).not.toBe(true);
+    yield* Effect.flip(organize({ linearIssue: "not an issue" }));
     expect(dispatched).toMatchObject([
       { type: "thread.priority.set", threadId, priority: "high" },
       { type: "thread.priority.set", threadId, priority: null },
       { type: "thread.priority.set", threadId, priority: "low" },
       { type: "thread.waiting.set", threadId, waitingOnOthers: true },
       { type: "thread.engagement.set", threadId, engagement: "queued" },
+      { type: "thread.linear-issue.set", threadId, linearIssue: "MB-123" },
+      { type: "thread.priority.set", threadId, priority: "low" },
+      { type: "thread.linear-issue.set", threadId, linearIssue: null },
     ]);
+    expect(dispatched).toHaveLength(8);
     // Only the UI engages a thread when it sets a priority.
     expect(dispatched[0]).not.toHaveProperty("engage");
   }).pipe(
