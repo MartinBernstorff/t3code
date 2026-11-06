@@ -23,6 +23,7 @@ import {
   paceRemainingPercent,
   usesChatGptSharing,
   resolveNewThreadModelSelection,
+  selectWeeklyUsage,
 } from "./usageLimits.ts";
 
 const now = Date.parse("2026-09-03T12:00:00.000Z");
@@ -1412,6 +1413,49 @@ describe("/usage-limits", () => {
     expect(
       withUsageLimitsCommands([selected], [])[0]?.slashCommands.map((command) => command.name),
     ).toEqual(["usage-limits"]);
+  });
+});
+
+describe("selectWeeklyUsage", () => {
+  const weekly = (id: string, usedPercent: number) =>
+    ({ id, kind: "weekly", label: id, usedPercent }) as const;
+  const account = (
+    instanceId: string,
+    windows: ReadonlyArray<typeof window | ReturnType<typeof weekly>>,
+  ) => ({
+    id: instanceId,
+    driver: ProviderDriverKind.make("claude"),
+    label: instanceId,
+    instanceId: ProviderInstanceId.make(instanceId),
+    limits: { checkedAt: "2026-09-03T11:00:00.000Z", windows },
+  });
+  const report = (accounts: ReadonlyArray<ReturnType<typeof account>>) => ({
+    createdAt: "2026-09-03T12:00:00.000Z",
+    accounts,
+    notices: [],
+  });
+
+  it("takes the thread's account and its most-used weekly window", () => {
+    const selected = selectWeeklyUsage(
+      report([
+        account("work", [weekly("all", 90)]),
+        account("personal", [window, weekly("all", 30), weekly("opus", 55)]),
+      ]),
+      ProviderInstanceId.make("personal"),
+    );
+    expect(selected?.account.id).toBe("personal");
+    expect(selected?.window.id).toBe("opus");
+  });
+
+  it("falls back to the first account and hides without a weekly window", () => {
+    expect(
+      selectWeeklyUsage(report([account("hub", [weekly("all", 10)])]), ProviderInstanceId.make("x"))
+        ?.window.id,
+    ).toBe("all");
+    expect(
+      selectWeeklyUsage(report([account("a", [window])]), ProviderInstanceId.make("a")),
+    ).toBeNull();
+    expect(selectWeeklyUsage(report([]), ProviderInstanceId.make("a"))).toBeNull();
   });
 });
 

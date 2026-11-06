@@ -44,24 +44,25 @@ export class PreferredEditorUnavailableError extends Schema.TaggedError<Preferre
   }
 }
 
+/** The last-used editor if still available, else the first available one in `EDITORS` order. */
+export function resolvePreferredEditor(
+  lastEditor: EditorId | null,
+  availableEditors: ReadonlyArray<EditorId>,
+): EditorId | null {
+  if (lastEditor && availableEditors.includes(lastEditor)) return lastEditor;
+  return EDITORS.find((editor) => availableEditors.includes(editor.id))?.id ?? null;
+}
+
 export function usePreferredEditor(availableEditors: ReadonlyArray<EditorId>) {
   const [lastEditor, setLastEditor] = useLocalStorage(LAST_EDITOR_KEY, null, EditorId);
-
-  const effectiveEditor =
-    lastEditor && availableEditors.includes(lastEditor)
-      ? lastEditor
-      : (EDITORS.find((editor) => availableEditors.includes(editor.id))?.id ?? null);
-
-  return [effectiveEditor, setLastEditor] as const;
+  return [resolvePreferredEditor(lastEditor, availableEditors), setLastEditor] as const;
 }
 
 function resolveAndPersistPreferredEditor(availableEditors: readonly EditorId[]): EditorId | null {
-  const availableEditorIds = new Set(availableEditors);
   const stored = getLocalStorageItem(LAST_EDITOR_KEY, EditorId);
-  if (stored && availableEditorIds.has(stored)) return stored;
-  const editor = EDITORS.find((editor) => availableEditorIds.has(editor.id))?.id ?? null;
-  if (editor) setLocalStorageItem(LAST_EDITOR_KEY, editor, EditorId);
-  return editor ?? null;
+  const editor = resolvePreferredEditor(stored, availableEditors);
+  if (editor && editor !== stored) setLocalStorageItem(LAST_EDITOR_KEY, editor, EditorId);
+  return editor;
 }
 
 export function useOpenInPreferredEditor(

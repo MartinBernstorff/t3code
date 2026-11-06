@@ -17,12 +17,15 @@ import {
 import {
   DEFAULT_UNIFIED_SETTINGS,
   type DiffLayout,
+  MAX_CONTEXT_WINDOW_METER_CAP_TOKENS,
+  MIN_CONTEXT_WINDOW_METER_CAP_TOKENS,
   MAX_SIDEBAR_AUTO_SETTLE_AFTER_DAYS,
   MIN_SIDEBAR_AUTO_SETTLE_AFTER_DAYS,
   type ResponseStreamingMode,
   type QuitConfirmationMode,
   SidebarProjectSortOrder,
 } from "@t3tools/contracts/settings";
+import { AUTO_UPDATE_DISABLED } from "@t3tools/shared/autoUpdate";
 import { desktopUpdateChannelOf } from "@t3tools/shared/cliRelease";
 import { createModelSelection } from "@t3tools/shared/model";
 import { resolvePastedPath } from "@t3tools/shared/path";
@@ -525,11 +528,18 @@ export function useSettingsRestore(onRestored?: () => void) {
       ? ["Rich text composer"]
       : []),
     ...(settings.sendShortcut !== DEFAULT_UNIFIED_SETTINGS.sendShortcut ? ["Send shortcut"] : []),
+    ...(settings.weeklyUsageMeterEnabled !== DEFAULT_UNIFIED_SETTINGS.weeklyUsageMeterEnabled
+      ? ["Weekly usage meter"]
+      : []),
     ...(settings.followUpBehavior !== DEFAULT_UNIFIED_SETTINGS.followUpBehavior
       ? ["Follow-up behavior"]
       : []),
     ...(settings.contextWindowMeterEnabled !== DEFAULT_UNIFIED_SETTINGS.contextWindowMeterEnabled
       ? ["Context window indicator"]
+      : []),
+    ...(settings.contextWindowMeterCapTokens !==
+    DEFAULT_UNIFIED_SETTINGS.contextWindowMeterCapTokens
+      ? ["Context window indicator cap"]
       : []),
     ...(settings.responseStreamingMode !== DEFAULT_UNIFIED_SETTINGS.responseStreamingMode
       ? ["Response streaming"]
@@ -644,8 +654,10 @@ export function useSettingsRestore(onRestored?: () => void) {
       showSkillsInSlashMenu: DEFAULT_UNIFIED_SETTINGS.showSkillsInSlashMenu,
       composerRichTextEnabled: DEFAULT_UNIFIED_SETTINGS.composerRichTextEnabled,
       sendShortcut: DEFAULT_UNIFIED_SETTINGS.sendShortcut,
+      weeklyUsageMeterEnabled: DEFAULT_UNIFIED_SETTINGS.weeklyUsageMeterEnabled,
       followUpBehavior: DEFAULT_UNIFIED_SETTINGS.followUpBehavior,
       contextWindowMeterEnabled: DEFAULT_UNIFIED_SETTINGS.contextWindowMeterEnabled,
+      contextWindowMeterCapTokens: DEFAULT_UNIFIED_SETTINGS.contextWindowMeterCapTokens,
       environmentIdentificationMode: DEFAULT_UNIFIED_SETTINGS.environmentIdentificationMode,
       glassOpacity: DEFAULT_UNIFIED_SETTINGS.glassOpacity,
       panelAnimationDurationMs: DEFAULT_UNIFIED_SETTINGS.panelAnimationDurationMs,
@@ -703,6 +715,49 @@ export function useSettingsRestore(onRestored?: () => void) {
     changedSettingLabels,
     restoreDefaults,
   };
+}
+
+const MIN_CONTEXT_METER_CAP_THOUSANDS = MIN_CONTEXT_WINDOW_METER_CAP_TOKENS / 1_000;
+const MAX_CONTEXT_METER_CAP_THOUSANDS = MAX_CONTEXT_WINDOW_METER_CAP_TOKENS / 1_000;
+
+function ContextMeterCapInput({
+  value,
+  onCommit,
+}: {
+  value: number;
+  onCommit: (tokens: number) => void;
+}) {
+  const thousands = String(value / 1_000);
+  const [draft, setDraft] = useState(thousands);
+  const [draftSource, setDraftSource] = useState(value);
+  if (draftSource !== value) {
+    setDraftSource(value);
+    setDraft(thousands);
+  }
+
+  return (
+    <Input
+      size="sm"
+      type="number"
+      min={MIN_CONTEXT_METER_CAP_THOUSANDS}
+      max={MAX_CONTEXT_METER_CAP_THOUSANDS}
+      className="w-full sm:w-24"
+      value={draft}
+      onChange={(event) => {
+        setDraft(event.target.value);
+        const parsed = Number(event.target.value);
+        if (
+          Number.isInteger(parsed) &&
+          parsed >= MIN_CONTEXT_METER_CAP_THOUSANDS &&
+          parsed <= MAX_CONTEXT_METER_CAP_THOUSANDS
+        ) {
+          onCommit(parsed * 1_000);
+        }
+      }}
+      onBlur={() => setDraft(thousands)}
+      aria-label="Context window indicator cap in thousands of tokens"
+    />
+  );
 }
 
 const AUTO_SETTLE_DEFAULT_DAYS = DEFAULT_UNIFIED_SETTINGS.sidebarAutoSettleAfterDays ?? 3;
@@ -778,6 +833,18 @@ export function LegacyFeaturesSection() {
           />
         }
       />
+      {settings.contextWindowMeterEnabled ? (
+        <SettingsRow
+          {...searchableSetting("legacy-context-window-indicator-cap")}
+          description="Thousands of tokens the indicator fills up to. Yellow from 75%, red when full."
+          control={
+            <ContextMeterCapInput
+              value={settings.contextWindowMeterCapTokens}
+              onCommit={(tokens) => updateSettings({ contextWindowMeterCapTokens: tokens })}
+            />
+          }
+        />
+      ) : null}
     </SettingsSection>
   );
 }
@@ -1159,6 +1226,32 @@ export function ChatSettingsPanel() {
                 ))}
               </SelectPopup>
             </Select>
+          }
+        />
+        <SettingsRow
+          {...searchableSetting("weekly-usage-meter")}
+          description="Show the provider's weekly usage limit next to the send button."
+          resetAction={
+            settings.weeklyUsageMeterEnabled !==
+            DEFAULT_UNIFIED_SETTINGS.weeklyUsageMeterEnabled ? (
+              <SettingResetButton
+                label="weekly usage meter"
+                onClick={() =>
+                  updateSettings({
+                    weeklyUsageMeterEnabled: DEFAULT_UNIFIED_SETTINGS.weeklyUsageMeterEnabled,
+                  })
+                }
+              />
+            ) : null
+          }
+          control={
+            <Switch
+              checked={settings.weeklyUsageMeterEnabled}
+              onCheckedChange={(checked) =>
+                updateSettings({ weeklyUsageMeterEnabled: Boolean(checked) })
+              }
+              aria-label="Weekly usage meter"
+            />
           }
         />
         <AdvancedSettings targetIds={[searchableSetting("skills-in-slash-menu").id]}>
@@ -2056,7 +2149,7 @@ export function AboutSettingsPanel() {
             }
           />
         ) : null}
-        {isElectron || HOSTED_APP_CHANNEL ? (
+        {!AUTO_UPDATE_DISABLED && (isElectron || HOSTED_APP_CHANNEL) ? (
           <AboutVersionSection />
         ) : (
           <>
@@ -2065,6 +2158,7 @@ export function AboutSettingsPanel() {
               title={<AboutVersionTitle />}
               description="Current version of the application."
             />
+            {AUTO_UPDATE_DISABLED && isElectron ? <CliCommandSettingsRow /> : null}
           </>
         )}
         <MobileAppSettingsRow />
