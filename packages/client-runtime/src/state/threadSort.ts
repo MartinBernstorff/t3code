@@ -147,6 +147,9 @@ export interface SidebarThreadSortInput {
   readonly title: string;
   readonly createdAt: string;
   readonly priority?: ThreadPriority | null | undefined;
+  readonly userTurnCount?: number | undefined;
+  readonly latestUserMessageAt?: string | null | undefined;
+  readonly latestUserAuthoredMessageAt?: string | null | undefined;
 }
 
 type ThreadComparator = (left: SidebarThreadSortInput, right: SidebarThreadSortInput) => number;
@@ -160,6 +163,15 @@ function priorityRank(thread: SidebarThreadSortInput): number {
 const compareCreatedOldestFirst: ThreadComparator = (left, right) =>
   (toSortableTimestamp(left.createdAt) ?? 0) - (toSortableTimestamp(right.createdAt) ?? 0);
 
+// Older servers omit the authored timestamp; their latest user message is the closest stand-in.
+function latestUserTurnMs(thread: SidebarThreadSortInput): number {
+  const at =
+    thread.latestUserAuthoredMessageAt === undefined
+      ? thread.latestUserMessageAt
+      : thread.latestUserAuthoredMessageAt;
+  return toSortableTimestamp(at ?? undefined) ?? 0;
+}
+
 const compareTitle: ThreadComparator = (left, right) => left.title.localeCompare(right.title);
 
 /** One entry per non-manual sidebar sort; each ends in a title tiebreak. */
@@ -167,6 +179,10 @@ const SIDEBAR_THREAD_COMPARATORS: Record<Exclude<SidebarThreadSort, "manual">, T
   priority: (left, right) =>
     priorityRank(left) - priorityRank(right) ||
     compareCreatedOldestFirst(left, right) ||
+    compareTitle(left, right),
+  engagement: (left, right) =>
+    (right.userTurnCount ?? 0) - (left.userTurnCount ?? 0) ||
+    latestUserTurnMs(right) - latestUserTurnMs(left) ||
     compareTitle(left, right),
 };
 
