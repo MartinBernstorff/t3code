@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vite-plus/test";
 
 import {
   createThreadNotificationGate,
+  isQuietCompletion,
   type ThreadNotificationObservation,
 } from "./ThreadNotificationCoordinator.logic";
 
@@ -109,5 +110,16 @@ describe("createThreadNotificationGate", () => {
       gate.observe("thread", working, completed(1), visible);
       expect(notify.mock.calls).toEqual([["thread", "completion"]]);
     }
+  });
+});
+
+describe("isQuietCompletion", () => {
+  it.each([
+    [{}, false],
+    [{ latestRunStopRequested: true }, true],
+    [{ waitingOnOthers: true }, true],
+    [{ waitingOnOthers: false }, false],
+  ])("%o is quiet: %s", (thread, expected) => {
+    expect(isQuietCompletion(thread)).toBe(expected);
   });
 });

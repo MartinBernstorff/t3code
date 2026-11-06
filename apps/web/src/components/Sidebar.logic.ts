@@ -668,6 +668,7 @@ type ThreadStatusInput = Pick<
   lastVisitedAt?: string | null | undefined;
   pendingBackgroundTasks?: SidebarThreadSummary["pendingBackgroundTasks"] | undefined;
   blockedOnThreadWait?: boolean | undefined;
+  waitingOnOthers?: boolean | undefined;
 };
 
 /**
@@ -696,6 +697,8 @@ export function resolveThreadLastVisitedAt(
 }
 
 export function hasUnseenCompletion(thread: ThreadStatusInput): boolean {
+  // The agent said it is waiting on others, so its finished turn is not news.
+  if (thread.waitingOnOthers) return false;
   if (!thread.latestRun?.completedAt) return false;
   const completedAt = Date.parse(thread.latestRun.completedAt);
   if (Number.isNaN(completedAt)) return false;
