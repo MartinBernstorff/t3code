@@ -1,5 +1,6 @@
 import { effectiveSnoozed } from "@t3tools/client-runtime/state/thread-settled";
-import { sortSettledThreads } from "@t3tools/client-runtime/state/thread-sort";
+import { sortSettledThreads, sortSidebarThreads } from "@t3tools/client-runtime/state/thread-sort";
+import type { SidebarThreadSort } from "@t3tools/contracts/settings";
 import { foldSearchQuery } from "@t3tools/shared/paletteSearch";
 import { threadSearchPullRequests } from "@t3tools/shared/threadPullRequests";
 
@@ -42,6 +43,7 @@ export function matchesThreadPaletteQuery(terms: ReadonlyArray<string>, query: s
 function orderThreadsLikeSidebar(
   threads: ReadonlyArray<SidebarThreadSummary>,
   now: string,
+  threadSort: SidebarThreadSort,
 ): SidebarThreadSummary[] {
   const pinned: SidebarThreadSummary[] = [];
   const active: SidebarThreadSummary[] = [];
@@ -65,7 +67,9 @@ function orderThreadsLikeSidebar(
   }
   return [
     ...sortPinnedThreadsForSidebar(pinned),
-    ...sortThreadsForSidebar(active),
+    ...(threadSort === "manual"
+      ? sortThreadsForSidebar(active)
+      : sortSidebarThreads(active, threadSort)),
     ...snoozed.toSorted(
       (left, right) =>
         firstValidTimestampMs(left.snoozedUntil) - firstValidTimestampMs(right.snoozedUntil),
@@ -79,8 +83,9 @@ export function searchThreadsForPalette(input: {
   readonly query: string;
   readonly projectTitleOf: (thread: SidebarThreadSummary) => string | null;
   readonly now: string;
+  readonly threadSort: SidebarThreadSort;
 }): SidebarThreadSummary[] {
-  return orderThreadsLikeSidebar(input.threads, input.now).filter((thread) =>
+  return orderThreadsLikeSidebar(input.threads, input.now, input.threadSort).filter((thread) =>
     matchesThreadPaletteQuery(
       threadPaletteSearchTerms(thread, input.projectTitleOf(thread)),
       input.query,
