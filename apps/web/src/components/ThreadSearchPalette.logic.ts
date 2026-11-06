@@ -13,7 +13,7 @@ import {
 } from "./Sidebar.logic";
 
 /** Everything the thread search palette matches a thread by. */
-export function threadPaletteSearchTerms(
+function threadPaletteSearchTerms(
   thread: SidebarThreadSummary,
   projectTitle: string | null,
 ): string[] {
@@ -39,7 +39,7 @@ export function matchesThreadPaletteQuery(terms: ReadonlyArray<string>, query: s
  * Sidebar order across every project: pinned, active, snoozed, then settled.
  * The Working shelf is not split out; its threads sort with the active ones.
  */
-export function orderThreadsLikeSidebar(
+function orderThreadsLikeSidebar(
   threads: ReadonlyArray<SidebarThreadSummary>,
   now: string,
 ): SidebarThreadSummary[] {
