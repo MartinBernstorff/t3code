@@ -204,7 +204,8 @@ Priority then Section. Each lane header shows its thread count; click it to coll
 its own. The Engagement lanes always show, even when empty. Snoozed and Settled stay at the
 bottom. While grouped, drag a thread onto a lane header to give it that lane's Priority,
 Engagement, or Section (Pinned pins, Active unpins); a nested header sets every level it names.
-Project, Agent state, and Working headers are not drop targets, and threads do not reorder. The
+Project, Agent state, and Working headers are not drop targets, and threads do not reorder. Drop
+on the Settled header to settle a thread. The
 boring sidebar keeps its project folders and ignores this setting.
 
 ## Settle finished work

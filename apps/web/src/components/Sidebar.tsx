@@ -228,6 +228,7 @@ import {
   createSidebarCollisionDetection,
   createSidebarLaneCollisionDetection,
   createSidebarSortingStrategy,
+  isSidebarSettledShelfId,
   restrictBelowSidebarLabel,
 } from "./Sidebar.drag";
 import { SidebarPointerSensor } from "./Sidebar.pointer";
@@ -1822,7 +1823,12 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
   const isContextDrag =
     dragState?.contextDrag === true ||
     (dragState?.activeSection === "working" && laneRows === null);
-  const dragTargetSection = isContextDrag ? null : (dragState?.targetSection ?? null);
+  const dragTargetLane = dragState?.targetLane ?? null;
+  const dragTargetSection = isContextDrag
+    ? null
+    : dragTargetLane !== null && isSidebarSettledShelfId(dragTargetLane)
+      ? "settled"
+      : (dragState?.targetSection ?? null);
   const finishThreadDrag = (started: boolean) => {
     dragSensorRef.current = null;
     contextDragKeyRef.current = null;
@@ -2187,6 +2193,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     if (laneRows !== null) {
       return createSidebarLaneCollisionDetection(
         (id) => draggedThreadKey !== undefined && laneDropChanges(draggedThreadKey, id).length > 0,
+        draggedFromSection !== undefined && draggedFromSection !== "settled",
       );
     }
     if (draggedThreadKey === undefined || draggedFromSection === undefined)
@@ -2262,7 +2269,17 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
   const handleThreadDragEnd = (event: DragEndEvent) => {
     const activeKey = String(event.active.id);
     if (laneRows !== null) {
-      if (event.over !== null) handleLaneDrop(activeKey, String(event.over.id));
+      const overId = event.over === null ? null : String(event.over.id);
+      if (overId !== null && isSidebarSettledShelfId(overId)) {
+        const thread = threadByKey.get(activeKey);
+        if (
+          thread !== undefined &&
+          sectionByThreadKey.get(activeKey) !== "settled" &&
+          checkThreadOperations([thread])
+        ) {
+          attemptSettle(scopeThreadRef(thread.environmentId, thread.id));
+        }
+      } else if (overId !== null) handleLaneDrop(activeKey, overId);
       return;
     }
     const activeSection = sectionByThreadKey.get(activeKey);

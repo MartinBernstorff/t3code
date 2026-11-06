@@ -3,6 +3,7 @@ import { closestCenter, type CollisionDetection } from "@dnd-kit/core";
 import type { SortingStrategy } from "@dnd-kit/sortable";
 import {
   createSidebarCollisionDetection,
+  createSidebarLaneCollisionDetection,
   createSidebarSortingStrategy,
   restrictBelowSidebarLabel,
 } from "./Sidebar.drag";
@@ -118,6 +119,20 @@ describe("sidebar collision detection", () => {
       expect(detector(args).map((collision) => collision.id)).toEqual(["source"]);
     },
   );
+
+  it.each([
+    [true, [sidebarMarkerId("settled-header")]],
+    [false, []],
+  ] as const)("Group by accepts the Settled shelf header when settling is %s", (canSettle, ids) => {
+    const args = collisionArgs();
+    const header = args.droppableRects.get(sidebarMarkerId("settled-header"))!;
+    const detector = createSidebarLaneCollisionDetection(() => false, canSettle);
+    expect(
+      detector({ ...args, pointerCoordinates: { x: 10, y: header.top + 1 } }).map(
+        (collision) => collision.id,
+      ),
+    ).toEqual(ids);
+  });
 
   it.each([
     { sourceSection: "active", pins: 0 },
