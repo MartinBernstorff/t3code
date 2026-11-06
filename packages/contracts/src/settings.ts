@@ -77,6 +77,11 @@ export const SidebarThreadSortOrder = Schema.Literals(["updated_at", "created_at
 export type SidebarThreadSortOrder = typeof SidebarThreadSortOrder.Type;
 const DEFAULT_SIDEBAR_THREAD_SORT_ORDER: SidebarThreadSortOrder = "updated_at";
 
+export const SidebarRowGlyphKind = Schema.Literals(["priority"]);
+export type SidebarRowGlyphKind = typeof SidebarRowGlyphKind.Type;
+const SidebarRowGlyphKinds = Schema.Array(SidebarRowGlyphKind);
+const DEFAULT_SIDEBAR_ROW_GLYPHS: ReadonlyArray<SidebarRowGlyphKind> = ["priority"];
+
 export const SidebarProjectGroupingMode = Schema.Literals([
   "repository",
   "repository_path",
@@ -542,6 +547,9 @@ export const ClientSettingsSchema = Schema.Struct({
   ),
   sidebarThreadSortOrder: SidebarThreadSortOrder.pipe(
     Schema.withDecodingDefault(Effect.succeed(DEFAULT_SIDEBAR_THREAD_SORT_ORDER)),
+  ),
+  sidebarRowGlyphs: SidebarRowGlyphKinds.pipe(
+    Schema.withDecodingDefault(Effect.succeed(DEFAULT_SIDEBAR_ROW_GLYPHS)),
   ),
   timestampFormat: TimestampFormat.pipe(
     Schema.withDecodingDefault(Effect.succeed(DEFAULT_TIMESTAMP_FORMAT)),
@@ -1910,6 +1918,7 @@ export const ClientSettingsPatch = Schema.Struct({
   ),
   sidebarProjectSortOrder: Schema.optionalKey(SidebarProjectSortOrder),
   sidebarThreadSortOrder: Schema.optionalKey(SidebarThreadSortOrder),
+  sidebarRowGlyphs: Schema.optionalKey(SidebarRowGlyphKinds),
   timestampFormat: Schema.optionalKey(TimestampFormat),
   voiceMicrophone: Schema.optionalKey(Schema.String),
   voiceShortcutMode: Schema.optionalKey(VoiceShortcutMode),
