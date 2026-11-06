@@ -42,6 +42,9 @@ import { observeIntersection } from "../lib/observeIntersection";
 import { deadlineAfter, deadlineStore } from "@t3tools/client-runtime/clock";
 import { useDeadlinePassed } from "../hooks/useDeadline";
 import { legacyProjectCwdPreferenceKey } from "../uiStateStore";
+import type { ThreadLane } from "@t3tools/client-runtime/state/thread-grouping";
+import { NO_PRIORITY_LABEL, THREAD_PRIORITY_OPTIONS } from "../threadPriority";
+import { THREAD_ENGAGEMENT_OPTIONS } from "../threadEngagement";
 
 export function shouldNavigateAfterThreadPark(input: {
   readonly threadKey: string;
@@ -943,6 +946,26 @@ export function sidebarFolderExpansionKeys(group: {
  * input order. A project with no threads gets a folder only when `keepEmpty` says so.
  * A thread whose project is in no group has no folder and is left out.
  */
+export function sidebarLaneLabel(
+  lane: Pick<ThreadLane<unknown>, "dimension" | "value">,
+  projects: ReadonlyArray<{ readonly projectKey: string; readonly displayName: string }>,
+): string {
+  switch (lane.dimension) {
+    case "project":
+      return (
+        projects.find((project) => project.projectKey === lane.value)?.displayName ??
+        "Other project"
+      );
+    case "priority":
+      return (
+        THREAD_PRIORITY_OPTIONS.find((option) => option.value === lane.value)?.label ??
+        NO_PRIORITY_LABEL
+      );
+    case "engagement":
+      return THREAD_ENGAGEMENT_OPTIONS.find((option) => option.value === lane.value)?.label ?? "";
+  }
+}
+
 export function groupSidebarThreadsByProject<
   TGroup extends {
     readonly memberProjectRefs: ReadonlyArray<{

@@ -90,6 +90,11 @@ export const SidebarThreadSort = Schema.Literals(["manual", "priority", "engagem
 export type SidebarThreadSort = typeof SidebarThreadSort.Type;
 const DEFAULT_SIDEBAR_THREAD_SORT: SidebarThreadSort = "manual";
 
+// "section" is the pinned/active/working/snoozed/settled split.
+export const SidebarGroupBy = Schema.Literals(["section", "project", "priority", "engagement"]);
+export type SidebarGroupBy = typeof SidebarGroupBy.Type;
+const DEFAULT_SIDEBAR_GROUP_BY: SidebarGroupBy = "section";
+
 export const SidebarProjectGroupingMode = Schema.Literals([
   "repository",
   "repository_path",
@@ -561,6 +566,9 @@ export const ClientSettingsSchema = Schema.Struct({
   ),
   sidebarThreadSort: SidebarThreadSort.pipe(
     Schema.withDecodingDefault(Effect.succeed(DEFAULT_SIDEBAR_THREAD_SORT)),
+  ),
+  sidebarGroupBy: SidebarGroupBy.pipe(
+    Schema.withDecodingDefault(Effect.succeed(DEFAULT_SIDEBAR_GROUP_BY)),
   ),
   timestampFormat: TimestampFormat.pipe(
     Schema.withDecodingDefault(Effect.succeed(DEFAULT_TIMESTAMP_FORMAT)),
@@ -1931,6 +1939,7 @@ export const ClientSettingsPatch = Schema.Struct({
   sidebarThreadSortOrder: Schema.optionalKey(SidebarThreadSortOrder),
   sidebarRowGlyphs: Schema.optionalKey(SidebarRowGlyphKinds),
   sidebarThreadSort: Schema.optionalKey(SidebarThreadSort),
+  sidebarGroupBy: Schema.optionalKey(SidebarGroupBy),
   timestampFormat: Schema.optionalKey(TimestampFormat),
   voiceMicrophone: Schema.optionalKey(Schema.String),
   voiceShortcutMode: Schema.optionalKey(VoiceShortcutMode),
