@@ -1447,11 +1447,13 @@ describe("selectWeeklyUsage", () => {
     expect(selected?.window.id).toBe("opus");
   });
 
-  it("falls back to the first account and hides without a weekly window", () => {
+  it("hides without the thread's account or a weekly window", () => {
     expect(
-      selectWeeklyUsage(report([account("hub", [weekly("all", 10)])]), ProviderInstanceId.make("x"))
-        ?.window.id,
-    ).toBe("all");
+      selectWeeklyUsage(
+        report([account("hub", [weekly("all", 10)])]),
+        ProviderInstanceId.make("x"),
+      ),
+    ).toBeNull();
     expect(
       selectWeeklyUsage(report([account("a", [window])]), ProviderInstanceId.make("a")),
     ).toBeNull();
