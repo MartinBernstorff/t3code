@@ -5078,27 +5078,30 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
             deletedAt: null,
           },
         });
-        yield* projectionStore.apply({
-          id: EventId.make(`event:projection-shell-silent:${key}:message`),
-          type: "message.updated",
-          threadId,
-          occurredAt: now,
-          payload: {
-            createdBy,
-            creationSource,
-            ...(idleCompaction === undefined ? {} : { idleCompaction }),
-            id: messageId,
+        // The second upsert is an edit, which must not count the turn again.
+        for (const suffix of ["message", "message-edit"]) {
+          yield* projectionStore.apply({
+            id: EventId.make(`event:projection-shell-silent:${key}:${suffix}`),
+            type: "message.updated",
             threadId,
-            runId,
-            nodeId: null,
-            role: "user",
-            text,
-            attachments: [],
-            streaming: false,
-            createdAt: now,
-            updatedAt: now,
-          },
-        });
+            occurredAt: now,
+            payload: {
+              createdBy,
+              creationSource,
+              ...(idleCompaction === undefined ? {} : { idleCompaction }),
+              id: messageId,
+              threadId,
+              runId,
+              nodeId: null,
+              role: "user",
+              text,
+              attachments: [],
+              streaming: false,
+              createdAt: now,
+              updatedAt: now,
+            },
+          });
+        }
         yield* projectionStore.apply({
           id: EventId.make(`event:projection-shell-silent:${key}:run`),
           type: "run.created",

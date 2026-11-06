@@ -5,6 +5,7 @@ import { projectTurnItemForWire } from "./WireProjection.ts";
 import * as Stream from "effect/Stream";
 import * as NodeSqliteClient from "@t3tools/shared/nodeSqliteClient";
 import { makeThreadFind } from "./ThreadFind.ts";
+import { countsAsUserTurn, idleCompactionMessageSql, userTurnMessageSql } from "./userTurnCount.ts";
 import type {
   OrchestrationV2SearchThreadInput,
   OrchestrationV2SearchThreadResult,
@@ -47,7 +48,6 @@ import type {
   RunAttemptId,
 } from "@t3tools/contracts";
 import {
-  IDLE_COMPACTION_TEXT,
   idleCompactionOf,
   OrchestrationV2AppThreadJson as OrchestrationV2AppThreadJsonSchema,
   OrchestrationV2CheckpointJson as OrchestrationV2CheckpointJsonSchema,
@@ -1046,7 +1046,7 @@ type ShellThreadRow = {
   readonly pending_link_request_payload_json: string | null;
   readonly latest_user_message_at: string | null;
   readonly latest_user_authored_message_at: string | null;
-  readonly user_turn_count: number | null;
+  readonly user_turn_count: number;
   readonly has_actionable_proposed_plan: number;
 };
 
@@ -1673,7 +1673,7 @@ export function threadShellFromProjection(
     latestVisibleMessage: null,
     latestUserMessageAt: latestUserMessage?.updatedAt ?? null,
     latestUserAuthoredMessageAt,
-    userTurnCount: userAuthoredMessages.length,
+    userTurnCount: projection.messages.filter(countsAsUserTurn).length,
     hasActionableProposedPlan: projection.plans.some(
       (plan) => plan.kind === "proposed_plan" && plan.status === "active",
     ),
@@ -1789,8 +1789,7 @@ type ShellThreadState = {
   readonly pendingRuntimeRequest: OrchestrationV2PendingRuntimeRequestSummary | null;
   readonly latestUserMessageAt: DateTime.Utc | null;
   readonly latestUserAuthoredMessageAt: DateTime.Utc | null;
-  /** Absent where the read skips counting, such as agent awareness. */
-  readonly userTurnCount: number | undefined;
+  readonly userTurnCount: number;
   readonly hasActionableProposedPlan: boolean;
   readonly pendingBackgroundTasks: OrchestrationV2ThreadShell["pendingBackgroundTasks"];
   readonly providerInstanceHistory: OrchestrationV2ThreadShell["providerInstanceHistory"];
@@ -1954,9 +1953,7 @@ function shellFromState(input: {
     latestVisibleMessage: null,
     latestUserMessageAt: input.state.latestUserMessageAt,
     latestUserAuthoredMessageAt: input.state.latestUserAuthoredMessageAt,
-    ...(input.state.userTurnCount === undefined
-      ? {}
-      : { userTurnCount: input.state.userTurnCount }),
+    userTurnCount: input.state.userTurnCount,
     hasActionableProposedPlan: input.state.hasActionableProposedPlan,
     pendingBackgroundTasks: input.state.pendingBackgroundTasks,
     providerInstanceHistory: input.state.providerInstanceHistory,
@@ -2562,6 +2559,21 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
               break;
             }
             case "message.updated": {
+              if (event.payload.role === "user") {
+                const previous = yield* sql<{ readonly counted: number }>`
+                  SELECT ${userTurnMessageSql(sql, "message")} AS counted
+                  FROM orchestration_v2_projection_messages message
+                  WHERE message.message_id = ${event.payload.id}
+                `;
+                const delta = Number(countsAsUserTurn(event.payload)) - (previous[0]?.counted ?? 0);
+                if (delta !== 0) {
+                  yield* sql`
+                    UPDATE orchestration_v2_projection_threads
+                    SET user_turn_count = user_turn_count + ${delta}
+                    WHERE thread_id = ${event.payload.threadId}
+                  `;
+                }
+              }
               const payloadJson = yield* encodeMessagePayload(event.payload);
               const createdAt = yield* encodePayloadTimestamp(event.payload.createdAt);
               const updatedAt = yield* encodePayloadTimestamp(event.payload.updatedAt);
@@ -6172,25 +6184,7 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
           ),
         );
 
-    // Mirror idleCompactionOf, including JavaScript trim whitespace.
-    const isIdleCompactionMessage = (alias: string) => {
-      const payload = sql.literal(`${alias}.payload_json`);
-      return sql`(
-        ${sql.literal(`${alias}.role`)} = 'user'
-        AND lower(trim(json_extract(${payload}, '$.text'),
-          char(9, 10, 11, 12, 13, 32, 160, 5760, 8192, 8193, 8194, 8195,
-            8196, 8197, 8198, 8199, 8200, 8201, 8202, 8232, 8233, 8239, 8287, 12288, 65279)
-        )) = ${IDLE_COMPACTION_TEXT}
-        AND coalesce(json_array_length(${payload}, '$.attachments'), 0) = 0
-        AND (
-          json_extract(${payload}, '$.idleCompaction') IS NOT NULL
-          OR (
-            json_extract(${payload}, '$.createdBy') = 'agent'
-            AND json_extract(${payload}, '$.creationSource') = 'server'
-          )
-        )
-      )`;
-    };
+    const isIdleCompactionMessage = (alias: string) => idleCompactionMessageSql(sql, alias);
     // Mirrors isSilentRunForShell.
     const isSilentShellRun = (alias: string) => {
       const run = sql.literal(alias);
@@ -6219,10 +6213,8 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
         worktreePath,
         threadIds,
         listedOnly = false,
-        countUserTurns = true,
       }: ShellSnapshotOptions & {
         readonly listedOnly?: boolean;
-        readonly countUserTurns?: boolean;
       } = {},
     ) =>
       sql<ShellThreadRow>`
@@ -6362,18 +6354,7 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
                 ORDER BY message.updated_at DESC, message.message_id DESC
                 LIMIT 1
               ) AS latest_user_authored_message_at,
-              ${
-                countUserTurns
-                  ? sql`(
-                SELECT COUNT(*)
-                FROM orchestration_v2_projection_messages message
-                WHERE message.thread_id = t.thread_id
-                  AND message.role = 'user'
-                  AND json_extract(message.payload_json, '$.createdBy') = 'user'
-                  AND NOT ${isIdleCompactionMessage("message")}
-              )`
-                  : sql`NULL`
-              } AS user_turn_count,
+              t.user_turn_count,
               EXISTS (
                 SELECT 1
                 FROM orchestration_v2_projection_plans plan
@@ -6979,7 +6960,7 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
               ? null
               : DateTime.makeUnsafe(row.latest_user_message_at),
           latestUserAuthoredMessageAt,
-          userTurnCount: row.user_turn_count ?? undefined,
+          userTurnCount: row.user_turn_count,
           hasActionableProposedPlan: row.has_actionable_proposed_plan === 1,
           pendingBackgroundTasks,
           providerInstanceHistory: providerInstanceHistoryForShell({
@@ -7169,9 +7150,7 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
             Effect.gen(function* () {
               const threadRows = yield* selectShellThreadRows(
                 threadId,
-                threadId === undefined
-                  ? { location: "active", listedOnly: true, countUserTurns: false }
-                  : { countUserTurns: false },
+                threadId === undefined ? { location: "active", listedOnly: true } : {},
               );
               const ids = threadRows.map((row) => ThreadId.make(row.thread_id));
               const providerThreadRows =
