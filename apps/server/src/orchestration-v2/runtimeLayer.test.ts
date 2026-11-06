@@ -2647,8 +2647,26 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
         });
         assert.equal(shellOf(yield* orchestrator.getShellSnapshot()).priority ?? null, priority);
       }
+      // A thread created without an engagement is in the inbox; only a UI priority engages it.
+      assert.isUndefined(shellOf(yield* orchestrator.getShellSnapshot()).engagement);
+      for (const [step, command, expected] of [
+        ["priority-without-engage", { priority: "high" }, undefined],
+        ["queue", { engagement: "queued" }, "queued"],
+        ["clear-priority-with-engage", { priority: null, engage: true }, "queued"],
+        ["priority-with-engage", { priority: "low", engage: true }, "engaged"],
+        ["inbox", { engagement: "inbox" }, "inbox"],
+      ] as const) {
+        yield* orchestrator.dispatch({
+          ...("engagement" in command
+            ? { type: "thread.engagement.set" as const, ...command }
+            : { type: "thread.priority.set" as const, ...command }),
+          commandId: CommandId.make(`runtime-layer-lifecycle-engagement-${step}`),
+          threadId,
+        });
+        assert.equal(shellOf(yield* orchestrator.getShellSnapshot()).engagement, expected, step);
+      }
       const taggedShell = shellOf(yield* orchestrator.getShellSnapshot());
-      // Tags and priority are not activity, so the thread keeps its place in thread lists.
+      // Tags, priority, and engagement are not activity, so the thread keeps its place in thread lists.
       assert.equal(
         DateTime.toEpochMillis(taggedShell.updatedAt),
         DateTime.toEpochMillis(untaggedShell.updatedAt),

@@ -1714,6 +1714,7 @@ export const layerWsRpc = (
                   },
                   createdBy: "user",
                   creationSource: "web",
+                  engagement: "engaged",
                 }),
               ),
             );
@@ -2064,11 +2065,13 @@ export const layerWsRpc = (
                   (command.type === "prepared-run.retry"
                     ? threadLaunch.retryPreparation(command)
                     : ThreadMessageIntake.dispatchCommand(
-                        ThreadManagementService.withCreationProvenance(command, {
-                          createdBy: "user",
-                          creationSource:
-                            "creationSource" in command ? command.creationSource : "web",
-                        }),
+                        ThreadManagementService.withClientEngagement(
+                          ThreadManagementService.withCreationProvenance(command, {
+                            createdBy: "user",
+                            creationSource:
+                              "creationSource" in command ? command.creationSource : "web",
+                          }),
+                        ),
                       )
                   ).pipe(Effect.provide(intakeContext)),
                 )
@@ -2255,6 +2258,7 @@ export const layerWsRpc = (
                         }),
                     createdBy: "user",
                     creationSource: input.creationSource ?? "web",
+                    engagement: "engaged",
                   }).pipe(Effect.provide(intakeContext)),
                 )
                 .pipe(

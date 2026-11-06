@@ -62,6 +62,7 @@ import {
   CheckIcon,
   ChevronRightIcon,
   CornerLeftUpIcon,
+  InboxIcon,
   FileSearchIcon,
   FolderGit2Icon,
   FolderIcon,
@@ -175,6 +176,7 @@ import {
 } from "../lib/utils";
 import { buildThreadRouteParams } from "../threadRoutes";
 import { NO_PRIORITY_LABEL, THREAD_PRIORITY_OPTIONS } from "../threadPriority";
+import { THREAD_ENGAGEMENT_OPTIONS } from "../threadEngagement";
 import { ThreadPriorityGlyph } from "./ThreadPriorityGlyph";
 import { useAvailableSettingsSearchItems } from "./settings/useAvailableSettingsSearchItems";
 import {
@@ -470,6 +472,9 @@ function OpenCommandPaletteDialog(props: {
     reportFailure: false,
   });
   const setThreadPriority = useAtomCommand(threadEnvironment.setPriority, {
+    reportFailure: false,
+  });
+  const setThreadEngagement = useAtomCommand(threadEnvironment.setEngagement, {
     reportFailure: false,
   });
   const refreshProviders = useAtomCommand(serverEnvironment.refreshProviders, {
@@ -1480,6 +1485,41 @@ function OpenCommandPaletteDialog(props: {
             ),
             priorityItem(null, NO_PRIORITY_LABEL, <XIcon className={ITEM_ICON_CLASS} />),
           ],
+        },
+      ],
+    });
+  }
+
+  if (activeThread !== null) {
+    const { environmentId, id: threadId, engagement: currentEngagement } = activeThread;
+    actionItems.push({
+      kind: "submenu",
+      value: "action:set-engagement",
+      searchTerms: ["engagement", "engaged", "inbox", "queued"],
+      title: "Set engagement...",
+      icon: <InboxIcon className={ITEM_ICON_CLASS} />,
+      addonIcon: <InboxIcon className={ADDON_ICON_CLASS} />,
+      groups: [
+        {
+          value: "engagements",
+          label: "Engagement",
+          items: THREAD_ENGAGEMENT_OPTIONS.map((option): CommandPaletteActionItem => ({
+            kind: "action",
+            value: `action:set-engagement:${option.value}`,
+            searchTerms: [option.label, "engagement"],
+            title: option.label,
+            icon: <InboxIcon className={ITEM_ICON_CLASS} />,
+            ...(option.value === currentEngagement
+              ? { titleTrailingContent: <CheckIcon className={ITEM_ICON_CLASS} /> }
+              : {}),
+            run: async () => {
+              const result = await setThreadEngagement({
+                environmentId,
+                input: { threadId, engagement: option.value },
+              });
+              if (result._tag === "Failure") throw squashAtomCommandFailure(result);
+            },
+          })),
         },
       ],
     });

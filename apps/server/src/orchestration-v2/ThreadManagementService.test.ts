@@ -74,6 +74,9 @@ it("stamps authoritative provenance on commands that create threads or messages"
   });
   expect(stamped).not.toHaveProperty("linkOrigin");
   expect(stamped).not.toHaveProperty("delegatedFrom");
+  expect(ThreadManagementService.withClientEngagement(stamped)).toMatchObject({
+    engagement: "engaged",
+  });
 });
 
 const layerReceiptsTest = CommandReceiptStore.layer.pipe(

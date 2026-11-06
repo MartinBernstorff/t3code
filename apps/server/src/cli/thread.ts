@@ -6,6 +6,7 @@ import {
   OrchestratorMcpThreadWaitResult,
   ProjectId,
   RunId,
+  ThreadEngagement,
   ThreadId,
   TrimmedNonEmptyString,
   type OrchestratorMcpThreadListItem,
@@ -778,6 +779,10 @@ const threadSetCommand = Command.make("set", {
     ["low", "low"],
     ["none", null],
   ]).pipe(Flag.withDescription("Thread priority, or none to clear it."), Flag.optional),
+  engagement: Flag.Literals("engagement", ThreadEngagement.literals).pipe(
+    Flag.withDescription("Thread engagement."),
+    Flag.optional,
+  ),
   json: jsonFlag,
 }).pipe(
   Command.withDescription("Change a thread's fields, such as its priority."),
@@ -788,6 +793,10 @@ const threadSetCommand = Command.make("set", {
         ...Option.match(flags.priority, {
           onNone: () => ({}),
           onSome: (priority) => ({ priority }),
+        }),
+        ...Option.match(flags.engagement, {
+          onNone: () => ({}),
+          onSome: (engagement) => ({ engagement }),
         }),
       };
       if (Object.keys(fields).length === 0) {

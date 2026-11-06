@@ -18,6 +18,7 @@ import { useRouter } from "@tanstack/react-router";
 import { pickSnoozePreset, resolveSnoozePresets } from "../components/Sidebar.snooze";
 import {
   buildThreadActionMenuItems,
+  engagementFromThreadAction,
   priorityFromThreadAction,
   threadActionRequiresOperate,
   type ThreadActionMenuId,
@@ -85,6 +86,7 @@ export function useThreadActionMenu(input: {
     confirmAndUnpinThread,
     setThreadAutoSettle,
     setThreadPriority,
+    setThreadEngagement,
     archiveThread,
     deleteThread,
     markThreadUnread,
@@ -146,6 +148,7 @@ export function useThreadActionMenu(input: {
         isSnoozed: supports.snooze && effectiveSnoozed(thread, { now: now.toISOString() }),
         canSnoozeNow: canSnooze(thread, { now: now.toISOString() }),
         priority: thread.priority,
+        engagement: thread.engagement,
         isRegeneratingTitle,
         isRunning: !threadRuntimeCanArchive(thread.runtime),
         supports,
@@ -196,6 +199,13 @@ export function useThreadActionMenu(input: {
       if (priority !== undefined) {
         await reportFailure("Failed to set thread priority", () =>
           setThreadPriority(threadRef, priority),
+        );
+        return;
+      }
+      const engagement = engagementFromThreadAction(action);
+      if (engagement !== undefined) {
+        await reportFailure("Failed to set thread engagement", () =>
+          setThreadEngagement(threadRef, engagement),
         );
         return;
       }

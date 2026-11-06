@@ -46,6 +46,7 @@ import { ChatAttachment } from "./chatAttachment.ts";
 import { ThreadGuestShare } from "./guestShare.ts";
 import { StoredThreadTags, ThreadTag } from "./threadTags.ts";
 import { ThreadPriority } from "./threadPriority.ts";
+import { ThreadEngagement } from "./threadEngagement.ts";
 import {
   OrchestrationSearchThreadsInput,
   OrchestrationSearchThreadsResult,
@@ -494,6 +495,7 @@ export const OrchestrationV2AppThread = Schema.Struct({
   /** Absent on threads written before tags existed; read as empty. */
   tags: Schema.optional(StoredThreadTags),
   priority: Schema.optional(Schema.NullOr(ThreadPriority)),
+  engagement: Schema.optional(ThreadEngagement),
   lastVisitedAt: Schema.NullOr(Schema.DateTimeUtc).pipe(
     Schema.withDecodingDefault(Effect.succeed(null)),
   ),
@@ -1897,6 +1899,7 @@ export const OrchestrationV2DomainEvent = Schema.Union([
       "thread.active-reordered",
       "thread.tags-updated",
       "thread.priority-updated",
+      "thread.engagement-updated",
       "thread.visited",
       "thread.marked-unread",
       "thread.metadata-updated",
@@ -2152,6 +2155,7 @@ export const OrchestrationV2ThreadShell = Schema.Struct({
   /** Absent on threads written before tags existed; read as empty. */
   tags: Schema.optional(StoredThreadTags),
   priority: Schema.optional(Schema.NullOr(ThreadPriority)),
+  engagement: Schema.optional(ThreadEngagement),
   lastVisitedAt: Schema.optional(Schema.NullOr(Schema.DateTimeUtc)),
   opens: Schema.optional(LenientThreadOpens),
   titleRegeneration: Schema.optional(
@@ -2784,6 +2788,7 @@ export const OrchestrationV2DomainEventJson = Schema.Union([
       "thread.active-reordered",
       "thread.tags-updated",
       "thread.priority-updated",
+      "thread.engagement-updated",
       "thread.visited",
       "thread.marked-unread",
       "thread.pull-request-synced",
@@ -2933,6 +2938,8 @@ export const OrchestrationV2Command = Schema.Union([
     interactionMode: ProviderInteractionMode,
     branch: Schema.NullOr(TrimmedNonEmptyString),
     worktreePath: Schema.NullOr(TrimmedNonEmptyString),
+    /** The server sets this for threads a client creates; absent means inbox. */
+    engagement: Schema.optional(ThreadEngagement),
     /** Only the server sets this; a client's thread.create never carries one. */
     linkOrigin: Schema.optional(OrchestrationV2LinkOrigin),
     /** Only the server sets this, with `linkOrigin`, for a linked environment's delegated task. */
@@ -3038,6 +3045,14 @@ export const OrchestrationV2Command = Schema.Union([
     commandId: CommandId,
     threadId: ThreadId,
     priority: Schema.NullOr(ThreadPriority),
+    /** The UI sends this so a non-null priority also engages the thread. */
+    engage: Schema.optional(Schema.Boolean),
+  }),
+  Schema.Struct({
+    type: Schema.Literal("thread.engagement.set"),
+    commandId: CommandId,
+    threadId: ThreadId,
+    engagement: ThreadEngagement,
   }),
   Schema.Struct({
     type: Schema.Literal("thread.pin.reorder"),

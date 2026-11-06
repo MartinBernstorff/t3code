@@ -166,11 +166,16 @@ it.effect("set sends each flag as a t3_thread_organize set field", () =>
 
     yield* run("--priority", "urgent");
     yield* run("--priority", "none");
+    yield* run("--engagement", "queued", "--priority", "low");
     const empty = yield* Effect.flip(run());
 
     assert.deepStrictEqual(calls, [
       { tool: "t3_thread_organize", args: { threadId, action: "set", priority: "urgent" } },
       { tool: "t3_thread_organize", args: { threadId, action: "set", priority: null } },
+      {
+        tool: "t3_thread_organize",
+        args: { threadId, action: "set", priority: "low", engagement: "queued" },
+      },
     ]);
     assert.strictEqual(empty._tag, "ThreadUsageError");
   }).pipe(

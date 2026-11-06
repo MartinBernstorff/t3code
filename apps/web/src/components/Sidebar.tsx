@@ -175,6 +175,7 @@ import { ProjectRowActions } from "./ProjectComboboxRow";
 import {
   buildDraftActionMenuItems,
   buildThreadActionMenuItems,
+  engagementFromThreadAction,
   priorityFromThreadAction,
   threadActionRequiresOperate,
 } from "./threadActionMenu.logic";
@@ -926,6 +927,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     confirmAndUnpinThread,
     setThreadAutoSettle,
     setThreadPriority,
+    setThreadEngagement,
     turnThreadIntoProject,
     reorderPinnedThread,
     reorderActiveThread,
@@ -2637,6 +2639,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
               isSnoozed,
               canSnoozeNow: canSnooze(thread, { now: new Date().toISOString() }),
               priority: thread.priority,
+              engagement: thread.engagement,
               isRegeneratingTitle,
               isRunning: !threadRuntimeCanArchive(thread.runtime),
               canShareWithGuest: appAtomRegistry.get(
@@ -2679,6 +2682,21 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
               stackedThreadToast({
                 type: "error",
                 title: "Failed to set thread priority",
+                description: error instanceof Error ? error.message : "An error occurred.",
+              }),
+            );
+          }
+          return;
+        }
+        const engagement = engagementFromThreadAction(clicked.value);
+        if (engagement !== undefined) {
+          const result = await setThreadEngagement(threadRef, engagement);
+          if (result._tag === "Failure" && !isAtomCommandInterrupted(result)) {
+            const error = squashAtomCommandFailure(result);
+            toastManager.add(
+              stackedThreadToast({
+                type: "error",
+                title: "Failed to set thread engagement",
                 description: error instanceof Error ? error.message : "An error occurred.",
               }),
             );

@@ -17,6 +17,7 @@ import {
   OrchestrationV2DispatchCommandResult,
   ThreadId,
   ThreadPriority,
+  ThreadEngagement,
   RunId,
   NonNegativeInt,
   ProjectId,
@@ -50,6 +51,7 @@ const ThreadOrganizeTool = Tool.make("t3_thread_organize", {
     ]),
     snoozedUntil: Schema.optional(IsoDateTime),
     priority: Schema.optional(Schema.NullOr(ThreadPriority)),
+    engagement: Schema.optional(ThreadEngagement),
   }),
   success: Schema.Union([
     OrchestrationV2DispatchCommandResult,

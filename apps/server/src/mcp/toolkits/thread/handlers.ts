@@ -342,16 +342,33 @@ export const layer = McpToolAccess.toLayer(ThreadToolkit, {
           .pipe(Effect.mapError(dispatchFailure));
       }
       if (input.action === "set") {
-        if (input.priority === undefined) {
+        const commands: Array<OrchestrationV2Command> = [
+          ...(input.priority === undefined
+            ? []
+            : [{ ...common, type: "thread.priority.set" as const, priority: input.priority }]),
+          ...(input.engagement === undefined
+            ? []
+            : [
+                {
+                  commandId: yield* newCommandId(),
+                  threadId: common.threadId,
+                  type: "thread.engagement.set" as const,
+                  engagement: input.engagement,
+                },
+              ]),
+        ];
+        if (commands.length === 0) {
           return yield* new OrchestratorMcpFailure({
             code: "invalid_request",
             message: "set requires a field to change, such as priority.",
           });
         }
-        const result = yield* threads
-          .dispatch({ ...common, type: "thread.priority.set", priority: input.priority })
-          .pipe(Effect.mapError(dispatchFailure));
-        return { sequence: result.sequence };
+        let sequence = 0;
+        for (const command of commands) {
+          sequence = (yield* threads.dispatch(command).pipe(Effect.mapError(dispatchFailure)))
+            .sequence;
+        }
+        return { sequence };
       }
       let command: OrchestrationV2Command;
       switch (input.action) {

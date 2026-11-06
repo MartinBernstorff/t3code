@@ -1,6 +1,7 @@
-import type { ContextMenuItem, ThreadPriority } from "@t3tools/contracts";
+import type { ContextMenuItem, ThreadEngagement, ThreadPriority } from "@t3tools/contracts";
 import type { SnoozePreset } from "@t3tools/client-runtime/state/thread-settled";
 
+import { THREAD_ENGAGEMENT_OPTIONS } from "../threadEngagement";
 import { NO_PRIORITY_LABEL, THREAD_PRIORITY_OPTIONS } from "../threadPriority";
 
 export type ThreadActionMenuId =
@@ -21,6 +22,8 @@ export type ThreadActionMenuId =
   | "unsnooze"
   | "priority"
   | `priority:${ThreadPriority | "none"}`
+  | "engagement"
+  | `engagement:${ThreadEngagement}`
   | "rename"
   | "regenerate-title"
   | "mark-unread"
@@ -85,6 +88,7 @@ export interface ThreadActionMenuState {
   readonly isSnoozed: boolean;
   readonly canSnoozeNow: boolean;
   readonly priority: ThreadPriority | null;
+  readonly engagement: ThreadEngagement;
   readonly isRegeneratingTitle: boolean;
   /** Archive rejects attached providers, so disable it while running. */
   readonly isRunning: boolean;
@@ -108,6 +112,13 @@ export function priorityFromThreadAction(
 ): ThreadPriority | null | undefined {
   if (action === "priority:none") return null;
   return THREAD_PRIORITY_OPTIONS.find((option) => action === `priority:${option.value}`)?.value;
+}
+
+/** The engagement a menu action sets, or undefined when the action is not an engagement choice. */
+export function engagementFromThreadAction(
+  action: ThreadActionMenuId,
+): ThreadEngagement | undefined {
+  return THREAD_ENGAGEMENT_OPTIONS.find((option) => action === `engagement:${option.value}`)?.value;
 }
 
 /** Local navigation, read markers, and copying remain available to read-only clients. */
@@ -196,6 +207,16 @@ export function buildThreadActionMenuItems(
           separatorBefore: true,
         },
       ],
+    },
+    {
+      id: "engagement",
+      label: "Engagement",
+      icon: "inbox",
+      children: THREAD_ENGAGEMENT_OPTIONS.map((option) => ({
+        id: `engagement:${option.value}` as const,
+        label: option.label,
+        checked: state.engagement === option.value,
+      })),
     },
     { id: "rename", label: "Rename thread", icon: "pencil", separatorBefore: true },
     ...(state.supports.titleRegeneration

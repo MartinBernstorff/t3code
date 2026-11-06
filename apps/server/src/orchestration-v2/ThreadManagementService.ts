@@ -94,6 +94,11 @@ export function withCreationProvenance(
   }
 }
 
+/** A thread a client creates is one its user is working on now; other creators leave it in the inbox. */
+export function withClientEngagement(command: OrchestrationV2Command): OrchestrationV2Command {
+  return command.type === "thread.create" ? { ...command, engagement: "engaged" } : command;
+}
+
 function existingThreadIdsForCommand(
   command: OrchestrationV2ServerCommand,
 ): ReadonlyArray<ThreadId> {

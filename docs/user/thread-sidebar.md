@@ -64,6 +64,14 @@ Set **Priority** from a thread's menu, or run **Set priority...** from the comma
 palette for the open thread. The sidebar shows the priority as an icon before the
 thread title. Agents can set it too.
 
+## Set a thread's engagement
+
+Engagement marks whether you are working on a thread now (**Engaged**), have not
+looked at it yet (**Inbox**), or plan to work on it next (**Queued**). Set it from a
+thread's menu, or run **Set engagement...** from the command palette. Threads you
+create in the app start as Engaged; threads that agents, scripts, or scheduled tasks
+create start in the Inbox. Setting a priority in the app also marks the thread Engaged.
+
 ## Pin and reorder threads
 
 Pin a thread from its menu to keep it above your active work.

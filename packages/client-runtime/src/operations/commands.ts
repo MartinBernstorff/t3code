@@ -25,6 +25,7 @@ import {
   type RuntimeRequestId,
   type ThreadId,
   type ThreadPriority,
+  type ThreadEngagement,
   type ThreadEnvMode,
   type UploadChatAttachment,
   type GuestMessageId,
@@ -521,6 +522,21 @@ export const setThreadPriority = Effect.fn("EnvironmentCommands.setThreadPriorit
     commandId: yield* allocateCommandId(input),
     threadId: input.threadId,
     priority: input.priority,
+    engage: true,
+  });
+});
+
+export interface SetThreadEngagementInput extends ThreadCommandInput {
+  readonly engagement: ThreadEngagement;
+}
+export const setThreadEngagement = Effect.fn("EnvironmentCommands.setThreadEngagement")(function* (
+  input: SetThreadEngagementInput,
+) {
+  return yield* dispatch({
+    type: "thread.engagement.set",
+    commandId: yield* allocateCommandId(input),
+    threadId: input.threadId,
+    engagement: input.engagement,
   });
 });
 
