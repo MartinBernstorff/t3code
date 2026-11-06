@@ -341,6 +341,18 @@ export const layer = McpToolAccess.toLayer(ThreadToolkit, {
           .settleThread({ ...common, byOwnAgent: caller?.id === projection.thread.id })
           .pipe(Effect.mapError(dispatchFailure));
       }
+      if (input.action === "set") {
+        if (input.priority === undefined) {
+          return yield* new OrchestratorMcpFailure({
+            code: "invalid_request",
+            message: "set requires a field to change, such as priority.",
+          });
+        }
+        const result = yield* threads
+          .dispatch({ ...common, type: "thread.priority.set", priority: input.priority })
+          .pipe(Effect.mapError(dispatchFailure));
+        return { sequence: result.sequence };
+      }
       let command: OrchestrationV2Command;
       switch (input.action) {
         case "snooze":

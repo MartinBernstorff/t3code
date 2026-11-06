@@ -2638,8 +2638,17 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
           step,
         );
       }
+      for (const priority of ["urgent", "low", null] as const) {
+        yield* orchestrator.dispatch({
+          type: "thread.priority.set",
+          commandId: CommandId.make(`runtime-layer-lifecycle-priority-${priority}`),
+          threadId,
+          priority,
+        });
+        assert.equal(shellOf(yield* orchestrator.getShellSnapshot()).priority ?? null, priority);
+      }
       const taggedShell = shellOf(yield* orchestrator.getShellSnapshot());
-      // Tags are not activity, so the thread keeps its place in thread lists.
+      // Tags and priority are not activity, so the thread keeps its place in thread lists.
       assert.equal(
         DateTime.toEpochMillis(taggedShell.updatedAt),
         DateTime.toEpochMillis(untaggedShell.updatedAt),

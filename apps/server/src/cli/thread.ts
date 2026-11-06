@@ -765,12 +765,56 @@ const threadShowCommand = Command.make("show", {
   ),
 );
 
+const ThreadSetResult = Schema.Struct({ sequence: Schema.Number });
+
+/** Each flag maps to one `t3_thread_organize` `set` field; omitted flags leave the field unchanged. */
+const threadSetCommand = Command.make("set", {
+  ...projectLocationFlags,
+  thread: threadArgument,
+  priority: Flag.ChoiceWithValue("priority", [
+    ["urgent", "urgent"],
+    ["high", "high"],
+    ["medium", "medium"],
+    ["low", "low"],
+    ["none", null],
+  ]).pipe(Flag.withDescription("Thread priority, or none to clear it."), Flag.optional),
+  json: jsonFlag,
+}).pipe(
+  Command.withDescription("Change a thread's fields, such as its priority."),
+  Command.withHandler((flags) =>
+    Effect.gen(function* () {
+      const threadId = yield* decodeThreadId(flags.thread);
+      const fields = {
+        ...Option.match(flags.priority, {
+          onNone: () => ({}),
+          onSome: (priority) => ({ priority }),
+        }),
+      };
+      if (Object.keys(fields).length === 0) {
+        return yield* new ThreadUsageError({ detail: "Pass a field to set, such as --priority." });
+      }
+      yield* withThreadTools(
+        flags,
+        Effect.fn("cli.thread.set")(function* (tools) {
+          const result = yield* tools.call(
+            "t3_thread_organize",
+            { threadId, action: "set", ...fields },
+            ThreadSetResult,
+          );
+          yield* flags.json ? printJson(result) : Console.log("Updated.");
+        }),
+      );
+    }).pipe(reportThreadErrors),
+  ),
+);
+
 export const threadCommand = Command.make("thread").pipe(
-  Command.withDescription("Start, message, and read threads on the running server."),
+  Command.withDescription("Start, message, read, and organize threads on the running server."),
   Command.withSubcommands([
     threadListCommand,
     threadStartCommand,
     threadSendCommand,
     threadShowCommand,
+    threadSetCommand,
   ]),
 );
