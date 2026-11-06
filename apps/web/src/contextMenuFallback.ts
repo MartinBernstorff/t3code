@@ -14,6 +14,18 @@ const ICON_PATHS: Record<string, ReadonlyArray<{ tag: string; attrs: Record<stri
     { tag: "path", attrs: { d: "M12 21V9" } },
     { tag: "path", attrs: { d: "M19 21V3" } },
   ],
+  hourglass: [
+    { tag: "path", attrs: { d: "M5 22h14" } },
+    { tag: "path", attrs: { d: "M5 2h14" } },
+    {
+      tag: "path",
+      attrs: { d: "M17 22v-4.172a2 2 0 0 0-.586-1.414L12 12l-4.414 4.414A2 2 0 0 0 7 17.828V22" },
+    },
+    {
+      tag: "path",
+      attrs: { d: "M7 2v4.172a2 2 0 0 0 .586 1.414L12 12l4.414-4.414A2 2 0 0 0 17 6.172V2" },
+    },
+  ],
   timer: [
     { tag: "line", attrs: { x1: "10", x2: "14", y1: "2", y2: "2" } },
     { tag: "line", attrs: { x1: "12", x2: "15", y1: "14", y2: "11" } },

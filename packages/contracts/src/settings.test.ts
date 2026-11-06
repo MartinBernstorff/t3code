@@ -323,8 +323,8 @@ describe("ClientSettings context window meter", () => {
 });
 
 describe("ClientSettings sidebar row glyphs", () => {
-  it("shows the priority glyph unless the user hides it", () => {
-    expect(decodeClientSettings({}).sidebarRowGlyphs).toEqual(["priority"]);
+  it("shows every glyph unless the user hides it", () => {
+    expect(decodeClientSettings({}).sidebarRowGlyphs).toEqual(["priority", "waitingOnOthers"]);
     expect(decodeClientSettings({ sidebarRowGlyphs: [] }).sidebarRowGlyphs).toEqual([]);
     expect(decodeClientSettingsPatch({})).not.toHaveProperty("sidebarRowGlyphs");
   });

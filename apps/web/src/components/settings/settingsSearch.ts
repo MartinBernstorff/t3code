@@ -461,7 +461,7 @@ export const SETTINGS_SEARCH_ITEMS = [
     id: "sidebar-row-glyphs",
     title: "Sidebar row glyphs",
     to: "/settings/general",
-    searchTerms: ["priority icon indicator thread title display options"],
+    searchTerms: ["priority waiting icon indicator thread title display options"],
   },
   {
     id: "boring-sidebar",

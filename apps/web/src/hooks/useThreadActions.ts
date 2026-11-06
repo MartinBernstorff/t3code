@@ -302,6 +302,9 @@ export function useThreadActions() {
   const setThreadPriorityMutation = useOrchestrationCommand(threadEnvironment.setPriority, {
     reportFailure: false,
   });
+  const setThreadWaitingMutation = useOrchestrationCommand(threadEnvironment.setWaiting, {
+    reportFailure: false,
+  });
   const reorderPinnedThreadMutation = useOrchestrationCommand(threadEnvironment.reorderPin, {
     reportFailure: false,
   });
@@ -697,6 +700,12 @@ export function useThreadActions() {
       input: { threadId: target.threadId, priority },
     });
 
+  const setThreadWaiting = (target: ScopedThreadRef, waitingOnOthers: boolean) =>
+    setThreadWaitingMutation({
+      environmentId: target.environmentId,
+      input: { threadId: target.threadId, waitingOnOthers },
+    });
+
   const pinThread = async (target: ScopedThreadRef, opts: { orderKey?: string } = {}) => {
     if (!readEnvironmentServerConfigLoaded(target.environmentId)) {
       return AsyncResult.failure(
@@ -976,6 +985,7 @@ export function useThreadActions() {
     markThreadUnread,
     setThreadAutoSettle,
     setThreadPriority,
+    setThreadWaiting,
     turnThreadIntoProject: (target: ScopedThreadRef) =>
       createProjectFromThread({
         environmentId: target.environmentId,

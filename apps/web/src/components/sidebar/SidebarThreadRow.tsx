@@ -42,6 +42,7 @@ import {
   CircleDotDashedIcon,
   ClockIcon,
   GitBranchIcon,
+  HourglassIcon,
   MessageCircleQuestionIcon,
   PinIcon,
   PinOffIcon,
@@ -1053,9 +1054,18 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
     </span>
   );
   const accessibleTitle = isRenaming ? null : <span className="sr-only">{thread.title}</span>;
-  const rowGlyphs = resolveSidebarRowGlyphs(thread, sidebarRowGlyphKinds).map((glyph) => (
-    <ThreadPriorityGlyph key={glyph.kind} priority={glyph.priority} />
-  ));
+  const rowGlyphs = resolveSidebarRowGlyphs(thread, sidebarRowGlyphKinds).map((glyph) =>
+    glyph.kind === "priority" ? (
+      <ThreadPriorityGlyph key={glyph.kind} priority={glyph.priority} />
+    ) : (
+      <HourglassIcon
+        key={glyph.kind}
+        role="img"
+        aria-label="Waiting on others"
+        className="size-3 shrink-0 text-muted-foreground"
+      />
+    ),
+  );
 
   const prBadgeShape = supportsMultiplePullRequests
     ? resolveThreadPullRequestBadge(thread.pullRequests)

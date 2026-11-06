@@ -861,6 +861,7 @@ export function applyToProjection(
     case "thread.active-reordered":
     case "thread.tags-updated":
     case "thread.priority-updated":
+    case "thread.waiting-updated":
     case "thread.pull-request-synced":
       return {
         ...base,
@@ -1697,6 +1698,7 @@ export function threadShellFromProjection(
     pinOrderKey: projection.thread.pinOrderKey ?? null,
     ...(projection.thread.tags?.length ? { tags: projection.thread.tags } : {}),
     ...(projection.thread.priority ? { priority: projection.thread.priority } : {}),
+    ...(projection.thread.waitingOnOthers ? { waitingOnOthers: true } : {}),
     lastVisitedAt: projection.thread.lastVisitedAt,
     opens: projection.thread.opens ?? null,
     titleRegeneration: projection.thread.titleRegeneration ?? null,
@@ -1964,6 +1966,7 @@ function shellFromState(input: {
     pinOrderKey: input.state.thread.pinOrderKey ?? null,
     ...(input.state.thread.tags?.length ? { tags: input.state.thread.tags } : {}),
     ...(input.state.thread.priority ? { priority: input.state.thread.priority } : {}),
+    ...(input.state.thread.waitingOnOthers ? { waitingOnOthers: true } : {}),
     lastVisitedAt: input.state.thread.lastVisitedAt,
     opens: input.state.thread.opens ?? null,
     titleRegeneration: input.state.thread.titleRegeneration ?? null,
@@ -2024,6 +2027,7 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
             case "thread.active-reordered":
             case "thread.tags-updated":
             case "thread.priority-updated":
+            case "thread.waiting-updated":
             case "thread.visited":
             case "thread.marked-unread":
             case "thread.metadata-updated":
@@ -2839,6 +2843,7 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
             event.type !== "thread.active-reordered" &&
             event.type !== "thread.tags-updated" &&
             event.type !== "thread.priority-updated" &&
+            event.type !== "thread.waiting-updated" &&
             event.type !== "thread.visited" &&
             event.type !== "thread.marked-unread" &&
             event.type !== "thread.metadata-updated" &&
