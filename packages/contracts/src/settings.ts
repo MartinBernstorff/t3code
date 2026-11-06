@@ -91,7 +91,13 @@ export type SidebarThreadSort = typeof SidebarThreadSort.Type;
 const DEFAULT_SIDEBAR_THREAD_SORT: SidebarThreadSort = "manual";
 
 // "section" is the pinned/active/working/snoozed/settled split.
-export const SidebarGroupBy = Schema.Literals(["section", "project", "priority", "engagement"]);
+export const SidebarGroupBy = Schema.Literals([
+  "section",
+  "project",
+  "priority",
+  "engagement",
+  "agentState",
+]);
 export type SidebarGroupBy = typeof SidebarGroupBy.Type;
 const DEFAULT_SIDEBAR_GROUP_BY: SidebarGroupBy = "section";
 

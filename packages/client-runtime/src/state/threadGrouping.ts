@@ -1,14 +1,49 @@
 import { ThreadEngagement, ThreadPriority } from "@t3tools/contracts";
 import type { SidebarGroupBy } from "@t3tools/contracts/settings";
 
+import type { EnvironmentThreadShell } from "./models.ts";
+import { isThreadWorking } from "./threadInbox.ts";
+
 /** Dimensions grouped here; "section" stays the sidebar's own pinned/active/shelf split. */
 export type ThreadGroupDimension = Exclude<SidebarGroupBy, "section">;
 
-export interface ThreadGroupInput {
+type ThreadAgentStateInput = Pick<
+  EnvironmentThreadShell,
+  | "hasActionableProposedPlan"
+  | "hasPendingApprovals"
+  | "hasPendingUserInput"
+  | "pendingSubagentRequest"
+  | "pendingGuestMessageCount"
+  | "interactionMode"
+  | "latestRun"
+  | "runtime"
+  | "waitingOnOthers"
+>;
+
+export interface ThreadGroupInput extends ThreadAgentStateInput {
   readonly environmentId: string;
   readonly projectId: string;
   readonly priority: ThreadPriority | null;
   readonly engagement: ThreadEngagement;
+}
+
+const THREAD_AGENT_STATES = ["needsYou", "working", "waitingOnOthers"] as const;
+export type ThreadAgentState = (typeof THREAD_AGENT_STATES)[number];
+
+/**
+ * Requests from the agent or a guest need the user even mid-run; a turn holding for
+ * background work counts as working. Anything else ended needs the user unless the
+ * agent flagged that it is waiting on others.
+ */
+export function threadAgentState(thread: ThreadAgentStateInput): ThreadAgentState {
+  const hasRequest =
+    thread.hasPendingApprovals ||
+    thread.hasPendingUserInput ||
+    thread.pendingSubagentRequest != null ||
+    (thread.pendingGuestMessageCount ?? 0) > 0;
+  if (hasRequest) return "needsYou";
+  if (isThreadWorking(thread)) return "working";
+  return thread.waitingOnOthers ? "waitingOnOthers" : "needsYou";
 }
 
 export interface ThreadGroupProject {
@@ -65,6 +100,11 @@ const THREAD_GROUP_DIMENSIONS: Record<ThreadGroupDimension, ThreadGroupDimension
     values: () => ThreadEngagement.literals,
     valueOf: () => (thread) => thread.engagement,
     keepEmpty: true,
+  },
+  agentState: {
+    values: () => THREAD_AGENT_STATES,
+    valueOf: () => threadAgentState,
+    keepEmpty: false,
   },
 };
 
