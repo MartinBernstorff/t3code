@@ -58,6 +58,7 @@ describe("searchThreadsForPalette", () => {
       query,
       projectTitleOf: (candidate) => (candidate.projectId === "project-api" ? "API" : "Web"),
       now: NOW,
+      threadSort: "manual",
     }).map((candidate) => candidate.title);
 
   it("lists every thread in sidebar order: pinned, active, snoozed, settled", () => {
