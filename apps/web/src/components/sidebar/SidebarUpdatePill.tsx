@@ -196,7 +196,7 @@ export function SidebarUpdatePill() {
   return AUTO_UPDATE_DISABLED ? null : <SidebarUpdateControl />;
 }
 
-function SidebarUpdateControl() {
+export function SidebarUpdateControl() {
   const state = useDesktopUpdateState();
   // The desktop updates this machine, whose policy the primary environment reports.
   const updatesDenial = managedUpdatesDenial(usePrimaryManagedPolicy());
