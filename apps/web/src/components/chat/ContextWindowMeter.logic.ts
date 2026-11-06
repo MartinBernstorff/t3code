@@ -83,3 +83,33 @@ export function formatContextWindowCost(cost: {
   const fractionDigits = Math.abs(cost.amount) > 0 && Math.abs(cost.amount) < 0.01 ? 4 : 2;
   return `${cost.currency} ${cost.amount.toFixed(fractionDigits)}`;
 }
+
+export type ContextWindowMeterTone = "neutral" | "warning" | "error";
+
+const CONTEXT_WINDOW_METER_WARNING_PERCENTAGE = 75;
+
+export function resolveContextWindowMeterScale(input: {
+  readonly usedTokens: number;
+  readonly maxTokens: number | null;
+  readonly capTokens: number;
+}): {
+  readonly scaleTokens: number;
+  readonly usedPercentage: number;
+  readonly tone: ContextWindowMeterTone;
+} {
+  const scaleTokens =
+    input.maxTokens !== null && input.maxTokens > 0
+      ? Math.min(input.maxTokens, input.capTokens)
+      : input.capTokens;
+  const percentage = (Math.max(0, input.usedTokens) * 100) / scaleTokens;
+  return {
+    scaleTokens,
+    usedPercentage: Math.min(100, percentage),
+    tone:
+      percentage >= 100
+        ? "error"
+        : percentage >= CONTEXT_WINDOW_METER_WARNING_PERCENTAGE
+          ? "warning"
+          : "neutral",
+  };
+}

@@ -10,6 +10,7 @@ import {
   type ManagedPolicyDocument,
   type ManagedUpdatesMode,
 } from "@t3tools/contracts";
+import { AUTO_UPDATE_DISABLED } from "@t3tools/shared/autoUpdate";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
@@ -83,7 +84,16 @@ const make = Effect.gen(function* () {
   );
 });
 
-export const layer = Layer.effect(DesktopUpdatePolicy, make);
+const forkDisabledUpdatePolicy: UpdatePolicy = {
+  mode: "off",
+  feedUrl: undefined,
+  allowNightly: false,
+  message: "Updates are turned off in this build.",
+};
+
+export const layer = AUTO_UPDATE_DISABLED
+  ? Layer.succeed(DesktopUpdatePolicy, forkDisabledUpdatePolicy)
+  : Layer.effect(DesktopUpdatePolicy, make);
 
 export const layerTest = (policy: UpdatePolicy = unmanagedUpdatePolicy) =>
   Layer.succeed(DesktopUpdatePolicy, policy);
