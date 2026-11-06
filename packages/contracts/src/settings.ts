@@ -78,7 +78,7 @@ export type SidebarThreadSortOrder = typeof SidebarThreadSortOrder.Type;
 const DEFAULT_SIDEBAR_THREAD_SORT_ORDER: SidebarThreadSortOrder = "updated_at";
 
 // Order of the sidebar's Active list. "manual" keeps drag order and the Working shelf's returns.
-export const SidebarThreadSort = Schema.Literals(["manual", "priority"]);
+export const SidebarThreadSort = Schema.Literals(["manual", "priority", "engagement"]);
 export type SidebarThreadSort = typeof SidebarThreadSort.Type;
 const DEFAULT_SIDEBAR_THREAD_SORT: SidebarThreadSort = "manual";
 

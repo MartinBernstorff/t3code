@@ -68,6 +68,9 @@ To list active threads by priority, set **Settings > General > Thread order** to
 **Priority**: urgent first, threads without a priority last, oldest first within a
 priority. Dragging still moves threads between sections, but not within the active list.
 
+**Engagement** instead lists the threads you have sent the most messages to first,
+then the ones you messaged most recently.
+
 ## Threads waiting on others
 
 An agent waiting on CI or a review can mark its thread as waiting on others. The
