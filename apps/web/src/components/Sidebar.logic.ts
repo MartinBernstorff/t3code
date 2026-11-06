@@ -941,11 +941,13 @@ export function sidebarFolderExpansionKeys(group: {
   ];
 }
 
-const SIDEBAR_SECTION_LANE_OPTIONS: ReadonlyArray<{ value: ThreadGroupSection; label: string }> = [
-  { value: "pinned", label: "Pinned" },
-  { value: "active", label: "Active" },
-  { value: "working", label: "Working" },
-];
+const SIDEBAR_SECTION_LANE_LABELS: Record<ThreadGroupSection, string> = {
+  pinned: "Pinned",
+  active: "Active",
+  working: "Working",
+};
+const isThreadGroupSection = (value: string): value is ThreadGroupSection =>
+  Object.hasOwn(SIDEBAR_SECTION_LANE_LABELS, value);
 
 export function sidebarLaneLabel(
   lane: Pick<ThreadLane<unknown>, "dimension" | "value">,
@@ -953,9 +955,7 @@ export function sidebarLaneLabel(
 ): string {
   switch (lane.dimension) {
     case "section":
-      return (
-        SIDEBAR_SECTION_LANE_OPTIONS.find((option) => option.value === lane.value)?.label ?? ""
-      );
+      return isThreadGroupSection(lane.value) ? SIDEBAR_SECTION_LANE_LABELS[lane.value] : "";
     case "project":
       return (
         projects.find((project) => project.projectKey === lane.value)?.displayName ??

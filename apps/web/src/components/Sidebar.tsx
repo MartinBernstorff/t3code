@@ -484,7 +484,7 @@ function useSidebarThreads(input: {
   const threadSort = useClientSettings((s) => s.sidebarThreadSort);
   const groupBy = useClientSettings((s) => s.sidebarGroupBy);
   // Boring mode keeps its project folders; Group by applies to the standard sidebar.
-  // Section alone is today's sidebar, with its drag targets and Working shelf.
+  // Section alone keeps the standard sidebar, with its drag targets and Working shelf.
   const laneLevels =
     folderGroups === null && !(groupBy.length === 1 && groupBy[0] === "section") ? groupBy : null;
   const [collapsedLaneKeys, setCollapsedLaneKeys] = useLocalStorage(
@@ -594,20 +594,23 @@ function useSidebarThreads(input: {
               : EMPTY_THREADS,
           };
         });
+  const sectionLists = [
+    [pinnedThreads, "pinned"],
+    [activeThreads, "active"],
+    [workingThreads, "working"],
+    [snoozedThreads, "snoozed"],
+    [settledThreads, "settled"],
+  ] as const;
   // Lanes replace the pinned, active, and working rows; the snoozed and settled shelves stay.
   const laneRows = (() => {
     if (laneLevels === null) return null;
-    const laneThreads = [...pinnedThreads, ...activeThreads, ...workingThreads];
     const sectionOfThread = new Map<ThreadGroupInput, ThreadGroupSection>();
-    for (const [list, section] of [
-      [pinnedThreads, "pinned"],
-      [activeThreads, "active"],
-      [workingThreads, "working"],
-    ] as const) {
+    for (const [list, section] of sectionLists) {
+      if (section === "snoozed" || section === "settled") continue;
       for (const thread of list) sectionOfThread.set(thread, section);
     }
     return threadLaneRows(
-      laneThreads,
+      [...pinnedThreads, ...activeThreads, ...workingThreads],
       laneLevels,
       {
         projects: laneProjects.map((group) => ({
@@ -641,13 +644,7 @@ function useSidebarThreads(input: {
     ...renderedSettledThreads,
   ];
   const sectionByThreadKey = new Map<string, SidebarSection>();
-  for (const [list, section] of [
-    [pinnedThreads, "pinned"],
-    [activeThreads, "active"],
-    [workingThreads, "working"],
-    [snoozedThreads, "snoozed"],
-    [settledThreads, "settled"],
-  ] as const) {
+  for (const [list, section] of sectionLists) {
     for (const thread of list) sectionByThreadKey.set(threadShellKey(thread), section);
   }
   return {

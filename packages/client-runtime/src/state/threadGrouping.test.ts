@@ -169,11 +169,11 @@ describe("threadLaneRows", () => {
     ]);
     expect(rows.flatMap((row) => (row.kind === "lane" ? [row.parentKey] : []))).toEqual([
       null,
-      "section%3Apinned",
+      threadLaneKey(["section:pinned"]),
       null,
-      "section%3Aactive",
+      threadLaneKey(["section:active"]),
       null,
-      "section%3Aworking",
+      threadLaneKey(["section:working"]),
     ]);
   });
 
