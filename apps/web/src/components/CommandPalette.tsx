@@ -174,7 +174,7 @@ import {
   newProjectId,
 } from "../lib/utils";
 import { buildThreadRouteParams } from "../threadRoutes";
-import { THREAD_PRIORITY_OPTIONS } from "../threadPriority";
+import { NO_PRIORITY_LABEL, THREAD_PRIORITY_OPTIONS } from "../threadPriority";
 import { ThreadPriorityGlyph } from "./ThreadPriorityGlyph";
 import { useAvailableSettingsSearchItems } from "./settings/useAvailableSettingsSearchItems";
 import {
@@ -1472,7 +1472,7 @@ function OpenCommandPaletteDialog(props: {
                 <ThreadPriorityGlyph priority={option.value} className="size-4" />,
               ),
             ),
-            priorityItem(null, "No priority", <XIcon className={ITEM_ICON_CLASS} />),
+            priorityItem(null, NO_PRIORITY_LABEL, <XIcon className={ITEM_ICON_CLASS} />),
           ],
         },
       ],

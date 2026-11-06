@@ -58,6 +58,12 @@ in a new thread's model picker to add or remove them. A regular click returns to
 single model. Choose a base branch and send. Each selection starts a separate thread
 and worktree while you stay in the new thread composer. This requires a Git project.
 
+## Set a thread's priority
+
+Set **Priority** from a thread's menu, or run **Set priority...** from the command
+palette for the open thread. The sidebar shows the priority as an icon before the
+thread title. Agents can set it too.
+
 ## Pin and reorder threads
 
 Pin a thread from its menu to keep it above your active work.

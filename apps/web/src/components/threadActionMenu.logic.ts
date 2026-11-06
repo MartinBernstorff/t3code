@@ -1,7 +1,7 @@
 import type { ContextMenuItem, ThreadPriority } from "@t3tools/contracts";
 import type { SnoozePreset } from "@t3tools/client-runtime/state/thread-settled";
 
-import { THREAD_PRIORITY_OPTIONS } from "../threadPriority";
+import { NO_PRIORITY_LABEL, THREAD_PRIORITY_OPTIONS } from "../threadPriority";
 
 export type ThreadActionMenuId =
   | "find"
@@ -106,9 +106,8 @@ export interface ThreadActionMenuState {
 export function priorityFromThreadAction(
   action: ThreadActionMenuId,
 ): ThreadPriority | null | undefined {
-  if (!action.startsWith("priority:")) return undefined;
-  const value = action.slice("priority:".length);
-  return THREAD_PRIORITY_OPTIONS.find((option) => option.value === value)?.value ?? null;
+  if (action === "priority:none") return null;
+  return THREAD_PRIORITY_OPTIONS.find((option) => action === `priority:${option.value}`)?.value;
 }
 
 /** Local navigation, read markers, and copying remain available to read-only clients. */
@@ -192,7 +191,7 @@ export function buildThreadActionMenuItems(
         })),
         {
           id: "priority:none" as const,
-          label: "No priority",
+          label: NO_PRIORITY_LABEL,
           checked: state.priority === null,
           separatorBefore: true,
         },

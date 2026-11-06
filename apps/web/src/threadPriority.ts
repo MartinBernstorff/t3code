@@ -10,3 +10,5 @@ export const THREAD_PRIORITY_OPTIONS: ReadonlyArray<{
   { value: "medium", label: "Medium" },
   { value: "low", label: "Low" },
 ];
+
+export const NO_PRIORITY_LABEL = "No priority";
