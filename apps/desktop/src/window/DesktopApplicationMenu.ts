@@ -4,6 +4,7 @@ import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 
+import { AUTO_UPDATE_DISABLED } from "@t3tools/shared/autoUpdate";
 import type * as Electron from "electron";
 
 import { makeComponentLogger } from "../app/DesktopObservability.ts";
@@ -164,10 +165,9 @@ export const make = Effect.gen(function* () {
         label: environment.displayName,
         submenu: [
           { role: "about", label: `About ${environment.displayName}` },
-          {
-            label: "Check for Updates...",
-            click: checkForUpdatesClick,
-          },
+          ...(AUTO_UPDATE_DISABLED
+            ? []
+            : [{ label: "Check for Updates...", click: checkForUpdatesClick }]),
           { type: "separator" },
           {
             label: "Settings...",
@@ -303,15 +303,14 @@ export const make = Effect.gen(function* () {
             : []),
         ],
       },
-      {
-        role: "help",
-        submenu: [
-          {
-            label: "Check for Updates...",
-            click: checkForUpdatesClick,
-          },
-        ],
-      },
+      ...(AUTO_UPDATE_DISABLED
+        ? []
+        : [
+            {
+              role: "help" as const,
+              submenu: [{ label: "Check for Updates...", click: checkForUpdatesClick }],
+            },
+          ]),
     );
 
     yield* electronMenu.setApplicationMenu(template);

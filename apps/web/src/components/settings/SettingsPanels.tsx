@@ -25,6 +25,7 @@ import {
   type QuitConfirmationMode,
   SidebarProjectSortOrder,
 } from "@t3tools/contracts/settings";
+import { AUTO_UPDATE_DISABLED } from "@t3tools/shared/autoUpdate";
 import { desktopUpdateChannelOf } from "@t3tools/shared/cliRelease";
 import { createModelSelection } from "@t3tools/shared/model";
 import { resolvePastedPath } from "@t3tools/shared/path";
@@ -2148,7 +2149,7 @@ export function AboutSettingsPanel() {
             }
           />
         ) : null}
-        {isElectron || HOSTED_APP_CHANNEL ? (
+        {!AUTO_UPDATE_DISABLED && (isElectron || HOSTED_APP_CHANNEL) ? (
           <AboutVersionSection />
         ) : (
           <>
@@ -2157,6 +2158,7 @@ export function AboutSettingsPanel() {
               title={<AboutVersionTitle />}
               description="Current version of the application."
             />
+            {AUTO_UPDATE_DISABLED && isElectron ? <CliCommandSettingsRow /> : null}
           </>
         )}
         <MobileAppSettingsRow />

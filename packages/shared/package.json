@@ -3,6 +3,10 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./autoUpdate": {
+      "types": "./src/autoUpdate.ts",
+      "import": "./src/autoUpdate.ts"
+    },
     "./changedFileKind": {
       "types": "./src/changedFileKind.ts",
       "import": "./src/changedFileKind.ts"
