@@ -202,8 +202,10 @@ by **Section**, **Project**, **Priority**, **Engagement**, or **Agent state** (N
 Waiting on others). **Section** alone, the default, keeps the sidebar as described above. Pick up to two **Then by** levels to nest lanes, for example
 Priority then Section. Each lane header shows its thread count; click it to collapse that lane on
 its own. The Engagement lanes always show, even when empty. Snoozed and Settled stay at the
-bottom. While grouped, you cannot drag threads. The boring sidebar keeps its project folders and
-ignores this setting.
+bottom. While grouped, drag a thread onto a lane header to give it that lane's Priority,
+Engagement, or Section (Pinned pins, Active unpins); a nested header sets every level it names.
+Project, Agent state, and Working headers are not drop targets, and threads do not reorder. The
+boring sidebar keeps its project folders and ignores this setting.
 
 ## Settle finished work
 
