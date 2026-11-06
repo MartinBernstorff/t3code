@@ -14,6 +14,7 @@ const baseState: ThreadActionMenuState = {
   priority: null,
   engagement: "inbox",
   waitingOnOthers: false,
+  linearIssue: null,
   isRegeneratingTitle: false,
   isRunning: false,
   supports: {
@@ -48,6 +49,7 @@ describe("buildThreadActionMenuItems", () => {
             "priority",
             "engagement",
             "waiting-off",
+            "linear-issue",
             "rename",
             "regenerate-title",
             "auto-settle",
@@ -61,6 +63,7 @@ describe("buildThreadActionMenuItems", () => {
             "priority",
             "engagement",
             "waiting-on",
+            "linear-issue",
             "rename",
             "regenerate-title",
             "auto-settle",

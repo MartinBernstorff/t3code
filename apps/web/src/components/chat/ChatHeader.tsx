@@ -1,6 +1,7 @@
 import {
   AuthOrchestrationOperateScope,
   type EnvironmentId,
+  type LinearIssueId,
   type ScopedThreadRef,
   type ThreadId,
 } from "@t3tools/contracts";
@@ -42,12 +43,14 @@ import { cn } from "~/lib/utils";
 import { textDirection } from "~/textDirection";
 import { useClientSettings } from "../../hooks/useSettings";
 import { GuestShareIndicator } from "./GuestShareControls";
+import { linearIssueHref } from "../../linearIssue";
 
 interface ChatHeaderProps {
   activeThreadEnvironmentId: EnvironmentId;
   activeThreadId: ThreadId;
   activeThreadTitle: string;
   activeThreadLinkOrigin?: string | null | undefined;
+  activeThreadLinearIssue?: LinearIssueId | null | undefined;
   isServerThread: boolean;
   activeProject: EnvironmentProject | null;
   parentThreadLink: { threadId: ThreadId; title: string } | null;
@@ -75,6 +78,7 @@ export const ChatHeader = memo(function ChatHeader({
   activeThreadId,
   activeThreadTitle,
   activeThreadLinkOrigin,
+  activeThreadLinearIssue,
   isServerThread,
   activeProject,
   parentThreadLink,
@@ -428,9 +432,35 @@ export const ChatHeader = memo(function ChatHeader({
               </TooltipPopup>
             </Tooltip>
           ) : null}
+          {renamingTitle === null && activeThreadLinearIssue ? (
+            <LinearIssueChip
+              issueId={activeThreadLinearIssue}
+              href={linearIssueHref(activeProject?.linearWorkspaceSlug, activeThreadLinearIssue)}
+            />
+          ) : null}
         </WorkspaceBreadcrumbItem>
       </WorkspaceBreadcrumb>
       {isServerThread ? <GuestShareIndicator threadRef={activeThreadRef} /> : null}
     </div>
   );
 });
+
+function LinearIssueChip(props: { readonly issueId: LinearIssueId; readonly href: string | null }) {
+  const label = <span className="font-mono">{props.issueId}</span>;
+  if (props.href === null) {
+    return (
+      <Badge variant="outline" size="sm">
+        {label}
+      </Badge>
+    );
+  }
+  return (
+    <Badge
+      variant="outline"
+      size="sm"
+      render={<a href={props.href} target="_blank" rel="noreferrer noopener" />}
+    >
+      {label}
+    </Badge>
+  );
+}

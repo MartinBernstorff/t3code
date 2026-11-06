@@ -335,4 +335,40 @@ describe("sortSidebarThreads", () => {
       "none",
     ]);
   });
+
+  it("sorts by engagement: most user turns, then latest user message, then title", () => {
+    const thread = (
+      id: string,
+      userTurnCount: number | undefined,
+      latestUserAuthoredMessageAt: string | null | undefined,
+      title = "Thread",
+    ) => ({
+      id,
+      title,
+      createdAt: "2026-01-01T00:00:00.000Z",
+      userTurnCount,
+      latestUserMessageAt: "2026-01-09T00:00:00.000Z",
+      latestUserAuthoredMessageAt,
+    });
+    const sorted = sortSidebarThreads(
+      [
+        thread("untouched", 0, null),
+        thread("older-server", undefined, undefined),
+        thread("two-old", 2, "2026-01-02T00:00:00.000Z"),
+        thread("five", 5, "2026-01-01T00:00:00.000Z"),
+        thread("two-new-b", 2, "2026-01-03T00:00:00.000Z", "Beta"),
+        thread("two-new-a", 2, "2026-01-03T00:00:00.000Z", "Alpha"),
+      ],
+      "engagement",
+    );
+
+    expect(sorted.map(({ id }) => id)).toEqual([
+      "five",
+      "two-new-a",
+      "two-new-b",
+      "two-old",
+      "older-server",
+      "untouched",
+    ]);
+  });
 });

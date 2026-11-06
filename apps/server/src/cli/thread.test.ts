@@ -169,6 +169,9 @@ it.effect("set sends each flag as a t3_thread_organize set field", () =>
     yield* run(threadId, "--snooze", "none");
     const empty = yield* Effect.flip(run(threadId));
     const badSnooze = yield* Effect.flip(run(threadId, "--snooze", "tomorrow"));
+    yield* run(threadId, "--linear", "mb-123", "--priority", "low");
+    yield* run(threadId, "--linear", "none");
+    const badLinear = yield* Effect.flip(run(threadId, "--linear", "MB123"));
 
     assert.deepStrictEqual(calls, [
       { tool: "t3_thread_organize", args: { threadId, action: "set", priority: "urgent" } },
@@ -186,9 +189,15 @@ it.effect("set sends each flag as a t3_thread_organize set field", () =>
         args: { threadId, action: "snooze", snoozedUntil: "2030-01-02T08:00:00.000Z" },
       },
       { tool: "t3_thread_organize", args: { threadId, action: "unsnooze" } },
+      {
+        tool: "t3_thread_organize",
+        args: { threadId, action: "set", priority: "low", linearIssue: "MB-123" },
+      },
+      { tool: "t3_thread_organize", args: { threadId, action: "set", linearIssue: null } },
     ]);
     assert.strictEqual(empty._tag, "ThreadUsageError");
     assert.strictEqual(badSnooze._tag, "ThreadUsageError");
+    assert.strictEqual(badLinear._tag, "ThreadUsageError");
   }).pipe(
     Effect.scoped,
     Effect.provide(

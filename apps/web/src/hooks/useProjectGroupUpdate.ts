@@ -1,4 +1,8 @@
-import { AuthOrchestrationOperateScope, type ProjectIconOverride } from "@t3tools/contracts";
+import {
+  AuthOrchestrationOperateScope,
+  type LinearWorkspaceSlug,
+  type ProjectIconOverride,
+} from "@t3tools/contracts";
 import {
   isAtomCommandInterrupted,
   mapAtomCommandResult,
@@ -20,6 +24,7 @@ export type ProjectGroupUpdate = Partial<{
   title: string;
   faviconPath: string | null;
   projectIcon: ProjectIconOverride | null;
+  linearWorkspaceSlug: LinearWorkspaceSlug | null;
   pinned: boolean;
   archived: boolean;
 }>;

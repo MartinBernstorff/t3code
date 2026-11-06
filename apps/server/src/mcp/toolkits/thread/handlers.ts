@@ -362,6 +362,14 @@ export const layer = McpToolAccess.toLayer(ThreadToolkit, {
             engagement: input.engagement,
           });
         }
+        if (input.linearIssue !== undefined) {
+          commands.push({
+            commandId: yield* newCommandId(),
+            threadId: common.threadId,
+            type: "thread.linear-issue.set",
+            linearIssue: input.linearIssue,
+          });
+        }
         if (commands.length === 0) {
           return yield* new OrchestratorMcpFailure({
             code: "invalid_request",

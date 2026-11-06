@@ -155,6 +155,7 @@ function commandThreadIds(command: OrchestrationV2Command): ReadonlyArray<Thread
     case "thread.priority.set":
     case "thread.engagement.set":
     case "thread.waiting.set":
+    case "thread.linear-issue.set":
     case "thread.visit":
     case "thread.mark-unread":
     case "thread.metadata.update":

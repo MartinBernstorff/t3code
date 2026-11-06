@@ -68,6 +68,9 @@ To list active threads by priority, set **Settings > General > Thread order** to
 **Priority**: urgent first, threads without a priority last, oldest first within a
 priority. Dragging still moves threads between sections, but not within the active list.
 
+**Engagement** instead lists the threads you have sent the most messages to first,
+then the ones you messaged most recently.
+
 ## Set a thread's engagement
 
 Engagement marks whether you are working on a thread now (**Engaged**), have not
@@ -82,6 +85,14 @@ An agent waiting on CI or a review can mark its thread as waiting on others. The
 sidebar shows an hourglass on the thread, and its finished turns do not notify you
 or mark the thread unread. Your next message in the thread clears the mark. You can
 also set or clear it from the thread's menu.
+
+## Link a Linear issue
+
+Choose **Link Linear issue…** from a thread's menu or the command palette, and enter an
+issue id such as `MB-123` or paste the issue's link. Agents can link the issue they work
+on. The id shows next to the thread title and opens the issue in Linear once the
+project has a Linear workspace (see [Project settings](project-settings.md#linear-workspace));
+without one it is plain text. Thread search (Cmd+O) finds threads by issue id.
 
 ## Pin and reorder threads
 

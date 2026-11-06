@@ -47,6 +47,7 @@ import { ThreadGuestShare } from "./guestShare.ts";
 import { StoredThreadTags, ThreadTag } from "./threadTags.ts";
 import { ThreadPriority } from "./threadPriority.ts";
 import { ThreadEngagement } from "./threadEngagement.ts";
+import { LinearIssueId } from "./linearIssue.ts";
 import {
   OrchestrationSearchThreadsInput,
   OrchestrationSearchThreadsResult,
@@ -498,6 +499,7 @@ export const OrchestrationV2AppThread = Schema.Struct({
   engagement: Schema.optional(ThreadEngagement),
   /** An agent declared it is waiting on others (CI, review); the next user message clears it. */
   waitingOnOthers: Schema.optional(Schema.Boolean),
+  linearIssue: Schema.optional(Schema.NullOr(LinearIssueId)),
   lastVisitedAt: Schema.NullOr(Schema.DateTimeUtc).pipe(
     Schema.withDecodingDefault(Effect.succeed(null)),
   ),
@@ -1903,6 +1905,7 @@ export const OrchestrationV2DomainEvent = Schema.Union([
       "thread.priority-updated",
       "thread.engagement-updated",
       "thread.waiting-updated",
+      "thread.linear-issue-updated",
       "thread.visited",
       "thread.marked-unread",
       "thread.metadata-updated",
@@ -2132,6 +2135,8 @@ export const OrchestrationV2ThreadShell = Schema.Struct({
   latestUserMessageAt: Schema.NullOr(Schema.DateTimeUtc),
   /** Excludes wakes and agent messages that advance latestUserMessageAt through the user role. */
   latestUserAuthoredMessageAt: Schema.optional(Schema.NullOr(Schema.DateTimeUtc)),
+  /** User-authored messages, counted like latestUserAuthoredMessageAt. Absent from older servers. */
+  userTurnCount: Schema.optional(NonNegativeInt),
   hasActionableProposedPlan: Schema.Boolean,
   pendingBackgroundTasks: Schema.optional(Schema.Array(OrchestrationV2PendingBackgroundTask)).pipe(
     Schema.withDecodingDefault(Effect.succeed([])),
@@ -2160,6 +2165,7 @@ export const OrchestrationV2ThreadShell = Schema.Struct({
   priority: Schema.optional(Schema.NullOr(ThreadPriority)),
   engagement: Schema.optional(ThreadEngagement),
   waitingOnOthers: Schema.optional(Schema.Boolean),
+  linearIssue: Schema.optional(Schema.NullOr(LinearIssueId)),
   lastVisitedAt: Schema.optional(Schema.NullOr(Schema.DateTimeUtc)),
   opens: Schema.optional(LenientThreadOpens),
   titleRegeneration: Schema.optional(
@@ -2794,6 +2800,7 @@ export const OrchestrationV2DomainEventJson = Schema.Union([
       "thread.priority-updated",
       "thread.engagement-updated",
       "thread.waiting-updated",
+      "thread.linear-issue-updated",
       "thread.visited",
       "thread.marked-unread",
       "thread.pull-request-synced",
@@ -3064,6 +3071,12 @@ export const OrchestrationV2Command = Schema.Union([
     commandId: CommandId,
     threadId: ThreadId,
     waitingOnOthers: Schema.Boolean,
+  }),
+  Schema.Struct({
+    type: Schema.Literal("thread.linear-issue.set"),
+    commandId: CommandId,
+    threadId: ThreadId,
+    linearIssue: Schema.NullOr(LinearIssueId),
   }),
   Schema.Struct({
     type: Schema.Literal("thread.pin.reorder"),
