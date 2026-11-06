@@ -42,7 +42,11 @@ import { observeIntersection } from "../lib/observeIntersection";
 import { deadlineAfter, deadlineStore } from "@t3tools/client-runtime/clock";
 import { useDeadlinePassed } from "../hooks/useDeadline";
 import { legacyProjectCwdPreferenceKey } from "../uiStateStore";
-import type { ThreadGroupSection, ThreadLane } from "@t3tools/client-runtime/state/thread-grouping";
+import type {
+  ThreadAgentState,
+  ThreadGroupSection,
+  ThreadLane,
+} from "@t3tools/client-runtime/state/thread-grouping";
 import { NO_PRIORITY_LABEL, THREAD_PRIORITY_OPTIONS } from "../threadPriority";
 import { THREAD_ENGAGEMENT_OPTIONS } from "../threadEngagement";
 
@@ -948,6 +952,11 @@ const SIDEBAR_SECTION_LANE_LABELS: Record<ThreadGroupSection, string> = {
 };
 const isThreadGroupSection = (value: string): value is ThreadGroupSection =>
   Object.hasOwn(SIDEBAR_SECTION_LANE_LABELS, value);
+const THREAD_AGENT_STATE_OPTIONS: ReadonlyArray<{ value: ThreadAgentState; label: string }> = [
+  { value: "needsYou", label: "Needs you" },
+  { value: "working", label: "Working" },
+  { value: "waitingOnOthers", label: "Waiting on others" },
+];
 
 export function sidebarLaneLabel(
   lane: Pick<ThreadLane<unknown>, "dimension" | "value">,
@@ -968,6 +977,8 @@ export function sidebarLaneLabel(
       );
     case "engagement":
       return THREAD_ENGAGEMENT_OPTIONS.find((option) => option.value === lane.value)?.label ?? "";
+    case "agentState":
+      return THREAD_AGENT_STATE_OPTIONS.find((option) => option.value === lane.value)?.label ?? "";
   }
 }
 

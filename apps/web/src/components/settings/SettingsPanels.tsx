@@ -149,6 +149,7 @@ const SIDEBAR_GROUP_BY_LABELS: Record<SidebarGroupBy, string> = {
   project: "Project",
   priority: "Priority",
   engagement: "Engagement",
+  agentState: "Agent state",
 };
 const isSidebarGroupBy = Schema.is(SidebarGroupBy);
 const NO_GROUP_BY_LEVEL = "none";

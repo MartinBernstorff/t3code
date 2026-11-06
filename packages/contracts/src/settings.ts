@@ -91,7 +91,13 @@ export type SidebarThreadSort = typeof SidebarThreadSort.Type;
 const DEFAULT_SIDEBAR_THREAD_SORT: SidebarThreadSort = "manual";
 
 // "section" is the pinned/active/working split; Snoozed and Settled always stay as bottom shelves.
-export const SidebarGroupBy = Schema.Literals(["section", "project", "priority", "engagement"]);
+export const SidebarGroupBy = Schema.Literals([
+  "section",
+  "project",
+  "priority",
+  "engagement",
+  "agentState",
+]);
 export type SidebarGroupBy = typeof SidebarGroupBy.Type;
 export const SIDEBAR_GROUP_BY_MAX_LEVELS = 3;
 /** Outermost level first; each level differs from the levels above it. */

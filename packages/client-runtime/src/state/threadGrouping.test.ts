@@ -1,7 +1,9 @@
+import { ProviderInstanceId } from "@t3tools/contracts";
 import { describe, expect, it } from "vite-plus/test";
 
 import {
   groupThreadsBy,
+  threadAgentState,
   type ThreadGroupInput,
   type ThreadGroupSection,
   threadLaneKey,
@@ -19,17 +21,33 @@ const thread = (
   id: string,
   { section = "active", ...overrides }: Partial<TestThread> & { section?: ThreadGroupSection } = {},
 ): TestThread => {
-  const created = {
+  const created: TestThread = {
     id,
     environmentId: "env",
     projectId: "p1",
     priority: null,
-    engagement: "inbox" as const,
+    engagement: "inbox",
+    hasActionableProposedPlan: false,
+    hasPendingApprovals: false,
+    hasPendingUserInput: false,
+    interactionMode: "default",
+    latestRun: null,
+    runtime: null,
+    waitingOnOthers: false,
     ...overrides,
   };
   sections.set(created, section);
   return created;
 };
+
+const runtime = (status: "running" | "idle" | "failed") => ({
+  status,
+  activeRunId: null,
+  providerInstanceId: ProviderInstanceId.make("codex"),
+  providerName: "Codex",
+  lastError: null,
+  updatedAt: "2026-06-01T00:00:00.000Z",
+});
 
 const NO_PROJECTS = { projects: [], sectionOf };
 const summarize = (lanes: ReturnType<typeof groupThreadsBy<TestThread>>) =>
@@ -116,6 +134,53 @@ describe("groupThreadsBy", () => {
     expect(threadLaneKey(["project:env:a/b", "priority:low"])).toBe(
       "project%3Aenv%3Aa%2Fb/priority%3Alow",
     );
+  });
+
+  it("orders agent-state lanes needs-you first and drops empty ones", () => {
+    const lanes = groupThreadsBy(
+      [
+        thread("a", { waitingOnOthers: true }),
+        thread("b", { runtime: runtime("running") }),
+        thread("c"),
+      ],
+      "agentState",
+      NO_PROJECTS,
+    );
+    expect(summarize(lanes)).toEqual([
+      ["needsYou", ["c"]],
+      ["working", ["b"]],
+      ["waitingOnOthers", ["a"]],
+    ]);
+  });
+});
+
+describe("threadAgentState", () => {
+  it.each([
+    ["a finished turn", {}, "needsYou"],
+    ["a failed turn", { runtime: runtime("failed") }, "needsYou"],
+    ["a running turn", { runtime: runtime("running") }, "working"],
+    ["background work holding the turn open", { runtime: runtime("idle") }, "working"],
+    [
+      "an approval request mid-run",
+      { runtime: runtime("running"), hasPendingApprovals: true },
+      "needsYou",
+    ],
+    ["a pending user-input request", { hasPendingUserInput: true }, "needsYou"],
+    ["a subagent request", { pendingSubagentRequest: "approval" as const }, "needsYou"],
+    ["a waiting guest message", { pendingGuestMessageCount: 1 }, "needsYou"],
+    ["the waiting flag after the turn ended", { waitingOnOthers: true }, "waitingOnOthers"],
+    [
+      "the waiting flag while a turn runs",
+      { waitingOnOthers: true, runtime: runtime("running") },
+      "working",
+    ],
+    [
+      "the waiting flag with an open approval",
+      { waitingOnOthers: true, hasPendingApprovals: true },
+      "needsYou",
+    ],
+  ] as const)("%s", (_name, overrides, expected) => {
+    expect(threadAgentState(thread("a", overrides))).toBe(expected);
   });
 });
 

@@ -442,7 +442,7 @@ export const SETTINGS_SEARCH_ITEMS = [
     title: "Group threads by",
     to: "/settings/general",
     searchTerms: [
-      "group sidebar lanes nested then by section project priority engagement inbox queued",
+      "group sidebar lanes nested then by section project priority engagement inbox queued agent state needs you working waiting",
     ],
   },
   {
