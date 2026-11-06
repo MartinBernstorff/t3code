@@ -297,6 +297,30 @@ describe("threadLaneDropChanges", () => {
       [{ kind: "unsettle" }],
     ],
     [
+      "wakes a snoozed thread onto a priority lane",
+      ["priority:high"],
+      { ...plain, section: "snoozed" },
+      [{ kind: "priority", priority: "high" }, { kind: "unsnooze" }],
+    ],
+    [
+      "un-settles a settled thread onto the engagement lane it already has",
+      ["engagement:inbox"],
+      { ...plain, section: "settled" },
+      [{ kind: "unsettle" }],
+    ],
+    [
+      "un-settles a settled thread it pins",
+      ["section:pinned"],
+      { ...plain, section: "settled" },
+      [{ kind: "pin" }, { kind: "unsettle" }],
+    ],
+    [
+      "keeps a snoozed thread off a Project lane, which is no target",
+      ["project:env:p1"],
+      { ...plain, section: "snoozed" },
+      [],
+    ],
+    [
       "ignores the lane the thread is already in",
       ["priority:high"],
       { ...plain, priority: "high" },

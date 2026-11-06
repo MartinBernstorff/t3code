@@ -277,10 +277,14 @@ export function threadLaneDropChanges(
     changes.push({ kind: "engagement", engagement });
   }
   if (section === "pinned" && !thread.pinned) changes.push({ kind: "pin" });
-  if (section === "active") {
-    if (thread.pinned) changes.push({ kind: "unpin" });
-    if (thread.section === "settled") changes.push({ kind: "unsettle" });
-    if (thread.section === "snoozed") changes.push({ kind: "unsnooze" });
-  }
+  if (section === "active" && thread.pinned) changes.push({ kind: "unpin" });
+  const targetsSettableLane =
+    priority !== undefined ||
+    engagement !== undefined ||
+    section === "pinned" ||
+    section === "active";
+  // Otherwise the thread would stay on its shelf instead of moving into the lane.
+  if (targetsSettableLane && thread.section === "settled") changes.push({ kind: "unsettle" });
+  if (targetsSettableLane && thread.section === "snoozed") changes.push({ kind: "unsnooze" });
   return changes;
 }
