@@ -118,7 +118,8 @@ the message to read it from stdin. `set` changes a thread's priority (`urgent`,
 or `queued`), whether it is waiting on others (`--waiting on|off`), and snooze (`--snooze` takes a duration such as
 `30m`, `2h`, `3d`, or `1w`, an ISO time, or `none` to wake the thread). Run by
 an agent, `set` defaults to the agent's own thread.
-`--linear` links a Linear issue id, and `--linear none` unlinks it.
+`--linear` links a Linear issue id, and `--linear none` unlinks it. `show` prints the fields that
+are set.
 
 `--wait` prints the agent's reply. It exits 1 when the run fails or stops, and
 2 when the agent waits for an answer you give in the app. Add `--json` for a

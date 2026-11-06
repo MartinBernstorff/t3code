@@ -34,6 +34,9 @@ import {
 } from "./threadPullRequest.ts";
 import { hasOnlyPairedSurrogates } from "./threadMetadataMcp.ts";
 import { ThreadTitleRegeneration } from "./threadTitle.ts";
+import { ThreadEngagement } from "./threadEngagement.ts";
+import { ThreadPriority } from "./threadPriority.ts";
+import { LinearIssueId } from "./linearIssue.ts";
 import {
   OrchestrationV2Actor,
   OrchestrationV2CreationSource,
@@ -352,6 +355,14 @@ export const OrchestratorMcpThreadPullRequest = Schema.Struct({
 });
 export type OrchestratorMcpThreadPullRequest = typeof OrchestratorMcpThreadPullRequest.Type;
 
+/** Omitted when unset; engagement is omitted for inbox and waitingOnOthers when false. */
+const OrchestratorMcpThreadFields = {
+  priority: Schema.optional(ThreadPriority),
+  engagement: Schema.optional(ThreadEngagement),
+  waitingOnOthers: Schema.optional(Schema.Boolean),
+  linearIssue: Schema.optional(LinearIssueId),
+};
+
 export const OrchestratorMcpThreadListItem = Schema.Struct({
   threadId: ThreadId,
   projectId: ProjectId,
@@ -371,6 +382,7 @@ export const OrchestratorMcpThreadListItem = Schema.Struct({
   settledAt: Schema.NullOr(IsoDateTime),
   snoozed: Schema.Boolean,
   snoozedUntil: Schema.NullOr(IsoDateTime),
+  ...OrchestratorMcpThreadFields,
   parentThreadId: Schema.NullOr(ThreadId),
   relationshipToParent: Schema.NullOr(Schema.Literals(["fork", "subagent"])),
   itemCount: NonNegativeInt,
@@ -451,6 +463,7 @@ export const OrchestratorMcpThreadDetail = Schema.Struct({
   settledAt: Schema.NullOr(IsoDateTime),
   snoozed: Schema.Boolean,
   snoozedUntil: Schema.NullOr(IsoDateTime),
+  ...OrchestratorMcpThreadFields,
   createdAt: IsoDateTime,
   updatedAt: IsoDateTime,
 });

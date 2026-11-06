@@ -782,6 +782,24 @@ function threadSnooze(
   };
 }
 
+function threadFields(
+  thread: Pick<
+    OrchestrationV2ThreadShell,
+    "priority" | "engagement" | "waitingOnOthers" | "linearIssue"
+  >,
+): Pick<
+  OrchestratorMcpThreadListItem,
+  "priority" | "engagement" | "waitingOnOthers" | "linearIssue"
+> {
+  return {
+    ...(thread.priority != null && { priority: thread.priority }),
+    ...(thread.engagement !== undefined &&
+      thread.engagement !== "inbox" && { engagement: thread.engagement }),
+    ...(thread.waitingOnOthers === true && { waitingOnOthers: true }),
+    ...(thread.linearIssue != null && { linearIssue: thread.linearIssue }),
+  };
+}
+
 function threadPullRequests(
   links: OrchestrationV2ThreadShell["pullRequests"],
 ): OrchestratorMcpThreadPullRequest[] {
@@ -817,6 +835,7 @@ function listItemFromShell(
     pullRequests: threadPullRequests(shell.pullRequests),
     ...threadSettlement(shell),
     ...threadSnooze(shell, nowMs),
+    ...threadFields(shell),
     parentThreadId: shell.lineage.parentThreadId,
     relationshipToParent: shell.lineage.relationshipToParent,
     itemCount: shell.visibleItemCount,
@@ -870,6 +889,7 @@ function threadDetail(
     archived: projection.thread.archivedAt !== null,
     ...threadSettlement(projection.thread),
     ...threadSnooze(shell, nowMs),
+    ...threadFields(shell),
     createdAt: DateTime.formatIso(projection.thread.createdAt),
     updatedAt: DateTime.formatIso(projection.thread.updatedAt),
   };

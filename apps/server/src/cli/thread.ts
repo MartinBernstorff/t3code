@@ -716,6 +716,18 @@ const threadSendCommand = Command.make("send", {
   ),
 );
 
+/** Only fields that are set; empty when none are. */
+export const threadFieldsLine = (thread: OrchestratorMcpThreadReadResult["thread"]): string =>
+  [
+    thread.priority !== undefined ? `priority ${thread.priority}` : null,
+    thread.engagement ?? null,
+    thread.waitingOnOthers === true ? "waiting on others" : null,
+    thread.snoozedUntil !== null ? `snoozed until ${thread.snoozedUntil}` : null,
+    thread.linearIssue ?? null,
+  ]
+    .filter((part) => part !== null)
+    .join("  ");
+
 const threadShowCommand = Command.make("show", {
   ...projectLocationFlags,
   thread: threadArgument,
@@ -757,6 +769,10 @@ const threadShowCommand = Command.make("show", {
           );
           if (thread.worktreePath !== null) {
             yield* Console.log(`${thread.branch ?? "(no branch)"}  ${thread.worktreePath}`);
+          }
+          const fields = threadFieldsLine(thread);
+          if (fields !== "") {
+            yield* Console.log(fields);
           }
           if (thread.pendingRequestCount > 0) {
             yield* Console.log(`Waiting for ${thread.pendingRequestCount} answer(s).`);
