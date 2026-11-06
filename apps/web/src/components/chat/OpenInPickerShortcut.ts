@@ -1,19 +1,11 @@
-import {
-  buildRemoteOpenUrl,
-  type EditorId,
-  type EnvironmentId,
-  type ResolvedKeybindingsConfig,
-} from "@t3tools/contracts";
+import type { EditorId, EnvironmentId, ResolvedKeybindingsConfig } from "@t3tools/contracts";
 import { useEffect } from "react";
 
-import { usePreferredEditor } from "../../editorPreferences";
 import { editorLabelForPlatform } from "../../editorLabels";
 import { isOpenFavoriteEditorShortcut } from "../../keybindings";
 import { announce } from "../../lib/announce";
-import { openRemoteEditorUrl, useRemoteCapableEditors, useRemoteOpenState } from "../../remoteOpen";
+import { useOpenInLastUsedEditor } from "../../openInLastUsedEditor";
 import { registerCommands } from "../../shortcuts/dispatcher";
-import { shellEnvironment } from "../../state/shell";
-import { useAtomCommand } from "../../state/use-atom-command";
 
 /** Marks an OpenInPicker's primary button as the target of `editor.openFavorite`. */
 export const OPEN_FAVORITE_EDITOR_ATTRIBUTE = "data-open-favorite-editor";
@@ -53,12 +45,9 @@ export function useOpenFavoriteEditorShortcut({
   availableEditors: ReadonlyArray<EditorId>;
   openInCwd: string | null;
 }) {
-  const openInEditorMutation = useAtomCommand(shellEnvironment.openInEditor, "open in editor");
-  const remote = useRemoteOpenState(environmentId);
-  const remoteCapableEditors = useRemoteCapableEditors();
-  // Matches the picker: remote editors run on the viewing machine.
-  const [preferredEditor] = usePreferredEditor(
-    remote.mode === "local-exec" ? availableEditors : remoteCapableEditors,
+  const { remote, preferredEditor, open } = useOpenInLastUsedEditor(
+    environmentId,
+    availableEditors,
   );
 
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- subscribes a window keydown listener for the open-in-editor shortcut while enabled
@@ -75,37 +64,11 @@ export function useOpenFavoriteEditorShortcut({
 
       event.preventDefault();
       const label = editorLabelForPlatform(preferredEditor, navigator.platform);
-      if (remote.mode === "remote-links") {
-        const url = buildRemoteOpenUrl({
-          editor: preferredEditor,
-          ...remote.host,
-          absolutePath: openInCwd,
-        });
-        if (url === undefined) return;
-        void openRemoteEditorUrl(url).then((opened) => {
-          if (opened) announce(`Opened in ${label}`);
-        });
-        return;
-      }
-      void openInEditorMutation({
-        environmentId,
-        input: {
-          cwd: openInCwd,
-          editor: preferredEditor,
-        },
-      }).then((result) => {
-        if (result._tag === "Success") announce(`Opened in ${label}`);
+      void open(openInCwd).then((opened) => {
+        if (opened) announce(`Opened in ${label}`);
       });
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [
-    enabled,
-    environmentId,
-    keybindings,
-    openInCwd,
-    openInEditorMutation,
-    preferredEditor,
-    remote,
-  ]);
+  }, [enabled, keybindings, open, openInCwd, preferredEditor, remote]);
 }
