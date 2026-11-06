@@ -145,3 +145,31 @@ export function SidebarSectionHeader(props: {
     </SortableSidebarMarker>
   );
 }
+
+/** The sidebar tree row of a Group by lane; its thread rows name it as their parent. */
+export function sidebarLaneRowId(laneKey: string) {
+  return `lane:${laneKey}`;
+}
+
+/** A Group by lane header. Lanes do not take part in drag reordering. */
+export function SidebarLaneHeader(props: {
+  laneKey: string;
+  label: string;
+  count: number;
+  expanded: boolean;
+  onToggle: (laneKey: string) => void;
+}) {
+  return (
+    <li data-thread-selection-safe className="relative mx-0.5 h-8 list-none">
+      <CollapsibleSectionHeader
+        data-sidebar-row={sidebarLaneRowId(props.laneKey)}
+        onClick={() => props.onToggle(props.laneKey)}
+        expanded={props.expanded}
+        tone="muted"
+        accessory={<span className="font-normal tabular-nums">{props.count}</span>}
+      >
+        {props.label}
+      </CollapsibleSectionHeader>
+    </li>
+  );
+}

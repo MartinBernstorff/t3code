@@ -438,6 +438,12 @@ export const SETTINGS_SEARCH_ITEMS = [
     searchTerms: ["sort threads sidebar priority urgent manual"],
   },
   {
+    id: "thread-group-by",
+    title: "Group threads by",
+    to: "/settings/general",
+    searchTerms: ["group sidebar lanes section project priority engagement inbox queued"],
+  },
+  {
     id: "snooze-options",
     title: "Snooze options",
     to: "/settings/threads",

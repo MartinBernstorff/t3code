@@ -1,6 +1,7 @@
 import { attachSidebarTree } from "../lib/sidebarTree";
 import { type EnvironmentId, type ScopedProjectRef } from "@t3tools/contracts";
 import type { SidebarThreadSort } from "@t3tools/contracts/settings";
+import { groupThreadsBy } from "@t3tools/client-runtime/state/thread-grouping";
 import type { EnvironmentServerConfig } from "@t3tools/client-runtime/connection";
 import { ThreadContextDragGhost } from "./chat/ThreadContextDragGhost";
 import {
@@ -204,6 +205,7 @@ import {
   searchSidebarThreads,
   shouldCreateNewThreadInCurrentProject,
   shouldNavigateAfterThreadPark,
+  sidebarLaneLabel,
   sidebarListItemId,
   sidebarThreadKeyAtY,
   sortInboxThreadsByReturn,
@@ -271,8 +273,10 @@ import {
 } from "./sidebar/SidebarProjectFolderHeader";
 import {
   SidebarDragBoundary,
+  SidebarLaneHeader,
   SidebarSectionHeader,
   SidebarSectionPlaceholder,
+  sidebarLaneRowId,
 } from "./sidebar/SidebarListMarkers";
 
 function sameSidebarProviderEntries(
@@ -326,12 +330,15 @@ const sidebarProviderEntriesAtom = Atom.make((get) => {
 
 const EMPTY_PROVIDER_ENTRIES: ReadonlyMap<string, SidebarProviderEntry> = new Map();
 const EMPTY_THREADS: readonly EnvironmentThreadShell[] = [];
+const EMPTY_LANE_KEYS: readonly string[] = [];
+const LaneKeys = Schema.Array(Schema.String);
 
 const SETTLED_TAIL_INITIAL_COUNT = 10;
 const SETTLED_TAIL_PAGE_COUNT = 25;
 const SETTLED_SHELF_EXPANDED_KEY = "t3code:sidebar:settled-expanded";
 const SNOOZED_SHELF_EXPANDED_KEY = "t3code:sidebar:snoozed-expanded";
 const WORKING_SHELF_EXPANDED_KEY = "t3code:sidebar:working-expanded";
+const COLLAPSED_LANES_KEY = "t3code:sidebar:collapsed-lanes";
 
 const inboxReturns = createInboxReturnTracker();
 
@@ -412,6 +419,21 @@ function resolveDraggedOrders(input: {
   };
 }
 
+// In Group by mode, lanes draw these rows and markers at the active placeholder.
+const LANE_REPLACED_ITEMS = new Set([
+  "thread:pinned",
+  "thread:active",
+  "thread:working",
+  "marker:pinned-header",
+  "marker:pinned-divider",
+  "marker:active-placeholder",
+  "marker:working-header",
+]);
+
+function sidebarListItemPart(item: SidebarListItem): string {
+  return item.kind === "thread" ? `thread:${item.section}` : `marker:${item.marker}`;
+}
+
 function routeThreadOnly(
   threads: readonly EnvironmentThreadShell[],
   routeThreadKey: string | null,
@@ -435,6 +457,8 @@ function useSidebarThreads(input: {
   readonly folderGroups: readonly SidebarProjectSnapshot[] | null;
   // Keeps folders with no active threads, so a project the user filtered to or pinned can start one.
   readonly keepEmptyFolders: (group: SidebarProjectSnapshot) => boolean;
+  // Project lanes for Group by Project, in order.
+  readonly laneProjects: readonly SidebarProjectSnapshot[];
 }) {
   const {
     projectScopeKey,
@@ -447,11 +471,20 @@ function useSidebarThreads(input: {
     routeRowThreadKey,
     folderGroups,
     keepEmptyFolders: keepEmpty,
+    laneProjects,
   } = input;
   // Folders already separate the work, so boring mode has no Working shelf.
   const workingShelfEnabled =
     useClientSettings((s) => s.sidebarWorkingShelfEnabled) && folderGroups === null;
   const threadSort = useClientSettings((s) => s.sidebarThreadSort);
+  const groupBy = useClientSettings((s) => s.sidebarGroupBy);
+  // Boring mode keeps its project folders; Group by applies to the standard sidebar.
+  const laneDimension = folderGroups === null && groupBy !== "section" ? groupBy : null;
+  const [collapsedLaneKeys, setCollapsedLaneKeys] = useLocalStorage(
+    COLLAPSED_LANES_KEY,
+    EMPTY_LANE_KEYS,
+    LaneKeys,
+  );
   const inboxReturnsVersion = useSyncExternalStore(
     inboxReturns.subscribe,
     inboxReturns.getSnapshot,
@@ -554,12 +587,37 @@ function useSidebarThreads(input: {
               : EMPTY_THREADS,
           };
         });
+  // Lanes replace the pinned, active, and working rows; the snoozed and settled shelves stay.
+  const lanes =
+    laneDimension === null
+      ? null
+      : groupThreadsBy([...pinnedThreads, ...activeThreads, ...workingThreads], laneDimension, {
+          projects: laneProjects.map((group) => ({
+            key: group.projectKey,
+            memberProjectKeys: group.memberProjectRefs.map(
+              (ref) => `${ref.environmentId}:${ref.projectId}`,
+            ),
+          })),
+        }).map((lane) => {
+          const collapsed = collapsedLaneKeys.includes(lane.key);
+          return {
+            ...lane,
+            label: sidebarLaneLabel(lane, laneProjects),
+            collapsed,
+            count: lane.threads.length,
+            threads: collapsed ? routeThreadOnly(lane.threads, routeRowThreadKey) : lane.threads,
+          };
+        });
   const orderedThreads = [
-    ...pinnedThreads,
-    ...(projectFolders === null
-      ? activeThreads
-      : projectFolders.flatMap((folder) => folder.threads)),
-    ...visibleWorkingThreads,
+    ...(lanes !== null
+      ? lanes.flatMap((lane) => lane.threads)
+      : [
+          ...pinnedThreads,
+          ...(projectFolders === null
+            ? activeThreads
+            : projectFolders.flatMap((folder) => folder.threads)),
+          ...visibleWorkingThreads,
+        ]),
     ...visibleSnoozedThreads,
     ...renderedSettledThreads,
   ];
@@ -601,6 +659,11 @@ function useSidebarThreads(input: {
     workingShelfExpanded,
     toggleWorkingShelf: () => setWorkingShelfExpanded((value) => !value),
     projectFolders,
+    lanes,
+    toggleLane: (laneKey: string) =>
+      setCollapsedLaneKeys((keys) =>
+        keys.includes(laneKey) ? keys.filter((key) => key !== laneKey) : [...keys, laneKey],
+      ),
     toggleProjectFolder: (group: SidebarProjectSnapshot) => {
       const keys = sidebarFolderExpansionKeys(group);
       setProjectExpanded(keys, !resolveProjectExpanded(projectExpandedById, keys));
@@ -1338,6 +1401,8 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     toggleWorkingShelf,
     projectFolders,
     toggleProjectFolder,
+    lanes,
+    toggleLane,
     renderedSettledThreads,
     visibleSnoozedThreads,
     visibleWorkingThreads,
@@ -1367,6 +1432,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
       : null,
     keepEmptyFolders: (group) =>
       scopedProjectGroups.length > 0 || (group.pinned && !group.archived),
+    laneProjects: scopedProjectGroups.length === 0 ? projectGroups : scopedProjectGroups,
   });
 
   // Ranked across environments as the palette ranks them, so one
@@ -2008,6 +2074,8 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     projectFolders
       ?.map((folder) => `${folder.group.projectKey}:${folder.threads.length}`)
       .join("\n") ?? "",
+    lanes?.map((lane) => `${lane.key}:${lane.threads.map(threadShellKey).join(",")}`).join("\n") ??
+      "",
     visibleDraftSessionCount,
     routeDraftIdForRows ?? "",
   ].join("\0");
@@ -3395,6 +3463,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                         section: SidebarSection,
                         // The tree row of the project folder this row sits in.
                         folderRow?: string,
+                        laneRow?: string,
                       ) => {
                         const threadKey = scopedThreadKey(
                           scopeThreadRef(thread.environmentId, thread.id),
@@ -3415,6 +3484,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                             contextDrag={isContextDrag}
                             sortableDisabled={
                               projectFolders !== null ||
+                              lanes !== null ||
                               renamingThreadKey === threadKey ||
                               !draggableThreadKeys.has(threadKey) ||
                               optimisticDrop !== null
@@ -3423,6 +3493,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                             variant={rowVariant}
                             navigationParent={
                               folderRow ??
+                              laneRow ??
                               (section === "working" ||
                               section === "snoozed" ||
                               section === "settled"
@@ -3511,6 +3582,8 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                         );
                       };
                       const from = isContextDrag ? null : (dragState?.activeSection ?? null);
+                      // Lanes hold working threads, so no Working header is shown above the shelves.
+                      const shownWorkingCount = lanes === null ? workingThreads.length : 0;
                       const items: ReactNode[] = [
                         <SidebarDraftBlock
                           key="draft-sessions"
@@ -3523,6 +3596,33 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                         />,
                       ];
                       for (const item of sidebarListItems) {
+                        if (lanes !== null && LANE_REPLACED_ITEMS.has(sidebarListItemPart(item))) {
+                          if (item.kind === "marker" && item.marker === "active-placeholder") {
+                            for (const lane of lanes) {
+                              items.push(
+                                <SidebarLaneHeader
+                                  key={`lane:${lane.key}`}
+                                  laneKey={lane.key}
+                                  label={lane.label}
+                                  count={lane.count}
+                                  expanded={!lane.collapsed}
+                                  onToggle={toggleLane}
+                                />,
+                              );
+                              for (const thread of lane.threads) {
+                                items.push(
+                                  renderThreadRow(
+                                    thread,
+                                    sectionByThreadKey.get(threadShellKey(thread)) ?? "active",
+                                    undefined,
+                                    sidebarLaneRowId(lane.key),
+                                  ),
+                                );
+                              }
+                            }
+                          }
+                          continue;
+                        }
                         if (item.kind === "thread") {
                           // Folders draw active rows in their own place below.
                           if (projectFolders !== null && item.section === "active") continue;
@@ -3615,7 +3715,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                               <SidebarSectionHeader
                                 key="snoozed-shelf-header"
                                 marker="snoozed-header"
-                                className={cn(workingThreads.length === 0 && "mt-auto")}
+                                className={cn(shownWorkingCount === 0 && "mt-auto")}
                                 label="Snoozed"
                                 count={snoozedThreads.length}
                                 toggle={{
@@ -3631,7 +3731,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                                 key="settled-shelf-header"
                                 marker="settled-header"
                                 className={cn(
-                                  workingThreads.length + snoozedThreads.length === 0 && "mt-auto",
+                                  shownWorkingCount + snoozedThreads.length === 0 && "mt-auto",
                                 )}
                                 label="Settled"
                                 count={settledCount}

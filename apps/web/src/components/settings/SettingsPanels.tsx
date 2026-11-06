@@ -26,6 +26,7 @@ import {
   SidebarProjectSortOrder,
   SidebarRowGlyphKind,
   SidebarThreadSort,
+  SidebarGroupBy,
 } from "@t3tools/contracts/settings";
 import { AUTO_UPDATE_DISABLED } from "@t3tools/shared/autoUpdate";
 import { desktopUpdateChannelOf } from "@t3tools/shared/cliRelease";
@@ -138,6 +139,14 @@ const SIDEBAR_THREAD_SORT_LABELS: Record<SidebarThreadSort, string> = {
   priority: "Priority",
 };
 const isSidebarThreadSort = Schema.is(SidebarThreadSort);
+
+const SIDEBAR_GROUP_BY_LABELS: Record<SidebarGroupBy, string> = {
+  section: "Section",
+  project: "Project",
+  priority: "Priority",
+  engagement: "Engagement",
+};
+const isSidebarGroupBy = Schema.is(SidebarGroupBy);
 
 const TIMESTAMP_FORMAT_LABELS = {
   locale: "System default",
@@ -495,6 +504,9 @@ export function useSettingsRestore(onRestored?: () => void) {
     ...(settings.sidebarThreadSort !== DEFAULT_UNIFIED_SETTINGS.sidebarThreadSort
       ? ["Thread order"]
       : []),
+    ...(settings.sidebarGroupBy !== DEFAULT_UNIFIED_SETTINGS.sidebarGroupBy
+      ? ["Group threads by"]
+      : []),
     ...(settings.sidebarWorkingShelfEnabled !== DEFAULT_UNIFIED_SETTINGS.sidebarWorkingShelfEnabled
       ? ["Working section"]
       : []),
@@ -679,6 +691,7 @@ export function useSettingsRestore(onRestored?: () => void) {
       sidebarProjectGroupingMode: DEFAULT_UNIFIED_SETTINGS.sidebarProjectGroupingMode,
       sidebarProjectSortOrder: DEFAULT_UNIFIED_SETTINGS.sidebarProjectSortOrder,
       sidebarThreadSort: DEFAULT_UNIFIED_SETTINGS.sidebarThreadSort,
+      sidebarGroupBy: DEFAULT_UNIFIED_SETTINGS.sidebarGroupBy,
       sidebarWorkingShelfEnabled: DEFAULT_UNIFIED_SETTINGS.sidebarWorkingShelfEnabled,
       sidebarRowGlyphs: DEFAULT_UNIFIED_SETTINGS.sidebarRowGlyphs,
       sidebarAutoSettleAfterDays: DEFAULT_UNIFIED_SETTINGS.sidebarAutoSettleAfterDays,
@@ -995,6 +1008,41 @@ export function GeneralSettingsPanel() {
                 {SidebarThreadSort.literals.map((sort) => (
                   <SelectItem hideIndicator key={sort} value={sort}>
                     {SIDEBAR_THREAD_SORT_LABELS[sort]}
+                  </SelectItem>
+                ))}
+              </SelectPopup>
+            </Select>
+          }
+        />
+        <SettingsRow
+          {...searchableSetting("thread-group-by")}
+          description="Lanes for the sidebar's pinned, active, and working threads. Snoozed and Settled stay at the bottom. The boring sidebar in Labs keeps its project folders."
+          resetAction={
+            settings.sidebarGroupBy !== DEFAULT_UNIFIED_SETTINGS.sidebarGroupBy ? (
+              <SettingResetButton
+                label="group threads by"
+                onClick={() =>
+                  updateSettings({ sidebarGroupBy: DEFAULT_UNIFIED_SETTINGS.sidebarGroupBy })
+                }
+              />
+            ) : null
+          }
+          control={
+            <Select
+              value={settings.sidebarGroupBy}
+              onValueChange={(value) => {
+                if (isSidebarGroupBy(value)) {
+                  updateSettings({ sidebarGroupBy: value });
+                }
+              }}
+            >
+              <SelectTrigger size="sm" className="w-full sm:w-44" aria-label="Group threads by">
+                <SelectValue>{SIDEBAR_GROUP_BY_LABELS[settings.sidebarGroupBy]}</SelectValue>
+              </SelectTrigger>
+              <SelectPopup align="end" alignItemWithTrigger={false}>
+                {SidebarGroupBy.literals.map((groupBy) => (
+                  <SelectItem hideIndicator key={groupBy} value={groupBy}>
+                    {SIDEBAR_GROUP_BY_LABELS[groupBy]}
                   </SelectItem>
                 ))}
               </SelectPopup>
