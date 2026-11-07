@@ -140,7 +140,7 @@ const isSidebarProjectSortOrder = Schema.is(SidebarProjectSortOrder);
 const SIDEBAR_THREAD_SORT_LABELS: Record<SidebarThreadSort, string> = {
   manual: "Manual",
   priority: "Priority",
-  engagement: "Engagement",
+  activity: "Activity",
 };
 const isSidebarThreadSort = Schema.is(SidebarThreadSort);
 

@@ -336,7 +336,7 @@ describe("sortSidebarThreads", () => {
     ]);
   });
 
-  it("sorts by engagement: most user turns, then latest user message, then title", () => {
+  it("sorts by activity: most user turns, then latest user message, then title", () => {
     const thread = (
       id: string,
       userTurnCount: number | undefined,
@@ -359,7 +359,7 @@ describe("sortSidebarThreads", () => {
         thread("two-new-b", 2, "2026-01-03T00:00:00.000Z", "Beta"),
         thread("two-new-a", 2, "2026-01-03T00:00:00.000Z", "Alpha"),
       ],
-      "engagement",
+      "activity",
     );
 
     expect(sorted.map(({ id }) => id)).toEqual([
