@@ -291,8 +291,9 @@ Use **Link pull request to thread** in the command palette to keep a pull reques
 on the Pull requests page, **Link to thread** lets you search for an active thread. The review header
 also lists the threads that link to it, including archived threads, so you can return to their context.
 
-Thread badges show a stack's layer count or the current review number with a count of additional
-links. Clicking a badge with more than one review opens the **Linked pull requests** panel. On mobile, the Git overview lists linked reviews and their stacks; tap a review to open it.
+Sidebar rows show each linked review as a chip colored by its state. The branch toolbar badge shows a
+stack's layer count or the current review number with a count of additional links. When a thread has
+more than one review, clicking its badge or one of its chips opens the **Linked pull requests** panel. On mobile, the Git overview lists linked reviews and their stacks; tap a review to open it.
 Linking and unlinking are available in the web and desktop clients.
 
 The **Linked pull requests** panel lists every review and groups stacks. Unlink a review from its
