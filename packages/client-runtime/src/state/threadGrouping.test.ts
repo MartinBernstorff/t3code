@@ -266,7 +266,21 @@ describe("withThreadGroupLevel", () => {
 });
 
 describe("threadLaneDropChanges", () => {
-  const plain = { priority: null, engagement: "inbox", pinned: false, section: "active" } as const;
+  const supports = {
+    priority: true,
+    engagement: true,
+    pin: true,
+    unpin: true,
+    unsettle: true,
+    unsnooze: true,
+  } as const;
+  const plain = {
+    priority: null,
+    engagement: "inbox",
+    pinned: false,
+    section: "active",
+    supports,
+  } as const;
 
   it.each([
     ["sets priority", ["priority:high"], plain, [{ kind: "priority", priority: "high" }]],
@@ -351,6 +365,30 @@ describe("threadLaneDropChanges", () => {
       ["priority:high", "engagement:engaged"],
       plain,
       [{ kind: "priority", priority: "high" }],
+    ],
+    [
+      "is no target when the server lacks priority",
+      ["priority:high"],
+      { ...plain, supports: { ...supports, priority: false } },
+      [],
+    ],
+    [
+      "is no target when one level of a nested path is unsupported",
+      ["priority:high", "engagement:queued"],
+      { ...plain, supports: { ...supports, engagement: false } },
+      [],
+    ],
+    [
+      "is no target when the server cannot wake the snoozed thread",
+      ["section:active"],
+      { ...plain, section: "snoozed", supports: { ...supports, unsnooze: false } },
+      [],
+    ],
+    [
+      "ignores an unsupported level the thread is already in",
+      ["priority:high", "engagement:queued"],
+      { ...plain, priority: "high", supports: { ...supports, priority: false } },
+      [{ kind: "engagement", engagement: "queued" }],
     ],
   ] as const)("%s", (_name, path, input, expected) => {
     expect(threadLaneDropChanges(path, input)).toEqual(expected);

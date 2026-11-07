@@ -2135,11 +2135,22 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     const thread = threadByKey.get(threadKey);
     const section = sectionByThreadKey.get(threadKey);
     if (path === undefined || thread === undefined || section === undefined) return [];
+    const configLoaded = serverConfigs.has(thread.environmentId);
+    const capabilities = serverConfigs.get(thread.environmentId)?.environment.capabilities;
     return threadLaneDropChanges(path, {
       priority: thread.priority,
       engagement: thread.engagement,
       pinned: thread.pinnedAt != null,
       section,
+      // Same gates as the thread menu.
+      supports: {
+        priority: capabilities?.threadPriority === true,
+        engagement: capabilities?.threadEngagement === true,
+        pin: configLoaded,
+        unpin: configLoaded,
+        unsettle: configLoaded,
+        unsnooze: configLoaded,
+      },
     });
   };
   const handleThreadDragOver = (event: DragOverEvent) => {

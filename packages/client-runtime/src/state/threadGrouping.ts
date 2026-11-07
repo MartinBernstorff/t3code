@@ -236,12 +236,15 @@ export interface ThreadLaneDropInput {
   readonly pinned: boolean;
   /** The thread's sidebar placement, including the Snoozed and Settled shelves. */
   readonly section: ThreadGroupSection | "snoozed" | "settled";
+  /** Which changes the thread's server can decode. */
+  readonly supports: Readonly<Record<ThreadLaneDropChange["kind"], boolean>>;
 }
 
 /**
  * The changes that move a thread into the lane at `path`, one per settable level.
  * Project, Agent state and the Working section are not settable and are skipped.
- * An empty result means the header is not a drop target for this thread.
+ * An empty result means the header is not a drop target for this thread, including when
+ * the thread's server lacks a command the drop needs.
  */
 export function threadLaneDropChanges(
   path: readonly string[],
@@ -286,5 +289,5 @@ export function threadLaneDropChanges(
   // Otherwise the thread would stay on its shelf instead of moving into the lane.
   if (targetsSettableLane && thread.section === "settled") changes.push({ kind: "unsettle" });
   if (targetsSettableLane && thread.section === "snoozed") changes.push({ kind: "unsnooze" });
-  return changes;
+  return changes.every((change) => thread.supports[change.kind]) ? changes : [];
 }
