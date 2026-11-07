@@ -180,7 +180,7 @@ const SIDEBAR_THREAD_COMPARATORS: Record<Exclude<SidebarThreadSort, "manual">, T
     priorityRank(left) - priorityRank(right) ||
     compareCreatedOldestFirst(left, right) ||
     compareTitle(left, right),
-  engagement: (left, right) =>
+  activity: (left, right) =>
     (right.userTurnCount ?? 0) - (left.userTurnCount ?? 0) ||
     latestUserTurnMs(right) - latestUserTurnMs(left) ||
     compareTitle(left, right),

@@ -9,10 +9,6 @@ import { discardComposerDraft } from "../../lib/discardComposerDraft";
 import { requestCustomSnooze } from "../CustomSnoozeDialog";
 import { useSupportsMultiplePullRequests } from "~/hooks/useSupportsMultiplePullRequests";
 import { useDeadlinePassed } from "~/hooks/useDeadline";
-import {
-  resolveThreadCurrentPullRequestLink,
-  visibleThreadPullRequests,
-} from "@t3tools/client-runtime/thread-pull-requests";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import {
@@ -99,11 +95,8 @@ import {
 } from "../Sidebar.logic";
 import { resolveLocalCheckoutBranchMismatch } from "../BranchToolbar.logic";
 import {
-  ThreadPullRequestBadgeControl,
   ThreadPullRequestsMiniList,
   ThreadWorktreeIndicator,
-  prStatusIndicator,
-  resolveThreadPullRequestBadge,
   terminalStatusFromRunningIds,
   type TerminalStatusIndicator,
   useLinkedThreadPullRequest,
@@ -118,11 +111,15 @@ import { ProviderInstanceIcon } from "../chat/ProviderInstanceIcon";
 import { getTriggerDisplayModelName } from "../chat/providerIconUtils";
 import { shouldShowInstanceBadge, type ProviderInstanceEntry } from "../../providerInstances";
 import { useThreadRunningTerminalIds } from "../../state/terminalSessions";
-import { InlineButton } from "../ui/button";
 import { Kbd } from "../ui/kbd";
 import { Menu, MenuItem, MenuItemDetail, MenuPopup, MenuSeparator, MenuTrigger } from "../ui/menu";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { MiddleTruncate } from "../ui/middle-truncate";
+import {
+  PullRequestGlyph,
+  type PullRequestStatePresentation,
+} from "../pullRequest/pullRequestIcons";
+import { resolvePullRequestState } from "../pullRequest/pullRequestPresentation";
 import { useThreadHasUnsentDraft } from "../../composerDraftStore";
 
 // The fields thread rows show. Provider status pushes refresh `checkedAt`,
@@ -719,9 +716,6 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
   const pr = linkedPullRequestStatus?.pr ?? null;
   const supportsMultiplePullRequests = useSupportsMultiplePullRequests(thread.environmentId);
   const sidebarRowGlyphKinds = useClientSettings((settings) => settings.sidebarRowGlyphs);
-  const currentLinkedPr = supportsMultiplePullRequests
-    ? resolveThreadCurrentPullRequestLink(thread.pullRequests)
-    : null;
 
   const isUnread = hasUnseenCompletion({ ...thread, lastVisitedAt });
   const status = resolveSidebarThreadStatus(thread);
@@ -807,7 +801,6 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
     activeThreadBranch: thread.branch,
     currentGitBranch: visibleGitStatus?.refName ?? null,
   });
-  const prStatus = prStatusIndicator(pr, linkedPullRequestStatus?.sourceControlProvider);
 
   const modelInstanceId = thread.runtime?.providerInstanceId ?? thread.modelSelection.instanceId;
   const providerEntry = props.providerEntryByInstanceId.get(modelInstanceId) ?? null;
@@ -978,11 +971,6 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
       onThreadActivate(threadRef);
     }
   };
-  const handlePrClick = (event: ReactMouseEvent<HTMLElement>, targetUrl?: string) => {
-    const url = targetUrl ?? pr?.url ?? currentLinkedPr?.url;
-    if (!url) return;
-    openPullRequest(event, url, targetUrl !== undefined || openPullRequestsInRightPanel);
-  };
 
   const rowSurfaceClassName = cn(
     "group/sidebar-row relative w-full cursor-pointer overflow-hidden rounded-md text-left outline-none select-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
@@ -1098,44 +1086,30 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
     ),
   );
 
-  const prBadgeShape = supportsMultiplePullRequests
-    ? resolveThreadPullRequestBadge(thread.pullRequests)
-    : null;
+  const linkedRefs = resolveSidebarLinkedRefs({
+    linearIssue: thread.linearIssue,
+    linearWorkspaceSlug: props.project?.linearWorkspaceSlug,
+    pullRequestLinks: supportsMultiplePullRequests ? thread.pullRequests : [],
+    fallbackPullRequest: pr,
+  });
   const handlePrListClick = () => {
     useRightPanelStore.getState().open(threadRef, "pull-requests");
     if (!props.isRouteThread) onThreadActivate(threadRef);
   };
-  const prBadge =
-    prBadgeShape?.kind === "stack" || pr || currentLinkedPr ? (
-      <ThreadPullRequestBadgeControl
-        render={<InlineButton />}
-        badge={prBadgeShape}
-        pullRequests={thread.pullRequests}
-        number={pr?.number ?? currentLinkedPr?.number}
-        url={pr?.url ?? currentLinkedPr?.url}
-        status={prStatus}
-        onOpenList={handlePrListClick}
-        onOpenPullRequest={handlePrClick}
-      />
-    ) : null;
-  const linkedRefs = resolveSidebarLinkedRefs({
-    linearIssue: thread.linearIssue,
-    linearWorkspaceSlug: props.project?.linearWorkspaceSlug,
-    pullRequests: supportsMultiplePullRequests
-      ? visibleThreadPullRequests(thread.pullRequests)
-      : pr
-        ? [pr]
-        : [],
-  });
   const linkedRefsRow =
-    linkedRefs.length === 0 ? null : (
+    linkedRefs.refs.length === 0 ? null : (
       <div className="mt-0.5 flex h-4 min-w-0 items-center gap-1 overflow-hidden">
-        {linkedRefs.map((ref) => (
+        {linkedRefs.refs.map((ref) => (
           <SidebarLinkedRefChip
             key={ref.key}
             linkedRef={ref}
-            onOpenPullRequest={(event, url) =>
-              openPullRequest(event, url, openPullRequestsInRightPanel)
+            onOpenPullRequest={
+              linkedRefs.pullRequestChipsOpenList
+                ? (event) => {
+                    event.preventDefault();
+                    handlePrListClick();
+                  }
+                : (event, url) => openPullRequest(event, url, openPullRequestsInRightPanel)
             }
           />
         ))}
@@ -1209,11 +1183,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
   const diff = latestRunDiff(thread);
   // Only the trailing icons would remain, so the row moves them to the title line instead.
   const metaLineEmpty =
-    !thread.branch &&
-    !showsScratchMachine &&
-    prBadge === null &&
-    diff === null &&
-    runningTerminalIds.length === 0;
+    !thread.branch && !showsScratchMachine && diff === null && runningTerminalIds.length === 0;
   const metaLine = metaLineEmpty ? null : (
     <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-secondary-label text-xs">
       {thread.branch ? (
@@ -1236,7 +1206,6 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
         <span className="flex-1" />
       )}
       {terminalStatusIcon}
-      {prBadge}
       {diff ? (
         <span className="shrink-0 font-mono">
           <span className="text-diff-addition-foreground">+{formatDiffCount(diff.insertions)}</span>{" "}
@@ -1703,14 +1672,31 @@ function SidebarLinkedRefChip(props: {
 }) {
   const { linkedRef } = props;
   const url = linkedRef.url;
+  const statePresentation =
+    linkedRef.pullRequestState === null
+      ? null
+      : resolvePullRequestState(linkedRef.pullRequestState);
+  const content = (
+    <>
+      {linkedRef.kind === "pull-request" ? (
+        <SidebarPullRequestChipIcon presentation={statePresentation} />
+      ) : null}
+      {linkedRef.label}
+    </>
+  );
   if (url === null) {
-    return <span className={LINKED_REF_CHIP_CLASS_NAME}>{linkedRef.label}</span>;
+    return <span className={LINKED_REF_CHIP_CLASS_NAME}>{content}</span>;
   }
   return (
     <a
       href={url}
       target="_blank"
       rel="noopener noreferrer"
+      aria-label={
+        statePresentation === null
+          ? undefined
+          : `${linkedRef.label}, ${statePresentation.label.toLowerCase()}`
+      }
       // Opening a ref must not open the thread or start a row drag.
       onPointerDown={(event) => event.stopPropagation()}
       onClick={(event) => {
@@ -1722,8 +1708,21 @@ function SidebarLinkedRefChip(props: {
         "outline-none hover:text-foreground hover:underline focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
       )}
     >
-      {linkedRef.label}
+      {content}
     </a>
+  );
+}
+
+function SidebarPullRequestChipIcon(props: { presentation: PullRequestStatePresentation | null }) {
+  const Icon = props.presentation?.Icon ?? PullRequestGlyph.pullRequest;
+  return (
+    <Icon
+      aria-hidden
+      className={cn(
+        "mr-0.5 inline size-3 align-[-2px]",
+        props.presentation?.toneClassName ?? "text-muted-foreground",
+      )}
+    />
   );
 }
 
