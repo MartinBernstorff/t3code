@@ -15,8 +15,8 @@ Deploying means landing the current branch on `main` of the fork (`origin`, Mart
 ## 2. Create a PR and merge it
 
 1. Push: `git push -u origin HEAD`
-2. Open the PR against the fork
-3. Merge it
+2. Open the PR against the fork, in its own command
+3. Merge it in a separate, later command.
 
 ## 3. Pull in the root checkout
 
