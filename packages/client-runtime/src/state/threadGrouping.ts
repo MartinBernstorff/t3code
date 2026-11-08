@@ -297,14 +297,15 @@ export type ThreadLaneDropChange =
   | { readonly kind: "pin" }
   | { readonly kind: "unpin" }
   | { readonly kind: "unsettle" }
-  | { readonly kind: "unsnooze" };
+  | { readonly kind: "unsnooze" }
+  | { readonly kind: "unwait" };
 
 export interface ThreadLaneDropInput {
   readonly priority: ThreadPriority | null;
   readonly engagement: ThreadEngagement;
   readonly pinned: boolean;
-  /** The thread's sidebar placement, including the Snoozed and Settled shelves. */
-  readonly section: ThreadGroupSection | "snoozed" | "settled";
+  /** The thread's sidebar placement, including the Waiting, Snoozed and Settled shelves. */
+  readonly section: ThreadGroupSection | "waiting" | "snoozed" | "settled";
   /** Which changes the thread's server can decode. */
   readonly supports: Readonly<Record<ThreadLaneDropChange["kind"], boolean>>;
 }
@@ -355,5 +356,6 @@ export function threadLaneDropChanges(
   // Otherwise the thread would stay on its shelf instead of moving into the lane.
   if (targetsSettableLane && thread.section === "settled") changes.push({ kind: "unsettle" });
   if (targetsSettableLane && thread.section === "snoozed") changes.push({ kind: "unsnooze" });
+  if (targetsSettableLane && thread.section === "waiting") changes.push({ kind: "unwait" });
   return changes.every((change) => thread.supports[change.kind]) ? changes : [];
 }

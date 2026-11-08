@@ -1127,6 +1127,63 @@ describe("Working shelf (beta)", () => {
       },
     );
 
+    describe("the Waiting shelf", () => {
+      const withWaiting: readonly SidebarListItem[] = [
+        marker("pinned-header"),
+        row("p1", "pinned"),
+        marker("pinned-divider"),
+        row("a1", "active"),
+        marker("working-header"),
+        marker("waiting-header"),
+        row("q1", "waiting"),
+        marker("settled-header"),
+        row("s1", "settled"),
+      ];
+      const plan = (
+        activeKey: string,
+        activeSection: SidebarSection,
+        overId: string,
+        extra: { activeWaiting?: boolean; supportsWaiting?: boolean } = {},
+      ) =>
+        planSidebarThreadDrop({
+          activeKey,
+          activeSection,
+          target: resolveSidebarDropTarget(withWaiting, activeKey, overId)!,
+          pinnedOrder: ["p1"],
+          pinnedKeysById: new Map([["p1", "m"]]),
+          activeOrder: ["a1"],
+          activeKeysById: new Map([["a1", "m"]]),
+          activeTimeOrdered: true,
+          ...extra,
+        });
+
+      it.each([
+        ["an active", "a1", "active", { unpin: false, unsettle: false }],
+        ["a pinned", "p1", "pinned", { unpin: true, unsettle: false }],
+        ["a settled", "s1", "settled", { unpin: false, unsettle: true }],
+      ] as const)("marks %s thread waiting when it lands on the shelf", (_, key, from, moves) => {
+        expect(plan(key, from, "q1")).toEqual({ kind: "wait", ...moves, unsnooze: false });
+        expect(resolveSidebarDropVerb(from, "waiting")).toBe("wait");
+      });
+
+      it("clears the flag when a Waiting thread lands in Active", () => {
+        expect(plan("q1", "waiting", "a1")).toMatchObject({ kind: "move-active", unwait: true });
+        expect(resolveSidebarDropVerb("waiting", "active")).toBe("unwait");
+      });
+
+      it("clears the flag of a waiting settled thread dropped in Active", () => {
+        expect(plan("s1", "settled", "a1", { activeWaiting: true })).toMatchObject({
+          kind: "move-active",
+          unsettle: true,
+          unwait: true,
+        });
+      });
+
+      it("is no target when the server cannot store the flag", () => {
+        expect(plan("a1", "active", "q1", { supportsWaiting: false })).toEqual({ kind: "none" });
+      });
+    });
+
     it("arranges the rows it can write when another row's server cannot store an order", () => {
       const plan = planSidebarThreadDrop({
         activeKey: "a2",
@@ -1435,6 +1492,7 @@ describe("Working shelf (beta)", () => {
         unpin: true,
         unsettle: false,
         unsnooze: false,
+        unwait: false,
       });
     });
   });
