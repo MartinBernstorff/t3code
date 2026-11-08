@@ -325,6 +325,29 @@ it.layer(NodeServices.layer)("keybindings", (it) => {
     }).pipe(Effect.provide(layerKeybindings())),
   );
 
+  it.effect("drops the desktop-only condition from persisted default thread jumps", () =>
+    Effect.gen(function* () {
+      const { keybindingsConfigPath } = yield* ServerConfig.ServerConfig;
+      const keybindings = yield* Keybindings.Keybindings;
+      yield* writeKeybindingsConfig(keybindingsConfigPath, [
+        { key: "mod+1", command: "thread.jump.1", when: "!modelPickerOpen && isDesktop" },
+        { key: "mod+alt+2", command: "thread.jump.2", when: "!modelPickerOpen && isDesktop" },
+      ]);
+
+      yield* keybindings.syncDefaultKeybindingsOnStartup;
+      const persisted = yield* readKeybindingsConfig(keybindingsConfigPath);
+      assert.deepStrictEqual(
+        persisted.filter(
+          (entry) => entry.command === "thread.jump.1" || entry.command === "thread.jump.2",
+        ),
+        [
+          { key: "mod+1", command: "thread.jump.1", when: "!modelPickerOpen" },
+          { key: "mod+alt+2", command: "thread.jump.2", when: "!modelPickerOpen && isDesktop" },
+        ],
+      );
+    }).pipe(Effect.provide(layerKeybindings())),
+  );
+
   it.effect("leaves a persisted default in place when its new key is taken", () =>
     Effect.gen(function* () {
       const { keybindingsConfigPath } = yield* ServerConfig.ServerConfig;

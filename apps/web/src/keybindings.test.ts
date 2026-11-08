@@ -361,41 +361,23 @@ describe("thread navigation helpers", () => {
     );
   });
 
-  it("keeps default thread jumps off the web so the browser can switch tabs", () => {
-    const input = event({ key: "1", metaKey: true });
-    assert.isNull(
-      resolveShortcutCommand(input, DEFAULT_RESOLVED_KEYBINDINGS, {
-        platform: "MacIntel",
-        context: { isDesktop: false },
-      }),
-    );
-    assert.strictEqual(
-      resolveShortcutCommand(input, DEFAULT_RESOLVED_KEYBINDINGS, {
-        platform: "MacIntel",
-        context: { isDesktop: true },
-      }),
-      "thread.jump.1",
-    );
-    assert.isFalse(
-      shouldShowThreadJumpHintsForModifiers(
-        event({ metaKey: true }),
-        DEFAULT_RESOLVED_KEYBINDINGS,
-        {
+  it("runs default thread jumps on web and desktop", () => {
+    for (const isDesktop of [false, true]) {
+      assert.strictEqual(
+        resolveShortcutCommand(event({ key: "1", metaKey: true }), DEFAULT_RESOLVED_KEYBINDINGS, {
           platform: "MacIntel",
-          context: { isDesktop: false },
-        },
-      ),
-    );
-    assert.isTrue(
-      shouldShowThreadJumpHintsForModifiers(
-        event({ metaKey: true }),
-        DEFAULT_RESOLVED_KEYBINDINGS,
-        {
-          platform: "MacIntel",
-          context: { isDesktop: true },
-        },
-      ),
-    );
+          context: { isDesktop },
+        }),
+        "thread.jump.1",
+      );
+      assert.isTrue(
+        shouldShowThreadJumpHintsForModifiers(
+          event({ metaKey: true }),
+          DEFAULT_RESOLVED_KEYBINDINGS,
+          { platform: "MacIntel", context: { isDesktop } },
+        ),
+      );
+    }
   });
 });
 
