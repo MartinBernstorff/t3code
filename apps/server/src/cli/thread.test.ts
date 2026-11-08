@@ -230,7 +230,7 @@ it.effect("list --json keeps each thread's worktree path, Linear issue and prior
   ),
 );
 
-it.effect("set sends each flag as a t3_thread_organize set field", () =>
+it.effect("set sends each flag to its MCP tool", () =>
   Effect.gen(function* () {
     const fs = yield* FileSystem.FileSystem;
     const path = yield* Path.Path;
@@ -268,6 +268,8 @@ it.effect("set sends each flag as a t3_thread_organize set field", () =>
     yield* run(threadId, "--linear", "mb-123", "--priority", "low");
     yield* run(threadId, "--linear", "none");
     const badLinear = yield* Effect.flip(run(threadId, "--linear", "MB123"));
+    yield* run(threadId, "--title", "  Renamed  ", "--priority", "high");
+    const blankTitle = yield* Effect.flip(run(threadId, "--title", "  "));
 
     assert.deepStrictEqual(calls, [
       { tool: "t3_thread_organize", args: { threadId, action: "set", priority: "urgent" } },
@@ -290,10 +292,13 @@ it.effect("set sends each flag as a t3_thread_organize set field", () =>
         args: { threadId, action: "set", priority: "low", linearIssue: "MB-123" },
       },
       { tool: "t3_thread_organize", args: { threadId, action: "set", linearIssue: null } },
+      { tool: "t3_thread_update", args: { threadId, action: "rename", title: "Renamed" } },
+      { tool: "t3_thread_organize", args: { threadId, action: "set", priority: "high" } },
     ]);
     assert.strictEqual(empty._tag, "ThreadUsageError");
     assert.strictEqual(badSnooze._tag, "ThreadUsageError");
     assert.strictEqual(badLinear._tag, "ThreadUsageError");
+    assert.strictEqual(blankTitle._tag, "ThreadUsageError");
   }).pipe(
     Effect.scoped,
     Effect.provide(
