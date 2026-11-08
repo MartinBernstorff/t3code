@@ -151,7 +151,7 @@ const makeHarness = (options: HarnessOptions = {}) => {
       : {
           ...fixture,
           archivedAt,
-          providerSessions: fixture.providerSessions?.filter(({ id }) => !detached.has(id)),
+          providerSessions: (fixture.providerSessions ?? []).filter(({ id }) => !detached.has(id)),
         };
   const scope = makeScope(options.capabilities ?? new Set(["preview", "worktree"]));
   const dispatch = vi.fn((command: unknown) =>

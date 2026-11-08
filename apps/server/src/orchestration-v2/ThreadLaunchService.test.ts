@@ -300,7 +300,7 @@ function launchInput(input: {
   readonly command: string;
   readonly thread: string;
   readonly message?: string;
-  readonly workspace?: ThreadLaunch.ThreadLaunchWorkspaceStrategy;
+  readonly workspace?: ThreadLaunch.ThreadLaunchRequestWorkspaceStrategy;
 }) {
   return {
     commandId: CommandId.make(input.command),

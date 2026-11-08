@@ -63,7 +63,7 @@ const ThreadOrganizeTool = Tool.make("t3_thread_organize", {
     removeWorktree: Schema.optional(
       Schema.Boolean.annotate({
         description:
-          "With `archive`, also delete the thread's git worktree. Fails, changing nothing, if it has local changes or another active thread uses it.",
+          "With `archive`, also delete the thread's git worktree. Fails, changing nothing, while it runs, has local changes, or another active thread uses it.",
       }),
     ),
   }),

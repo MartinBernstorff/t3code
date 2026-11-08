@@ -946,10 +946,11 @@ const make = Effect.gen(function* () {
             branch: prepared.branch,
           };
         });
+        const requested = input.workspaceStrategy;
         const workspaceStrategy: ThreadLaunchWorkspaceStrategy =
-          input.workspaceStrategy.type === "pull_request"
-            ? yield* pullRequestWorktree(input.workspaceStrategy.reference)
-            : input.workspaceStrategy.type === "root" && Option.isNone(launchReceipt)
+          requested.type === "pull_request"
+            ? yield* pullRequestWorktree(requested.reference)
+            : requested.type === "root" && Option.isNone(launchReceipt)
               ? Option.match(
                   yield* managedFolders
                     .folderForThread({
@@ -961,11 +962,11 @@ const make = Effect.gen(function* () {
                       Effect.mapError(mapError(input, "provision-worktree", candidateThreadId)),
                     ),
                   {
-                    onNone: () => input.workspaceStrategy,
+                    onNone: () => requested,
                     onSome: (worktreePath) => ({ type: "existing_worktree", worktreePath }),
                   },
                 )
-              : input.workspaceStrategy;
+              : requested;
         const initialBranch = workspaceStrategy.branch ?? null;
         const initialWorktreePath =
           workspaceStrategy.type === "existing_worktree" ? workspaceStrategy.worktreePath : null;
