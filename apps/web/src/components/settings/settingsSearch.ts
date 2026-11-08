@@ -449,7 +449,9 @@ export const SETTINGS_SEARCH_ITEMS = [
     id: "thread-order",
     title: "Thread order",
     to: "/settings/general",
-    searchTerms: ["sort threads sidebar priority urgent manual activity turns messages"],
+    searchTerms: [
+      "sort threads sidebar priority urgent manual activity frecency turns messages lanes per lane",
+    ],
   },
   {
     id: "thread-group-by",

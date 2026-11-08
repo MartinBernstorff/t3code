@@ -27,8 +27,14 @@ import {
   SIDEBAR_GROUP_BY_MAX_LEVELS,
   SidebarGroupBy,
   type SidebarGroupByLevels,
+  type SidebarThreadSortOverrides,
 } from "@t3tools/contracts/settings";
-import { withThreadGroupLevel } from "@t3tools/client-runtime/state/thread-grouping";
+import {
+  threadGroupLaneValues,
+  withThreadGroupLevel,
+} from "@t3tools/client-runtime/state/thread-grouping";
+import { sidebarLaneLabel } from "../Sidebar.logic";
+import { useSidebarProjectGroups } from "../../hooks/useSidebarProjectGroups";
 import { AUTO_UPDATE_DISABLED } from "@t3tools/shared/autoUpdate";
 import { desktopUpdateChannelOf } from "@t3tools/shared/cliRelease";
 import { createModelSelection } from "@t3tools/shared/model";
@@ -139,8 +145,10 @@ const SIDEBAR_THREAD_SORT_LABELS: Record<SidebarThreadSort, string> = {
   manual: "Manual",
   priority: "Priority",
   activity: "Activity",
+  frecency: "Frecency",
 };
 const isSidebarThreadSort = Schema.is(SidebarThreadSort);
+const DEFAULT_LANE_SORT = "default";
 
 const SIDEBAR_GROUP_BY_LABELS: Record<SidebarGroupBy, string> = {
   section: "Section",
@@ -196,6 +204,73 @@ function SidebarGroupByControl(props: {
                 ))}
             </SelectPopup>
           </Select>
+        );
+      })}
+    </div>
+  );
+}
+
+function SidebarThreadSortOverridesList(props: {
+  levels: SidebarGroupByLevels;
+  defaultSort: SidebarThreadSort;
+  overrides: SidebarThreadSortOverrides;
+  onChange: (overrides: SidebarThreadSortOverrides) => void;
+}) {
+  const projects = useSidebarProjectGroups();
+  // Section-only grouping is the standard sidebar, which has no lanes to override.
+  if (props.levels.length === 1 && props.levels[0] === "section") return null;
+  return (
+    <div className="space-y-3 pt-3 pb-2">
+      {props.levels.map((dimension) => {
+        // Pinned threads keep their drag order, so only the Active section can sort.
+        const values = threadGroupLaneValues(
+          dimension,
+          projects.map((project) => project.projectKey),
+        ).filter((value) => dimension !== "section" || value === "active");
+        return (
+          <div key={dimension} className="space-y-1">
+            <h4 className="text-xs font-medium text-muted-foreground">
+              {SIDEBAR_GROUP_BY_LABELS[dimension]} lanes
+            </h4>
+            {values.map((value) => {
+              const key = `${dimension}:${value}`;
+              const label = sidebarLaneLabel({ dimension, value }, projects);
+              const current = props.overrides[key] ?? DEFAULT_LANE_SORT;
+              return (
+                <div key={key} className="flex items-center justify-between gap-3">
+                  <span className="min-w-0 truncate text-sm">{label}</span>
+                  <Select
+                    value={current}
+                    onValueChange={(next) => {
+                      const rest = Object.fromEntries(
+                        Object.entries(props.overrides).filter(([lane]) => lane !== key),
+                      );
+                      if (next === DEFAULT_LANE_SORT) props.onChange(rest);
+                      else if (isSidebarThreadSort(next)) props.onChange({ ...rest, [key]: next });
+                    }}
+                  >
+                    <SelectTrigger size="sm" className="w-40" aria-label={`${label} thread order`}>
+                      <SelectValue>
+                        {current === DEFAULT_LANE_SORT
+                          ? `Default (${SIDEBAR_THREAD_SORT_LABELS[props.defaultSort]})`
+                          : SIDEBAR_THREAD_SORT_LABELS[current]}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectPopup align="end" alignItemWithTrigger={false}>
+                      <SelectItem hideIndicator value={DEFAULT_LANE_SORT}>
+                        Default
+                      </SelectItem>
+                      {SidebarThreadSort.literals.map((sort) => (
+                        <SelectItem hideIndicator key={sort} value={sort}>
+                          {SIDEBAR_THREAD_SORT_LABELS[sort]}
+                        </SelectItem>
+                      ))}
+                    </SelectPopup>
+                  </Select>
+                </div>
+              );
+            })}
+          </div>
         );
       })}
     </div>
@@ -555,7 +630,8 @@ export function useSettingsRestore(onRestored?: () => void) {
     ...(settings.sidebarProjectSortOrder !== DEFAULT_UNIFIED_SETTINGS.sidebarProjectSortOrder
       ? ["Project order"]
       : []),
-    ...(settings.sidebarThreadSort !== DEFAULT_UNIFIED_SETTINGS.sidebarThreadSort
+    ...(settings.sidebarThreadSort !== DEFAULT_UNIFIED_SETTINGS.sidebarThreadSort ||
+    Object.keys(settings.sidebarThreadSortOverrides).length > 0
       ? ["Thread order"]
       : []),
     ...(!Equal.equals(settings.sidebarGroupBy, DEFAULT_UNIFIED_SETTINGS.sidebarGroupBy)
@@ -741,6 +817,7 @@ export function useSettingsRestore(onRestored?: () => void) {
       sidebarProjectGroupingMode: DEFAULT_UNIFIED_SETTINGS.sidebarProjectGroupingMode,
       sidebarProjectSortOrder: DEFAULT_UNIFIED_SETTINGS.sidebarProjectSortOrder,
       sidebarThreadSort: DEFAULT_UNIFIED_SETTINGS.sidebarThreadSort,
+      sidebarThreadSortOverrides: DEFAULT_UNIFIED_SETTINGS.sidebarThreadSortOverrides,
       sidebarGroupBy: DEFAULT_UNIFIED_SETTINGS.sidebarGroupBy,
       sidebarWorkingShelfEnabled: DEFAULT_UNIFIED_SETTINGS.sidebarWorkingShelfEnabled,
       sidebarRowGlyphs: DEFAULT_UNIFIED_SETTINGS.sidebarRowGlyphs,
@@ -962,14 +1039,38 @@ export function GeneralSettingsPanel() {
           }
         />
         <SettingsRow
-          {...searchableSetting("thread-order")}
-          description="Order of the sidebar's Active threads. Priority: urgent first, oldest first within a priority. Activity: most messages from you first, then most recently messaged."
+          {...searchableSetting("thread-group-by")}
+          description="Lanes for the sidebar's pinned and active threads, up to three levels deep. Working, Snoozed, and Settled stay at the bottom. The boring sidebar in Labs keeps its project folders."
           resetAction={
-            settings.sidebarThreadSort !== DEFAULT_UNIFIED_SETTINGS.sidebarThreadSort ? (
+            !Equal.equals(settings.sidebarGroupBy, DEFAULT_UNIFIED_SETTINGS.sidebarGroupBy) ? (
+              <SettingResetButton
+                label="group threads by"
+                onClick={() =>
+                  updateSettings({ sidebarGroupBy: DEFAULT_UNIFIED_SETTINGS.sidebarGroupBy })
+                }
+              />
+            ) : null
+          }
+          control={
+            <SidebarGroupByControl
+              levels={settings.sidebarGroupBy}
+              onChange={(sidebarGroupBy) => updateSettings({ sidebarGroupBy })}
+            />
+          }
+        />
+        <SettingsRow
+          {...searchableSetting("thread-order")}
+          description="Default order of Active threads. Priority: urgent first. Activity: most messages from you. Frecency: messaged often and recently. Each Group by lane can use its own order."
+          resetAction={
+            settings.sidebarThreadSort !== DEFAULT_UNIFIED_SETTINGS.sidebarThreadSort ||
+            Object.keys(settings.sidebarThreadSortOverrides).length > 0 ? (
               <SettingResetButton
                 label="thread order"
                 onClick={() =>
-                  updateSettings({ sidebarThreadSort: DEFAULT_UNIFIED_SETTINGS.sidebarThreadSort })
+                  updateSettings({
+                    sidebarThreadSort: DEFAULT_UNIFIED_SETTINGS.sidebarThreadSort,
+                    sidebarThreadSortOverrides: DEFAULT_UNIFIED_SETTINGS.sidebarThreadSortOverrides,
+                  })
                 }
               />
             ) : null
@@ -995,27 +1096,14 @@ export function GeneralSettingsPanel() {
               </SelectPopup>
             </Select>
           }
-        />
-        <SettingsRow
-          {...searchableSetting("thread-group-by")}
-          description="Lanes for the sidebar's pinned and active threads, up to three levels deep. Working, Snoozed, and Settled stay at the bottom. The boring sidebar in Labs keeps its project folders."
-          resetAction={
-            !Equal.equals(settings.sidebarGroupBy, DEFAULT_UNIFIED_SETTINGS.sidebarGroupBy) ? (
-              <SettingResetButton
-                label="group threads by"
-                onClick={() =>
-                  updateSettings({ sidebarGroupBy: DEFAULT_UNIFIED_SETTINGS.sidebarGroupBy })
-                }
-              />
-            ) : null
-          }
-          control={
-            <SidebarGroupByControl
-              levels={settings.sidebarGroupBy}
-              onChange={(sidebarGroupBy) => updateSettings({ sidebarGroupBy })}
-            />
-          }
-        />
+        >
+          <SidebarThreadSortOverridesList
+            levels={settings.sidebarGroupBy}
+            defaultSort={settings.sidebarThreadSort}
+            overrides={settings.sidebarThreadSortOverrides}
+            onChange={(overrides) => updateSettings({ sidebarThreadSortOverrides: overrides })}
+          />
+        </SettingsRow>
         <SettingsRow
           {...searchableSetting("working-shelf")}
           description="Fold working and monitoring threads into a Working section. They return to the top of the inbox when they need you. The boring sidebar in Labs has no Working section."

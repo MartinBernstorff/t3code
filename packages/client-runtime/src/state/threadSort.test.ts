@@ -6,6 +6,7 @@ import {
   pinOrderKeyBetween,
   planPinnedReorder,
   resolveSettledThreadTimestamp,
+  resolveSidebarLaneSort,
   sortActiveThreadsByOrderKey,
   sortSettledThreads,
   sortSidebarThreads,
@@ -370,5 +371,57 @@ describe("sortSidebarThreads", () => {
       "older-server",
       "untouched",
     ]);
+  });
+
+  it("sorts by frecency: recent turns outweigh a larger count from days ago", () => {
+    const thread = (
+      id: string,
+      userTurnCount: number,
+      latestUserAuthoredMessageAt: string | null,
+    ) => ({
+      id,
+      title: "Thread",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      userTurnCount,
+      latestUserAuthoredMessageAt,
+    });
+    const sorted = sortSidebarThreads(
+      [
+        thread("untouched", 0, null),
+        thread("heavy-week-old", 100, "2026-01-03T00:00:00.000Z"),
+        thread("light-today", 2, "2026-01-10T00:00:00.000Z"),
+        thread("heavy-today", 10, "2026-01-10T00:00:00.000Z"),
+        thread("heavy-yesterday", 100, "2026-01-09T00:00:00.000Z"),
+      ],
+      "frecency",
+    );
+
+    expect(sorted.map(({ id }) => id)).toEqual([
+      "heavy-yesterday",
+      "heavy-today",
+      "light-today",
+      "heavy-week-old",
+      "untouched",
+    ]);
+  });
+});
+
+describe("resolveSidebarLaneSort", () => {
+  const path = ["engagement:inbox", "priority:urgent"];
+
+  it("uses the innermost lane with an override, else the default", () => {
+    expect(resolveSidebarLaneSort(path, "manual", {})).toBe("manual");
+    expect(resolveSidebarLaneSort(path, "manual", { "engagement:inbox": "priority" })).toBe(
+      "priority",
+    );
+    expect(
+      resolveSidebarLaneSort(path, "manual", {
+        "engagement:inbox": "priority",
+        "priority:urgent": "frecency",
+      }),
+    ).toBe("frecency");
+    expect(resolveSidebarLaneSort(path, "activity", { "engagement:engaged": "frecency" })).toBe(
+      "activity",
+    );
   });
 });
