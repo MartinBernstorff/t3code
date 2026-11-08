@@ -230,10 +230,10 @@ or Engagement, separately from how threads are grouped.
 ### Minimal sidebar
 
 Turn on **Settings → General → Minimal sidebar** on web and desktop to show only each
-section's or lane's header and count, without thread rows, search, or the project filter. Use it
-to see how much work is in flight while you open threads from the thread picker (Cmd+O). With
-**Section counts** set to tokens, hover them to list the threads. Empty sections are hidden, Settled is left out, and the
-counts cover every project. Each device keeps its own choice. Press Cmd+Alt+M (Ctrl+Alt+M on
+section's or lane's header and count, without thread rows or search. Use it to see how much work
+is in flight while you open threads from the thread picker (Cmd+O). With **Section counts** set to
+tokens, hover them to list the threads. Empty sections are hidden, Settled is left out, and the
+project filter stays available to narrow the counts. Each device keeps its own choice. Press Cmd+Alt+M (Ctrl+Alt+M on
 Windows and Linux), or run **Show minimal sidebar** from the command palette, to switch between the
 minimal and full sidebar.
 
