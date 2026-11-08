@@ -5,7 +5,7 @@ import { scopedProjectKey, scopeProjectRef } from "@t3tools/client-runtime/envir
 import { isScratchProject } from "@t3tools/client-runtime/state/projects";
 import { FolderPlusIcon } from "lucide-react";
 import { useAtomValue } from "@effect/atom-react";
-import { useRef, useState } from "react";
+import { useImperativeHandle, useRef, useState, type Ref } from "react";
 
 import { openCommandPalette } from "~/commandPaletteBus";
 import { shortcutLabelForCommand } from "~/keybindings";
@@ -49,6 +49,7 @@ import {
 } from "../ui/combobox";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { InlineButton } from "../ui/button";
+import { Kbd } from "../ui/kbd";
 import { DraftProjectName } from "./DraftProjectName";
 import { DraftHeroProjectHeading } from "./DraftHeroProjectHeading";
 import { TriageDraftHero } from "./TriageDraftHero";
@@ -63,13 +64,19 @@ interface PickerItem {
   readonly label: string;
 }
 
+export interface DraftHeroHeadlineHandle {
+  readonly openProjectPicker: () => void;
+}
+
 interface DraftHeroHeadlineProps {
+  readonly ref?: Ref<DraftHeroHeadlineHandle>;
   readonly draftId: DraftId | null;
   readonly activeProjectRef: ScopedProjectRef | null;
   readonly activeProjectTitle: string | null;
 }
 
 export function DraftHeroHeadline({
+  ref,
   draftId,
   activeProjectRef,
   activeProjectTitle,
@@ -260,6 +267,18 @@ export function DraftHeroHeadline({
     return true;
   };
 
+  useImperativeHandle(
+    ref,
+    () => ({
+      openProjectPicker: () => {
+        if (shouldShowProjectMenu) setPickerOpen(true);
+        else openAddProject();
+      },
+    }),
+    [shouldShowProjectMenu],
+  );
+  const switchProjectShortcut = shortcutLabelForCommand(keybindings, "composer.project");
+
   const projectSelector = shouldShowProjectMenu ? (
     <Combobox
       items={pickerItems}
@@ -294,7 +313,7 @@ export function DraftHeroHeadline({
         <TooltipTrigger
           render={
             <ComboboxTrigger
-              render={<InlineButton tone="picker" />}
+              render={<InlineButton tone={isScratchDraft ? "picker" : "chip"} />}
               data-draft-project-trigger=""
               className="pointer-events-auto min-w-0 max-w-full align-baseline"
             />
@@ -304,10 +323,12 @@ export function DraftHeroHeadline({
             value={isScratchDraft ? "No project" : (activeProjectTitle ?? "Choose a project")}
             singleLine
           />
+          {switchProjectShortcut && !isScratchDraft ? <Kbd>{switchProjectShortcut}</Kbd> : null}
         </TooltipTrigger>
-        {activeProjectTitle && !isScratchDraft ? (
-          <TooltipPopup side="top">{activeProjectTitle}</TooltipPopup>
-        ) : null}
+        <TooltipPopup side="top">
+          {activeProjectTitle && !isScratchDraft ? activeProjectTitle : "Switch project"}
+          {switchProjectShortcut ? ` (${switchProjectShortcut})` : ""}
+        </TooltipPopup>
       </Tooltip>
       <ComboboxPopup align="center" className="w-72 overflow-hidden">
         <ComboboxSearchInput
@@ -414,7 +435,10 @@ export function DraftHeroHeadline({
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col items-center">
       {hasResolvedProject && !isScratchDraft ? (
-        <DraftHeroProjectHeading projectName={activeProjectTitle ?? "Choose a project"}>
+        <DraftHeroProjectHeading
+          projectName={activeProjectTitle ?? "Choose a project"}
+          shortcutLabel={switchProjectShortcut}
+        >
           {projectSelector}
         </DraftHeroProjectHeading>
       ) : (

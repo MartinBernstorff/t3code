@@ -1,13 +1,16 @@
 import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 
 import { observeResize } from "~/lib/observeResize";
+import { Kbd } from "../ui/kbd";
 
 export function DraftHeroProjectHeading({
   children,
   projectName,
+  shortcutLabel,
 }: {
   children: ReactNode;
   projectName: string;
+  shortcutLabel: string | null;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const inlineRef = useRef<HTMLSpanElement>(null);
@@ -40,8 +43,9 @@ export function DraftHeroProjectHeading({
           className="flex w-max items-baseline gap-2 whitespace-nowrap font-normal text-3xl tracking-tight"
         >
           <span>What should we build in</span>
-          <span>
-            <span className="font-medium">{projectName}</span>?
+          <span className="flex items-baseline gap-2 px-2.5">
+            <span className="font-medium">{projectName}</span>
+            {shortcutLabel ? <Kbd>{shortcutLabel}</Kbd> : null}?
           </span>
         </span>
       </span>
