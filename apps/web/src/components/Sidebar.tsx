@@ -372,6 +372,8 @@ interface SidebarThreadPartitionInput {
   readonly connectedEnvironmentIds: readonly EnvironmentId[];
   readonly optimisticDrop: SidebarOptimisticDrop | null;
   readonly workingShelfEnabled: boolean;
+  /** Group by lanes: running pinned threads join the Working shelf instead of a lane. */
+  readonly pinnedJoinWorking: boolean;
   /** Boring mode: folders list active threads by the user's latest message. */
   readonly sortActiveBySend: boolean;
   readonly threadSort: SidebarThreadSort;
@@ -433,11 +435,9 @@ function resolveDraggedOrders(input: {
 const LANE_REPLACED_ITEMS = new Set([
   "thread:pinned",
   "thread:active",
-  "thread:working",
   "marker:pinned-header",
   "marker:pinned-divider",
   "marker:active-placeholder",
-  "marker:working-header",
 ]);
 
 function sidebarListItemPart(item: SidebarListItem): string {
@@ -542,6 +542,7 @@ function useSidebarThreads(input: {
     connectedEnvironmentIds,
     optimisticDrop,
     workingShelfEnabled,
+    pinnedJoinWorking: laneLevels !== null,
     sortActiveBySend: folderGroups !== null,
     threadSort,
     clockKey: `${nowMinute}:${snoozeWakeClock}:${inboxReturnsVersion}`,
@@ -608,16 +609,16 @@ function useSidebarThreads(input: {
     [snoozedThreads, "snoozed"],
     [settledThreads, "settled"],
   ] as const;
-  // Lanes replace the pinned, active, and working rows; the snoozed and settled shelves stay.
+  // Lanes replace the pinned and active rows; the Working, Snoozed, and Settled shelves stay.
   const laneRows = (() => {
     if (laneLevels === null) return null;
     const sectionOfThread = new Map<ThreadGroupInput, ThreadGroupSection>();
     for (const [list, section] of sectionLists) {
-      if (section === "snoozed" || section === "settled") continue;
+      if (section !== "pinned" && section !== "active") continue;
       for (const thread of list) sectionOfThread.set(thread, section);
     }
     return threadLaneRows(
-      [...pinnedThreads, ...activeThreads, ...workingThreads],
+      [...pinnedThreads, ...activeThreads],
       laneLevels,
       {
         projects: laneProjects.map((group) => ({
@@ -648,7 +649,7 @@ function useSidebarThreads(input: {
             : projectFolders.flatMap((folder) => folder.threads)),
         ]),
     ...visibleSnoozedThreads,
-    ...(laneRows !== null ? [] : visibleWorkingThreads),
+    ...visibleWorkingThreads,
     ...renderedSettledThreads,
   ];
   const sectionByThreadKey = new Map<string, SidebarSection>();
@@ -719,6 +720,7 @@ function partitionSidebarThreads(input: SidebarThreadPartitionInput) {
     serverConfigs,
     optimisticDrop,
     workingShelfEnabled,
+    pinnedJoinWorking,
     sortActiveBySend,
     threadSort,
   } = input;
@@ -771,7 +773,9 @@ function partitionSidebarThreads(input: SidebarThreadPartitionInput) {
         : section === "settled"
           ? settled
           : section === "pinned"
-            ? pinned
+            ? pinnedJoinWorking && inbox(thread) === working
+              ? working
+              : pinned
             : inbox(thread)
       ).push(thread);
     }
@@ -3749,8 +3753,6 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                         );
                       };
                       const from = isContextDrag ? null : (dragState?.activeSection ?? null);
-                      // Lanes hold working threads, so no Working header is shown above the shelves.
-                      const workingHeaderShown = laneRows === null && workingShelfEnabled;
                       const items: ReactNode[] = [
                         <SidebarDraftBlock
                           key="draft-sessions"
@@ -3775,7 +3777,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                                     key={`lane:${row.lane.key}`}
                                     laneKey={row.lane.key}
                                     parentLaneKey={row.parentKey}
-                                    depth={row.depth}
+                                    depth={row.inset}
                                     label={row.label}
                                     count={row.lane.threads.length}
                                     expanded={!row.collapsed}
@@ -3791,7 +3793,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                                     sectionByThreadKey.get(threadShellKey(row.thread)) ?? "active",
                                     undefined,
                                     sidebarLaneRowId(row.laneKey),
-                                    row.depth,
+                                    row.inset,
                                   )
                                 ),
                               );
@@ -3907,7 +3909,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                                 key="settled-shelf-header"
                                 marker="settled-header"
                                 className={cn(
-                                  !workingHeaderShown && snoozedThreads.length === 0 && "mt-auto",
+                                  !workingShelfEnabled && snoozedThreads.length === 0 && "mt-auto",
                                 )}
                                 label="Settled"
                                 count={settledCount}

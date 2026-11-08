@@ -82,6 +82,8 @@ interface ThreadGroupDimensionDefinition {
   readonly keepEmpty: boolean;
   /** Whether dropping a thread on this lane can set it; see `threadLaneDropChanges`. */
   readonly settable: (value: string) => boolean;
+  /** Whether lanes below this level are inset. Section and Agent state read as flat headers. */
+  readonly insetsNested: boolean;
 }
 
 const anySettable = () => true;
@@ -95,6 +97,7 @@ const THREAD_GROUP_DIMENSIONS: Record<ThreadGroupDimension, ThreadGroupDimension
     valueOf: (context) => context.sectionOf,
     keepEmpty: false,
     settable: (value) => value === "pinned" || value === "active",
+    insetsNested: false,
   },
   project: {
     values: (context) => context.projects.map((project) => project.key),
@@ -107,24 +110,28 @@ const THREAD_GROUP_DIMENSIONS: Record<ThreadGroupDimension, ThreadGroupDimension
     },
     keepEmpty: false,
     settable: noneSettable,
+    insetsNested: true,
   },
   priority: {
     values: () => [...ThreadPriority.literals, NO_PRIORITY_LANE],
     valueOf: () => (thread) => thread.priority ?? NO_PRIORITY_LANE,
     keepEmpty: false,
     settable: anySettable,
+    insetsNested: true,
   },
   engagement: {
     values: () => ThreadEngagement.literals,
     valueOf: () => (thread) => thread.engagement,
     keepEmpty: true,
     settable: anySettable,
+    insetsNested: true,
   },
   agentState: {
     values: () => THREAD_AGENT_STATES,
     valueOf: () => threadAgentState,
     keepEmpty: false,
     settable: noneSettable,
+    insetsNested: false,
   },
 };
 
@@ -190,6 +197,8 @@ export type ThreadLaneRow<T> =
       readonly lane: ThreadLane<T>;
       /** 0 for the outermost level. Rows sit at the depth of the lane that lists them. */
       readonly depth: number;
+      /** Left inset level: `depth` minus the flat levels above. Rows share their lane's inset. */
+      readonly inset: number;
       readonly parentKey: string | null;
       readonly collapsed: boolean;
     }
@@ -197,6 +206,7 @@ export type ThreadLaneRow<T> =
       readonly kind: "thread";
       readonly thread: T;
       readonly depth: number;
+      readonly inset: number;
       readonly laneKey: string;
     };
 
@@ -215,29 +225,36 @@ export function threadLaneRows<T extends ThreadGroupInput>(
   options: ThreadLaneOptions = {},
 ): ThreadLaneRow<T>[] {
   const rows: ThreadLaneRow<T>[] = [];
-  const visit = (laneThreads: readonly T[], depth: number, parent: ThreadLane<T> | null) => {
+  const visit = (
+    laneThreads: readonly T[],
+    depth: number,
+    inset: number,
+    parent: ThreadLane<T> | null,
+  ) => {
     const dimension = levels[depth];
     if (dimension === undefined) return;
+    const nestedInset = THREAD_GROUP_DIMENSIONS[dimension].insetsNested ? inset + 1 : inset;
     for (const lane of groupThreadsBy(laneThreads, dimension, context, parent?.path, options)) {
       const isCollapsed = collapsed.keys.has(lane.key);
       rows.push({
         kind: "lane",
         lane,
         depth,
+        inset,
         parentKey: parent?.key ?? null,
         collapsed: isCollapsed,
       });
       if (!isCollapsed && depth + 1 < levels.length) {
-        visit(lane.threads, depth + 1, lane);
+        visit(lane.threads, depth + 1, nestedInset, lane);
         continue;
       }
       for (const thread of lane.threads) {
         if (isCollapsed && !collapsed.keepWhenCollapsed(thread)) continue;
-        rows.push({ kind: "thread", thread, depth, laneKey: lane.key });
+        rows.push({ kind: "thread", thread, depth, inset, laneKey: lane.key });
       }
     }
   };
-  visit(threads, 0, null);
+  visit(threads, 0, 0, null);
   return rows;
 }
 
