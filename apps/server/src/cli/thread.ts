@@ -953,13 +953,63 @@ const threadSetCommand = Command.make("set", {
   ),
 );
 
+const ThreadArchiveResult = Schema.Struct({
+  sequence: Schema.Number,
+  worktreePath: Schema.optional(Schema.String),
+  worktreeRemoved: Schema.optional(Schema.Boolean),
+});
+
+const threadArchiveCommand = Command.make("archive", {
+  ...projectLocationFlags,
+  thread: threadArgument,
+  removeWorktree: Flag.Boolean("remove-worktree").pipe(
+    Flag.withDescription(
+      "Also delete the thread's git worktree. Fails, changing nothing, if it has local changes or another active thread uses it.",
+    ),
+    Flag.withDefault(false),
+  ),
+  json: jsonFlag,
+}).pipe(
+  Command.withDescription("Archive a thread, and optionally delete its worktree."),
+  Command.withHandler((flags) =>
+    Effect.gen(function* () {
+      const threadId = yield* decodeThreadId(flags.thread);
+      yield* withThreadTools(
+        flags,
+        Effect.fn("cli.thread.archive")(function* (tools) {
+          const result = yield* tools.call(
+            "t3_thread_organize",
+            {
+              threadId,
+              action: "archive",
+              ...(flags.removeWorktree ? { removeWorktree: true } : {}),
+            },
+            ThreadArchiveResult,
+          );
+          if (flags.json) return yield* printJson(result);
+          yield* Console.log(
+            result.worktreePath === undefined
+              ? "Archived."
+              : result.worktreeRemoved === true
+                ? `Archived. Removed ${result.worktreePath}.`
+                : `Archived. ${result.worktreePath} was already gone.`,
+          );
+        }),
+      );
+    }).pipe(reportThreadErrors),
+  ),
+);
+
 export const threadCommand = Command.make("thread").pipe(
-  Command.withDescription("Start, message, read, and organize threads on the running server."),
+  Command.withDescription(
+    "Start, message, read, organize, and archive threads on the running server.",
+  ),
   Command.withSubcommands([
     threadListCommand,
     threadStartCommand,
     threadSendCommand,
     threadShowCommand,
     threadSetCommand,
+    threadArchiveCommand,
   ]),
 );

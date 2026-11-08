@@ -5,6 +5,7 @@ import {
   CommandId,
   EnvironmentId,
   type OrchestrationV2ThreadProjection,
+  type OrchestrationV2ThreadShellSnapshot,
   type Project,
   ProjectId,
   ProviderInstanceId,
@@ -117,6 +118,7 @@ interface HarnessOptions {
   readonly deleteLocalBranchFails?: boolean;
   readonly createWorktreeGate?: Effect.Effect<void>;
   readonly existsFails?: boolean;
+  readonly worktreeSharedWith?: ReadonlyArray<ThreadId>;
 }
 
 const makeHarness = (options: HarnessOptions = {}) => {
@@ -142,6 +144,12 @@ const makeHarness = (options: HarnessOptions = {}) => {
         : ["dev", "feature/taken", "feature/taken-idle"],
     ),
   );
+  const readShellSnapshot = () =>
+    Effect.succeed(
+      Effect.succeed({
+        threads: [threadId, ...(options.worktreeSharedWith ?? [])].map((id) => ({ id })),
+      } as unknown as OrchestrationV2ThreadShellSnapshot),
+    );
   const getThreadRecords = vi.fn((id: ThreadId) => {
     if (options.threadReadError === "dispatch") {
       return Effect.fail(
@@ -299,6 +307,7 @@ const makeHarness = (options: HarnessOptions = {}) => {
           dispatch,
           getThreadRecords,
           sendToThread,
+          readShellSnapshot,
         } satisfies Partial<ThreadManagementService.ThreadManagementService["Service"]>),
         Layer.mock(ProjectService.ProjectService)({
           getById,
@@ -387,6 +396,12 @@ const runHandoff = (
   Effect.gen(function* () {
     const service = yield* WorktreeMcpService.WorktreeMcpService;
     return yield* service.handoff(harness.scope, input);
+  }).pipe(Effect.provide(harness.layer));
+
+const runArchive = (harness: ReturnType<typeof makeHarness>) =>
+  Effect.gen(function* () {
+    const service = yield* WorktreeMcpService.WorktreeMcpService;
+    return yield* service.archiveAndRemoveWorktree(harness.scope, threadId);
   }).pipe(Effect.provide(harness.layer));
 
 const runStatus = (harness: ReturnType<typeof makeHarness>) =>
@@ -703,6 +718,87 @@ describe("t3_worktree_handoff", () => {
       const result = yield* runHandoff(harness, { branch: "feature/setup-dies" });
       expect(result.setupScript).toEqual({ status: "failed", detail: "setup runner defect" });
       expect(harness.dispatch).toHaveBeenCalled();
+    });
+  });
+});
+
+describe("archiveAndRemoveWorktree", () => {
+  const withLinkedWorktree = <A, E, R>(
+    test: (fixture: {
+      readonly harness: ReturnType<typeof makeHarness>;
+      readonly worktreePath: string;
+    }) => Effect.Effect<A, E, R>,
+  ) =>
+    Effect.gen(function* () {
+      const fs = yield* FileSystem.FileSystem;
+      const git = yield* GitVcsDriver.GitVcsDriver;
+      const directory = yield* fs.makeTempDirectoryScoped({ prefix: "archive-worktree-" });
+      const cwd = `${directory}/repo`;
+      const worktreePath = `${directory}/worktree`;
+      yield* fs.makeDirectory(cwd);
+      const command = (at: string, args: string[]) =>
+        git.execute({ operation: "archive-worktree-test", cwd: at, args });
+      yield* command(cwd, ["init", "-b", "main"]);
+      yield* command(cwd, ["config", "user.name", "Test"]);
+      yield* command(cwd, ["config", "user.email", "test@example.test"]);
+      yield* command(cwd, ["commit", "--allow-empty", "-m", "base"]);
+      yield* command(cwd, ["worktree", "add", "-b", "feature/archive", worktreePath]);
+      const harness = makeHarness({
+        thread: { worktreePath, branch: "feature/archive" },
+        git: { removeWorktree: (input) => git.removeWorktree({ ...input, cwd }) },
+      });
+      return yield* test({ harness, worktreePath });
+    }).pipe(
+      Effect.scoped,
+      Effect.provide(
+        GitVcsDriver.layer.pipe(
+          Layer.provide(ServerConfig.layerTest(process.cwd(), { prefix: "archive-worktree-git-" })),
+          Layer.provideMerge(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer)),
+        ),
+      ),
+    );
+
+  it.effect("removes a clean worktree, then archives the thread", () =>
+    withLinkedWorktree(({ harness, worktreePath }) =>
+      Effect.gen(function* () {
+        const fs = yield* FileSystem.FileSystem;
+        const result = yield* runArchive(harness);
+        expect(result).toMatchObject({ worktreePath, worktreeRemoved: true });
+        expect(yield* fs.exists(worktreePath)).toBe(false);
+        expect(harness.dispatch.mock.calls.map(([command]) => command)).toEqual([
+          expect.objectContaining({ type: "thread.archive", threadId }),
+        ]);
+
+        // Retrying after the folder is gone only archives.
+        expect(yield* runArchive(harness)).toMatchObject({ worktreeRemoved: false });
+        expect(harness.dispatch).toHaveBeenCalledTimes(2);
+      }),
+    ),
+  );
+
+  it.effect("changes nothing when the worktree has local changes", () =>
+    withLinkedWorktree(({ harness, worktreePath }) =>
+      Effect.gen(function* () {
+        const fs = yield* FileSystem.FileSystem;
+        yield* fs.writeFileString(`${worktreePath}/notes.txt`, "unsaved work");
+        const exit = yield* Effect.exit(runArchive(harness));
+        expectTypedFailure(exit, { code: "operation_failed" });
+        expect(yield* fs.exists(`${worktreePath}/notes.txt`)).toBe(true);
+        expect(harness.dispatch).not.toHaveBeenCalled();
+      }),
+    ),
+  );
+
+  it.effect("refuses a worktree another active thread uses", () => {
+    const harness = makeHarness({
+      thread: { worktreePath: "/worktrees/project/shared" },
+      worktreeSharedWith: [ThreadId.make("thread-sharing")],
+    });
+    return Effect.gen(function* () {
+      const exit = yield* Effect.exit(runArchive(harness));
+      expectTypedFailure(exit, { code: "invalid_request" });
+      expect(harness.removeWorktree).not.toHaveBeenCalled();
+      expect(harness.dispatch).not.toHaveBeenCalled();
     });
   });
 });
