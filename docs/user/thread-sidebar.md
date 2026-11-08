@@ -83,7 +83,8 @@ Engagement marks whether you are working on a thread now (**Engaged**), have not
 looked at it yet (**Inbox**), or plan to work on it next (**Queued**). Set it from a
 thread's menu, or run **Set engagement...** from the command palette. Threads you
 create in the app start as Engaged; threads that agents, scripts, or scheduled tasks
-create start in the Inbox. Setting a priority in the app also marks the thread Engaged.
+create start in the Inbox. Sending a message to a thread from the app marks it Engaged;
+messages from agents, the CLI, or scheduled tasks leave its engagement unchanged.
 
 ## Threads waiting on others
 

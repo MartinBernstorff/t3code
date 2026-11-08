@@ -97,9 +97,16 @@ export function withCreationProvenance(
   }
 }
 
-/** A thread a client creates is one its user is working on now; other creators leave it in the inbox. */
+/** A thread a client creates or messages is one its user is working on now; other sources leave engagement alone. */
 export function withClientEngagement(command: OrchestrationV2Command): OrchestrationV2Command {
-  return command.type === "thread.create" ? { ...command, engagement: "engaged" } : command;
+  switch (command.type) {
+    case "thread.create":
+      return { ...command, engagement: "engaged" };
+    case "message.dispatch":
+      return { ...command, engage: true };
+    default:
+      return command;
+  }
 }
 
 function existingThreadIdsForCommand(

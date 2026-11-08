@@ -339,13 +339,10 @@ export function threadLaneDropChanges(
     }
   }
   const changes: ThreadLaneDropChange[] = [];
-  let engagementAfter = thread.engagement;
   if (priority !== undefined && priority !== thread.priority) {
     changes.push({ kind: "priority", priority });
-    // UI priority changes engage the thread (see `setThreadPriority`).
-    if (priority !== null) engagementAfter = "engaged";
   }
-  if (engagement !== undefined && engagement !== engagementAfter) {
+  if (engagement !== undefined && engagement !== thread.engagement) {
     changes.push({ kind: "engagement", engagement });
   }
   if (section === "pinned" && !thread.pinned) changes.push({ kind: "pin" });

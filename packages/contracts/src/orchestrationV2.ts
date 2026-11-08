@@ -3058,8 +3058,6 @@ export const OrchestrationV2Command = Schema.Union([
     commandId: CommandId,
     threadId: ThreadId,
     priority: Schema.NullOr(ThreadPriority),
-    /** The UI sends this so a non-null priority also engages the thread. */
-    engage: Schema.optional(Schema.Boolean),
   }),
   Schema.Struct({
     type: Schema.Literal("thread.engagement.set"),
@@ -3218,6 +3216,8 @@ export const OrchestrationV2Command = Schema.Union([
     idleCompaction: Schema.optional(OrchestrationV2IdleCompaction),
     /** Start a new provider session without the thread's earlier context. Never steers. */
     freshContext: Schema.optional(Schema.Boolean),
+    /** Set by the server for messages sent from a client, so they engage the thread. */
+    engage: Schema.optional(Schema.Boolean),
     commandId: CommandId,
     threadId: ThreadId,
     messageId: MessageId,
