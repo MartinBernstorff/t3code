@@ -238,8 +238,8 @@ project filter stays available to narrow the counts. Each device keeps its own c
 Windows and Linux), or run **Show minimal sidebar** from the command palette, to switch between the
 minimal and full sidebar.
 
-The thread picker lists threads under the same sections and lanes, in the same order, across
-every project. Nested lanes share one header, such as **Needs you › t3code**. Settled threads are
+The thread picker lists threads under the same sections and lanes, in the same order, from the
+projects picked in the sidebar's project filter, or every project when none are picked. Nested lanes share one header, such as **Needs you › t3code**. Settled threads are
 not listed.
 
 ### Choose what each thread shows

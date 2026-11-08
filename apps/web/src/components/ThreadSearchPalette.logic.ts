@@ -181,15 +181,26 @@ function laneGroups(
   return [...groups.values()];
 }
 
-/** The picker's groups with only the threads matching `query`; empty groups are dropped. */
+/**
+ * The picker's groups with only the threads matching `query` inside the sidebar's project
+ * scope (`environmentId:projectId` keys, null for every project); empty groups are dropped.
+ */
 export function searchThreadsForPalette(input: {
   readonly threads: ReadonlyArray<SidebarThreadSummary>;
   readonly query: string;
+  readonly scopedProjectKeys: ReadonlySet<string> | null;
   readonly projectTitleOf: (thread: SidebarThreadSummary) => string | null;
   readonly now: string;
   readonly layout: ThreadPaletteLayout;
 }): ThreadPaletteGroup[] {
-  return groupThreadsLikeSidebar(input.threads, input.now, input.layout).flatMap((group) => {
+  const { scopedProjectKeys } = input;
+  const threads =
+    scopedProjectKeys === null
+      ? input.threads
+      : input.threads.filter((thread) =>
+          scopedProjectKeys.has(`${thread.environmentId}:${thread.projectId}`),
+        );
+  return groupThreadsLikeSidebar(threads, input.now, input.layout).flatMap((group) => {
     const threads = group.threads.filter((thread) =>
       matchesThreadPaletteQuery(
         threadPaletteSearchTerms(thread, input.projectTitleOf(thread)),
