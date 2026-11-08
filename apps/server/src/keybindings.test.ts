@@ -244,9 +244,12 @@ it.layer(NodeServices.layer)("keybindings", (it) => {
         const configState = yield* keybindings.loadConfigState;
         assert.deepEqual(
           configState.keybindings
-            .filter((entry) => entry.shortcut.key === "b" && entry.shortcut.shiftKey)
+            .filter(
+              (entry) =>
+                entry.shortcut.key === "b" && entry.shortcut.shiftKey && !entry.shortcut.altKey,
+            )
             .map((entry) => entry.command),
-          ["threadPanel.toggle", "script.custom-panel.run", "script.custom-composer.run"],
+          ["sidebar.filterByProject", "script.custom-panel.run", "script.custom-composer.run"],
         );
       }).pipe(Effect.provide(layerKeybindings())),
   );
@@ -295,6 +298,29 @@ it.layer(NodeServices.layer)("keybindings", (it) => {
       assert.deepStrictEqual(
         (yield* modORules).filter((entry) => entry.command === "editor.openFavorite"),
         [oldDefault],
+      );
+    }).pipe(Effect.provide(layerKeybindings())),
+  );
+
+  it.effect("moves the thread panel off mod+shift+b so the project filter can take it", () =>
+    Effect.gen(function* () {
+      const { keybindingsConfigPath } = yield* ServerConfig.ServerConfig;
+      const keybindings = yield* Keybindings.Keybindings;
+      yield* writeKeybindingsConfig(keybindingsConfigPath, [
+        { key: "mod+shift+b", command: "threadPanel.toggle", when: "!terminalFocus" },
+      ]);
+
+      yield* keybindings.syncDefaultKeybindingsOnStartup;
+      const persisted = yield* readKeybindingsConfig(keybindingsConfigPath);
+      assert.deepStrictEqual(
+        persisted.filter(
+          (entry) =>
+            entry.command === "threadPanel.toggle" || entry.command === "sidebar.filterByProject",
+        ),
+        [
+          { key: "mod+shift+b", command: "sidebar.filterByProject", when: "!terminalFocus" },
+          { key: "mod+alt+shift+b", command: "threadPanel.toggle", when: "!terminalFocus" },
+        ],
       );
     }).pipe(Effect.provide(layerKeybindings())),
   );
