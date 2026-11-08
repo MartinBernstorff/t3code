@@ -44,6 +44,8 @@ interface ComposerPrimaryActionsProps {
   isPreparingWorktree: boolean;
   hasSendableContent: boolean;
   canResume?: boolean;
+  /** Hides only the plain send arrow; stop, resume, and plan actions have no other entry point. */
+  showSendButton?: boolean;
   preserveComposerFocusOnPointerDown?: boolean;
   isEditingQueuedMessage?: boolean;
   onSubmitMessage?: MouseEventHandler<HTMLButtonElement>;
@@ -99,6 +101,7 @@ export const ComposerPrimaryActions = memo(function ComposerPrimaryActions({
   isPreparingWorktree,
   hasSendableContent,
   canResume = false,
+  showSendButton = true,
   preserveComposerFocusOnPointerDown = false,
   isEditingQueuedMessage = false,
   onSubmitMessage,
@@ -353,12 +356,13 @@ export const ComposerPrimaryActions = memo(function ComposerPrimaryActions({
     </button>
   );
 
-  const submit = (
-    <Tooltip key="submit">
-      <TooltipTrigger render={<span className="inline-flex" />}>{sendButton}</TooltipTrigger>
-      <TooltipPopup>{submitTooltip}</TooltipPopup>
-    </Tooltip>
-  );
+  const submit =
+    showSendButton || showResume ? (
+      <Tooltip key="submit">
+        <TooltipTrigger render={<span className="inline-flex" />}>{sendButton}</TooltipTrigger>
+        <TooltipPopup>{submitTooltip}</TooltipPopup>
+      </Tooltip>
+    ) : null;
   if (compactTokens === null) return submit;
 
   return (

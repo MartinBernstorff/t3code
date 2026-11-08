@@ -16,8 +16,9 @@ to keep a large paste editable in the composer instead.
 
 On web and desktop, **Settings → Appearance → Composer controls** shows or hides the
 attach button, the model and effort picker, the permissions chip, the context window
-meter, and the dictation button. The dictation shortcut still works
-with its button hidden.
+meter, the dictation button, and the send button. The dictation shortcut and the send
+key still work with their buttons hidden. Phones always show the send button, and
+the stop, resume, and plan buttons always show.
 
 ## Formatting
 

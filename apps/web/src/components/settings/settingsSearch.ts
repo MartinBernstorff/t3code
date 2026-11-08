@@ -360,7 +360,7 @@ export const SETTINGS_SEARCH_ITEMS = [
     title: "Composer controls",
     to: "/settings/appearance",
     searchTerms: [
-      "chat input customize show hide attach attachment button model picker effort permissions access context window meter dictation voice microphone",
+      "chat input customize show hide attach attachment button model picker effort permissions access context window meter dictation voice microphone send submit button arrow",
     ],
   },
   {
