@@ -121,6 +121,9 @@ describe("Thread search palette", () => {
     await expect
       .element(page.getByRole("option", { name: /Fix sidebar lag/ }))
       .not.toBeInTheDocument();
+    await expect
+      .element(page.getByRole("option", { name: /Deploy relay/ }))
+      .toHaveAttribute("data-active", "true");
     await userEvent.keyboard("{Enter}");
 
     await vi.waitFor(() => expect(screen.router?.state.location.pathname).toBe("/local/beta"));

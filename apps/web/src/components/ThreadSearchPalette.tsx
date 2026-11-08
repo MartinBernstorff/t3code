@@ -36,6 +36,8 @@ export function ThreadSearchPalette(props: { readonly setOpen: (open: boolean) =
     now,
     threadSort,
   }).flatMap((thread) => itemByValue.get(`thread:${thread.environmentId}:${thread.id}`) ?? []);
+  // Typing clears our highlight while Base UI keeps the first row highlighted, and Enter opens it.
+  const displayedHighlight = highlightedItemValue ?? items[0]?.value ?? null;
 
   return (
     <CommandPaletteContent
@@ -57,7 +59,7 @@ export function ThreadSearchPalette(props: { readonly setOpen: (open: boolean) =
     >
       <CommandPaletteResults
         groups={items.length > 0 ? [{ value: "threads", label: "Threads", items }] : []}
-        highlightedItemValue={highlightedItemValue}
+        highlightedItemValue={displayedHighlight}
         isActionsOnly={false}
         keybindings={keybindings}
         onExecuteItem={(item) => {
