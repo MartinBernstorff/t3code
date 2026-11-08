@@ -2,6 +2,7 @@ import type { ProviderDriverKind } from "@t3tools/contracts";
 import { FolderGit2Icon, FolderIcon, GitBranchIcon } from "lucide-react";
 import { ProjectFavicon, type ProjectFaviconProject } from "./ProjectFavicon";
 import { ProviderInstanceIcon } from "./chat/ProviderInstanceIcon";
+import { Fragment, type ReactNode } from "react";
 import { cn } from "~/lib/utils";
 
 import { MiddleTruncate } from "./ui/middle-truncate";
@@ -50,10 +51,56 @@ export function ThreadCommandSubtitle(props: {
 
   const projectLabel = props.projectTitle?.trim() || null;
   const branchLabel = props.branch?.trim() || null;
-
-  if (!projectLabel && !branchLabel && !props.isCurrent && !showHarness) {
-    return null;
+  const environmentLabel = props.environmentLabel?.trim() || null;
+  const segments: Array<{ key: string; content: ReactNode }> = [];
+  if (props.project || projectLabel) {
+    segments.push({
+      key: "project",
+      content: (
+        <span className="inline-flex min-w-0 items-center gap-1">
+          {props.project ? (
+            <ProjectFavicon project={props.project} className="size-3 shrink-0" />
+          ) : null}
+          {projectLabel ? <span className="min-w-0 truncate">{projectLabel}</span> : null}
+        </span>
+      ),
+    });
   }
+  if (environmentLabel) {
+    segments.push({
+      key: "environment",
+      content: <span className="shrink-0">{environmentLabel}</span>,
+    });
+  }
+  if (branchLabel) {
+    segments.push({
+      key: "branch",
+      content: (
+        <span className="inline-flex min-w-0 items-center gap-1">
+          <WorkspaceIcon variant={variant} isWorktree={isWorktree} />
+          <MiddleTruncate value={branchLabel} />
+        </span>
+      ),
+    });
+  }
+  if (showHarness && props.driverKind) {
+    segments.push({
+      key: "harness",
+      content: (
+        <ProviderInstanceIcon
+          driverKind={props.driverKind}
+          displayName={props.providerDisplayName ?? props.driverKind}
+          acpRegistryAgentId={props.acpRegistryAgentId}
+          acpRegistryIconUrl={props.acpRegistryIconUrl}
+          iconClassName="size-3 shrink-0 opacity-70"
+        />
+      ),
+    });
+  }
+  if (props.isCurrent) {
+    segments.push({ key: "current", content: <span className="shrink-0">Current thread</span> });
+  }
+  if (segments.length === 0) return null;
 
   return (
     <span
@@ -62,50 +109,12 @@ export function ThreadCommandSubtitle(props: {
         props.className,
       )}
     >
-      {projectLabel ? (
-        <span className="inline-flex min-w-0 items-center gap-1">
-          {props.project ? (
-            <ProjectFavicon project={props.project} className="size-3 shrink-0" />
-          ) : null}
-          <span className="min-w-0 truncate">{projectLabel}</span>
-          {props.environmentLabel ? (
-            <>
-              <CommandPaletteMetaDot />
-              <span className="shrink-0">{props.environmentLabel}</span>
-            </>
-          ) : null}
-        </span>
-      ) : null}
-
-      {branchLabel ? (
-        <>
-          {projectLabel ? <CommandPaletteMetaDot /> : null}
-          <span className="inline-flex min-w-0 items-center gap-1">
-            <WorkspaceIcon variant={variant} isWorktree={isWorktree} />
-            <MiddleTruncate value={branchLabel} />
-          </span>
-        </>
-      ) : null}
-
-      {showHarness && props.driverKind ? (
-        <>
-          {projectLabel || branchLabel ? <CommandPaletteMetaDot /> : null}
-          <ProviderInstanceIcon
-            driverKind={props.driverKind}
-            displayName={props.providerDisplayName ?? props.driverKind}
-            acpRegistryAgentId={props.acpRegistryAgentId}
-            acpRegistryIconUrl={props.acpRegistryIconUrl}
-            iconClassName="size-3 shrink-0 opacity-70"
-          />
-        </>
-      ) : null}
-
-      {props.isCurrent ? (
-        <>
-          {projectLabel || branchLabel || showHarness ? <CommandPaletteMetaDot /> : null}
-          <span className="shrink-0">Current thread</span>
-        </>
-      ) : null}
+      {segments.map((segment, index) => (
+        <Fragment key={segment.key}>
+          {index > 0 ? <CommandPaletteMetaDot /> : null}
+          {segment.content}
+        </Fragment>
+      ))}
     </span>
   );
 }

@@ -38,15 +38,8 @@ import {
   effectiveSnoozed,
   threadWokeAt,
 } from "@t3tools/client-runtime/state/thread-settled";
-import {
-  createInboxReturnTracker,
-  isThreadWorking,
-} from "@t3tools/client-runtime/state/thread-inbox";
-import {
-  resolveSidebarLaneSort,
-  sortSettledThreads,
-  sortSidebarThreads,
-} from "@t3tools/client-runtime/state/thread-sort";
+import { isThreadWorking } from "@t3tools/client-runtime/state/thread-inbox";
+import { sortSettledThreads, sortSidebarThreads } from "@t3tools/client-runtime/state/thread-sort";
 import {
   nextShownOrder,
   threadSearchMatchKey,
@@ -209,13 +202,14 @@ import {
   isSidebarNestedLinkClick,
   isTrailingDoubleClick,
   orderItemsByPreferredIds,
+  orderSidebarLaneThreads,
   planSidebarThreadDrop,
   reduceSidebarProjectScopeMenuState,
   resolveAdjacentThreadId,
   resolveSidebarSweepKeys,
   resolveSidebarDropTarget,
   resolveSidebarDropVerb,
-  resolveSidebarThreadSection,
+  resolveSidebarThreadShelf,
   resolveSidebarReorderableThreadKeys,
   searchSidebarThreads,
   shouldNavigateAfterThreadPark,
@@ -224,7 +218,7 @@ import {
   sidebarThreadKeyAtY,
   sortInboxThreadsByReturn,
   sortPinnedThreadsForSidebar,
-  sortThreadsForSidebar,
+  sortSidebarActiveThreads,
   sortWorkingThreadsBySend,
   useSnoozeWakeClock,
   useThreadJumpHintsVisible,
@@ -284,6 +278,7 @@ import {
 } from "./sidebar/SidebarThreadRow";
 import { SidebarDraftBlock } from "./sidebar/SidebarDraftBlock";
 import { resolveSidebarThreadRowVisibility } from "./sidebar/sidebarThreadRowItems";
+import { sidebarInboxReturns as inboxReturns } from "./sidebar/inboxReturns";
 import {
   SidebarProjectFolderHeader,
   sidebarFolderRowId,
@@ -362,8 +357,6 @@ const SNOOZED_SHELF_EXPANDED_KEY = "t3code:sidebar:snoozed-expanded";
 const WORKING_SHELF_EXPANDED_KEY = "t3code:sidebar:working-expanded";
 const WAITING_SHELF_EXPANDED_KEY = "t3code:sidebar:waiting-expanded";
 const COLLAPSED_LANES_KEY = "t3code:sidebar:collapsed-lanes";
-
-const inboxReturns = createInboxReturnTracker();
 
 type SidebarOptimisticDrop = {
   readonly key: string;
@@ -669,14 +662,7 @@ function useSidebarThreads(input: {
       },
       {
         showEmptyDropTargets: dragging,
-        orderLaneThreads: (laneThreads, lane) => {
-          const sort = resolveSidebarLaneSort(lane.path, defaultThreadSort, threadSortOverrides);
-          if (sort === "manual") return laneThreads;
-          // Pinned threads keep their drag order at the top of the lane.
-          const pinned = laneThreads.filter((thread) => thread.pinnedAt != null);
-          const unpinned = laneThreads.filter((thread) => thread.pinnedAt == null);
-          return [...pinned, ...sortSidebarThreads(unpinned, sort)];
-        },
+        orderLaneThreads: orderSidebarLaneThreads(defaultThreadSort, threadSortOverrides),
       },
     ).map((row) =>
       row.kind === "lane" ? { ...row, label: sidebarLaneLabel(row.lane, laneProjects) } : row,
@@ -818,33 +804,24 @@ function partitionSidebarThreads(input: SidebarThreadPartitionInput) {
           : { ...projected, snoozedAt: thread.snoozedAt, snoozedUntil: thread.snoozedUntil },
       );
     } else {
-      const section = resolveSidebarThreadSection({
-        snoozed: configLoaded && effectiveSnoozed(thread, { now: preciseNow }),
-        settled: configLoaded && thread.settledOverride === "settled",
-        pinned: thread.pinnedAt != null,
+      const shelf = resolveSidebarThreadShelf(thread, {
+        now: preciseNow,
+        configLoaded,
+        workingShelfEnabled,
+        pinnedJoinWorking,
+        inbox: inboxObservation,
       });
-      (section === "snoozed"
-        ? snoozed
-        : section === "settled"
-          ? settled
-          : section === "pinned"
-            ? pinnedJoinWorking && inbox(thread) === working
-              ? working
-              : pinned
-            : inbox(thread)
-      ).push(thread);
+      ({ pinned, active, working, waiting, snoozed, settled })[shelf].push(thread);
     }
   }
   // Availability gates dragging only; sorting must stay consistent across clients.
   const sortedPinned = sortPinnedThreadsForSidebar(pinned);
-  const sortedActive =
-    threadSort !== "manual"
-      ? sortSidebarThreads(active, threadSort)
-      : sortActiveBySend
-        ? sortWorkingThreadsBySend(active)
-        : workingShelfEnabled
-          ? sortInboxThreadsByReturn(active, inboxObservation.returnedAt)
-          : sortThreadsForSidebar(active);
+  const sortedActive = sortSidebarActiveThreads(active, {
+    threadSort,
+    sortActiveBySend,
+    workingShelfEnabled,
+    returnedAt: inboxObservation.returnedAt,
+  });
   return {
     pinnedThreads:
       optimisticDrop?.section !== "pinned" || optimisticDrop.order === null
