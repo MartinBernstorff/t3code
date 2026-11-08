@@ -113,7 +113,8 @@ t3 thread set "$id" --linear MB-123
 
 `.` means the project that contains the current folder; a project id also
 works. A new thread uses the project's default model and permission mode, and
-runs in the project folder unless you pass `--worktree <base-branch>`. `send`
+runs in the project folder unless you pass `--worktree <base-branch>`, or
+`--pr <number|url|branch>` to work in a worktree on that pull request's branch. `send`
 never interrupts: a busy thread gets the message as its next turn. Pass `-` as
 the message to read it from stdin. `set` changes a thread's title, priority (`urgent`,
 `high`, `medium`, `low`, or `none` to clear it), engagement (`engaged`, `inbox`,
