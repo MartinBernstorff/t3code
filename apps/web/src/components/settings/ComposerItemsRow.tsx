@@ -86,7 +86,7 @@ export function ComposerItemsRow() {
       {visibility.context ? (
         <SettingsRow
           {...searchableSetting("context-window-meter-cap")}
-          description="Thousands of tokens the context window indicator fills up to. Yellow from 75%, red when full."
+          description="Thousands of tokens the context window indicator treats as its limit. Yellow from 75%, red at the cap, and the bar keeps filling to twice the cap."
           control={
             <ContextMeterCapInput
               value={capTokens}

@@ -97,14 +97,15 @@ export function resolveContextWindowMeterScale(input: {
   readonly usedPercentage: number;
   readonly tone: ContextWindowMeterTone;
 } {
-  const scaleTokens =
-    input.maxTokens !== null && input.maxTokens > 0
-      ? Math.min(input.maxTokens, input.capTokens)
-      : input.capTokens;
-  const percentage = (Math.max(0, input.usedTokens) * 100) / scaleTokens;
+  const maxTokens = input.maxTokens !== null && input.maxTokens > 0 ? input.maxTokens : null;
+  const toneTokens = Math.min(maxTokens ?? input.capTokens, input.capTokens);
+  // The bar runs to twice the cap so use past the cap stays visible.
+  const scaleTokens = Math.min(maxTokens ?? 2 * input.capTokens, 2 * input.capTokens);
+  const usedTokens = Math.max(0, input.usedTokens);
+  const percentage = (usedTokens * 100) / toneTokens;
   return {
     scaleTokens,
-    usedPercentage: Math.min(100, percentage),
+    usedPercentage: Math.min(100, (usedTokens * 100) / scaleTokens),
     tone:
       percentage >= 100
         ? "critical"
