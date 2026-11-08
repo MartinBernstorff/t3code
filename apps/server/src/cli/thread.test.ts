@@ -135,6 +135,101 @@ it.effect(
     ),
 );
 
+it.effect("list --json keeps each thread's worktree path, Linear issue and priority", () =>
+  Effect.gen(function* () {
+    const fs = yield* FileSystem.FileSystem;
+    const path = yield* Path.Path;
+    const baseDir = yield* fs.makeTempDirectoryScoped({ prefix: "t3-thread-list-" });
+    yield* persistServerRuntimeState({
+      path: path.join(baseDir, "userdata", "server-runtime.json"),
+      state: yield* makePersistedServerRuntimeState({
+        config: { host: "127.0.0.1", devUrl: undefined },
+        port: 3_773,
+      }),
+    });
+    const projectId = ProjectId.make("project-1");
+    const thread = {
+      threadId,
+      projectId,
+      title: "MB-12 thread",
+      createdBy: "user",
+      creationSource: "web",
+      status: "idle",
+      latestRunId: null,
+      providerInstanceId: "codex",
+      model: "gpt-5",
+      runtimeMode: "full-access",
+      interactionMode: "default",
+      linkedPullRequest: null,
+      worktreePath: "/repo/.t3/worktrees/mb-12",
+      settled: false,
+      settledAt: null,
+      snoozed: false,
+      snoozedUntil: null,
+      priority: "high",
+      linearIssue: "MB-12",
+      parentThreadId: null,
+      relationshipToParent: null,
+      itemCount: 0,
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    };
+    using _session = vi.spyOn(McpBridge, "mcpToolSession").mockReturnValue(
+      Effect.succeed({
+        call: (tool) => {
+          switch (tool) {
+            case "t3_project_list":
+              return Effect.succeed({
+                structuredContent: {
+                  projects: [{ id: projectId, title: "Repo", workspaceRoot: "/repo" }],
+                  nextCursor: null,
+                },
+              });
+            case "t3_thread_list":
+              return Effect.succeed({
+                structuredContent: {
+                  projectId,
+                  currentThreadId: null,
+                  threads: [thread],
+                  nextCursor: null,
+                  total: 1,
+                },
+              });
+            default:
+              return Effect.die(`unexpected ${tool} call`);
+          }
+        },
+      }),
+    );
+
+    yield* Command.runWith(threadCommand, { version: "0.0.0" })([
+      "list",
+      "--project",
+      projectId,
+      "--json",
+      "--base-dir",
+      baseDir,
+    ]);
+
+    const [listed] = JSON.parse(String((yield* TestConsole.logLines).at(-1)));
+    assert.deepInclude(listed, {
+      worktreePath: "/repo/.t3/worktrees/mb-12",
+      linearIssue: "MB-12",
+      priority: "high",
+    });
+  }).pipe(
+    Effect.scoped,
+    Effect.provide(
+      Layer.mergeAll(
+        NodeServices.layer,
+        NodeCrypto.layer,
+        NetService.layer,
+        ConfigProvider.layer(ConfigProvider.fromEnv({ env: { T3CODE_PORT: "3773" } })),
+      ),
+    ),
+  ),
+);
+
 it.effect("set sends each flag to its MCP tool", () =>
   Effect.gen(function* () {
     const fs = yield* FileSystem.FileSystem;
