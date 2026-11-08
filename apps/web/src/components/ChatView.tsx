@@ -266,7 +266,7 @@ import {
 } from "../state/entities";
 import { useEnvironmentShellHasSnapshot } from "../state/shell";
 import { ChatComposer, type ChatComposerHandle } from "./chat/ChatComposer";
-import { DraftHeroHeadline } from "./chat/DraftHeroHeadline";
+import { DraftHeroHeadline, type DraftHeroHeadlineHandle } from "./chat/DraftHeroHeadline";
 import { ExpandedImageDialogHost, openExpandedImagePreview } from "./chat/ExpandedImageDialog";
 import {
   BranchRestoreConfirmHost,
@@ -2727,6 +2727,7 @@ export default function ChatView(props: ChatViewProps) {
     ? resolveProviderSkillsForCwd(activeProviderStatus, gitCwd)
     : EMPTY_PROVIDER_SKILLS;
   const threadFindEnabled = isServerThread && serverConfig?.threadFind === true;
+  const draftHeroHeadlineRef = useRef<DraftHeroHeadlineHandle>(null);
   const isThreadFindActive = useThreadFindOpen(activeThreadRef, threadFindEnabled);
   const openThreadFindStable = useStableCallback((threadRef: ScopedThreadRef) => {
     if (threadFindEnabled && scopedThreadKey(threadRef) === activeThreadKey) {
@@ -2754,6 +2755,11 @@ export default function ChatView(props: ChatViewProps) {
       ...threadLifecycleShortcuts,
       "thread.copyReference": ({ event }) => {
         if (!event.repeat) copyActiveThreadReference();
+      },
+      "composer.project": ({ event }) => {
+        const headline = draftHeroHeadlineRef.current;
+        if (!headline) return false;
+        if (!event.repeat) headline.openProjectPicker();
       },
       "chat.find": () => {
         if (!isServerThread || serverConfig?.threadFind !== true || activeThreadKey === null)
@@ -3579,6 +3585,7 @@ export default function ChatView(props: ChatViewProps) {
                         }
                       >
                         <DraftHeroHeadline
+                          ref={draftHeroHeadlineRef}
                           draftId={draftId}
                           activeProjectRef={activeProjectRef}
                           activeProjectTitle={activeProject?.title ?? null}

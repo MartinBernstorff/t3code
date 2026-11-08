@@ -114,6 +114,7 @@ const inlineButtonVariants = cva(
         destructive: "text-destructive/80 hover:text-destructive",
         picker:
           "gap-1 text-foreground decoration-from-font underline-offset-4 data-popup-open:underline",
+        chip: "gap-2 rounded-lg bg-foreground/[0.06] px-2.5 py-0.5 text-foreground hover:bg-foreground/[0.1] hover:no-underline data-popup-open:bg-foreground/[0.1]",
       },
     },
   },
