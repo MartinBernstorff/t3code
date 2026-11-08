@@ -125,6 +125,11 @@ const MOVED_DEFAULT_KEYBINDINGS: ReadonlyArray<{
     from: { key: "mod+o", command: "editor.openFavorite" },
     to: { key: "mod+alt+o", command: "editor.openFavorite" },
   },
+  {
+    id: "threadPanel.toggle:mod+alt+shift+b",
+    from: { key: "mod+shift+b", command: "threadPanel.toggle", when: "!terminalFocus" },
+    to: { key: "mod+alt+shift+b", command: "threadPanel.toggle", when: "!terminalFocus" },
+  },
 ];
 
 function keybindingShortcutContext(rule: KeybindingRule): string | null {

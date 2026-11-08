@@ -295,6 +295,12 @@ project, and lists matches in sidebar order. Settled threads are left out; find
 them with `Cmd/Ctrl+K`. Enter opens the thread. Opening
 your favorite editor moved from `Cmd/Ctrl+O` to `Cmd/Ctrl+Alt+O`.
 
+To show only some projects' threads in the sidebar, open the project filter next
+to the sidebar search, or press `Cmd/Ctrl+Shift+B`. Pick projects to add or
+remove them, and pick **All projects** to clear the filter. Selected projects
+are listed first. Toggling the thread panel moved from `Cmd/Ctrl+Shift+B` to
+`Cmd/Ctrl+Alt+Shift+B`.
+
 Use **Settings → Keybindings** to find or customize shortcuts for searching files
 and copying a thread reference. A copied reference uses the thread's pull request
 link when available, otherwise a link to the thread, which opens it from anywhere

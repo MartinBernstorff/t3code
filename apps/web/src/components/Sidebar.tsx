@@ -135,6 +135,7 @@ import {
 } from "../hooks/useThreadActions";
 import { useHandleNewThread } from "../hooks/useHandleNewThread";
 import { useOrderWhileOpen } from "../hooks/useOrderWhileOpen";
+import { registerCommands } from "../shortcuts/dispatcher";
 import { useProjectPin } from "../hooks/useProjectGroupUpdate";
 import { useSidebarProjectGroups } from "../hooks/useSidebarProjectGroups";
 import { useTerminalFocus } from "../hooks/useTerminalFocus";
@@ -1014,7 +1015,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
   } = useSidebarLookups();
   const delegatedUnderParent = useDelegatedUnderParent();
   const router = useRouter();
-  const { isMobile, setOpenMobile } = useSidebar();
+  const { isMobile, setOpenMobile, open: sidebarOpen, setOpen: setSidebarOpen } = useSidebar();
   const keybindings = useAtomValue(primaryServerKeybindingsAtom);
   const confirmThreadDelete = useClientSettings((s) => s.confirmThreadDelete);
   const confirmThreadArchive = useClientSettings((s) => s.confirmThreadArchive);
@@ -1273,9 +1274,14 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     }
     return environmentLabelById.get(thread.environmentId) ?? null;
   };
-  // Pinning from a row keeps rows in place while the menu is open.
+  // Selected projects lead when the menu opens; toggling or pinning a row leaves rows in place until it closes.
+  const [allProjectsItem, ...projectItems] = lookupProjectScopeItems;
   const projectScopeItems = useOrderWhileOpen(
-    lookupProjectScopeItems,
+    [
+      allProjectsItem!,
+      ...projectItems.filter((item) => projectScopeKeys.includes(item.value)),
+      ...projectItems.filter((item) => !projectScopeKeys.includes(item.value)),
+    ],
     (item) => item.value,
     projectScopeMenuState.open,
   );
@@ -3217,6 +3223,24 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     routeTerminalOpen,
     threadByKey,
   ]);
+  const toggleProjectFilterFromShortcut = useStableCallback((event: KeyboardEvent) => {
+    if (event.repeat || projectGroups.length === 0) return false;
+    event.preventDefault();
+    event.stopPropagation();
+    if (isMobile) setOpenMobile(true);
+    else if (!sidebarOpen) setSidebarOpen(true);
+    dispatchProjectScopeMenu({ type: "open-changed", open: !projectScopeMenuState.open });
+  });
+  // Capture phase: the composer's bold guard swallows Mod+Shift+B when nothing is selected.
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- registers the project filter shortcut with the app's keydown dispatcher
+  useEffect(
+    () =>
+      registerCommands(
+        { "sidebar.filterByProject": toggleProjectFilterFromShortcut },
+        { capture: true },
+      ),
+    [toggleProjectFilterFromShortcut],
+  );
 
   const shouldShowJumpHintsNow = shouldShowThreadJumpHintsForModifiers(
     shortcutModifiers,
@@ -3301,15 +3325,10 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                     if (!item) return;
                     if (item.value === "all") {
                       setProjectScopeKeys([]);
-                    } else if (
-                      eventDetails.event instanceof MouseEvent &&
-                      eventDetails.event.shiftKey
-                    ) {
+                    } else {
                       // Canceling skips Base UI's commit, which would freeze the search query, and its close.
                       eventDetails.cancel();
                       toggleProjectScopeKey(item.value);
-                    } else {
-                      setProjectScopeKeys([item.value]);
                     }
                   }}
                 >
@@ -3380,12 +3399,6 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                           return;
                         }
                         if (event.ctrlKey || event.altKey || event.metaKey) return;
-                        if (event.shiftKey && event.key === "Enter") {
-                          if (!project) return;
-                          event.preventDefault();
-                          toggleProjectScopeKey(project.projectKey);
-                          return;
-                        }
                         if (
                           event.key !== "ContextMenu" &&
                           !(event.shiftKey && event.key === "F10")

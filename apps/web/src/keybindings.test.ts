@@ -432,6 +432,7 @@ describe("chat/editor shortcuts", () => {
         key: "b",
         metaKey: platform === "MacIntel",
         ctrlKey: platform !== "MacIntel",
+        altKey: true,
         shiftKey: true,
       });
       assert.strictEqual(
@@ -454,24 +455,24 @@ describe("chat/editor shortcuts", () => {
     const bindings = mergeWithDefaultKeybindings(
       compile([
         {
-          shortcut: modShortcut("b", { altKey: true, shiftKey: true }),
+          shortcut: modShortcut("y", { shiftKey: true }),
           command: "threadPanel.toggle",
         },
       ]),
     );
 
     assert.strictEqual(
+      resolveShortcutCommand(event({ key: "y", metaKey: true, shiftKey: true }), bindings, {
+        platform: "MacIntel",
+      }),
+      "threadPanel.toggle",
+    );
+    assert.isNull(
       resolveShortcutCommand(
         event({ key: "b", metaKey: true, altKey: true, shiftKey: true }),
         bindings,
         { platform: "MacIntel" },
       ),
-      "threadPanel.toggle",
-    );
-    assert.isNull(
-      resolveShortcutCommand(event({ key: "b", metaKey: true, shiftKey: true }), bindings, {
-        platform: "MacIntel",
-      }),
     );
   });
 });
