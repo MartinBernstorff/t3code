@@ -486,6 +486,18 @@ export const SETTINGS_SEARCH_ITEMS = [
     searchTerms: ["hide fold running monitoring threads inbox sidebar shelf"],
   },
   {
+    id: "section-counts",
+    title: "Section counts",
+    to: "/settings/general",
+    searchTerms: ["sidebar lane shelf count number tokens squares dots"],
+  },
+  {
+    id: "token-colour",
+    title: "Token colour",
+    to: "/settings/general",
+    searchTerms: ["sidebar count tokens color colour agent state priority engagement"],
+  },
+  {
     id: "sidebar-row-glyphs",
     title: "Sidebar row glyphs",
     to: "/settings/general",

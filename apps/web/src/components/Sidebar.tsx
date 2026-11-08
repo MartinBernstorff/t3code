@@ -288,6 +288,7 @@ import {
   SidebarSectionPlaceholder,
   sidebarLaneRowId,
 } from "./sidebar/SidebarListMarkers";
+import { SidebarCountNumber, SidebarSectionCount } from "./sidebar/SidebarCountTokens";
 
 function sameSidebarProviderEntries(
   left: ReadonlyMap<string, SidebarProviderEntry>,
@@ -1024,6 +1025,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
   const confirmThreadDelete = useClientSettings((s) => s.confirmThreadDelete);
   const confirmThreadArchive = useClientSettings((s) => s.confirmThreadArchive);
   const timestampFormat = useClientSettings((s) => s.timestampFormat);
+  const sectionCountStyle = useClientSettings((s) => s.sidebarSectionCountStyle);
   const threadRowVisibleItems = useClientSettings(resolveSidebarThreadRowVisibility);
   const projectGroupingSettings = useClientSettings(selectProjectGroupingSettings);
   const {
@@ -3778,7 +3780,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                                     parentLaneKey={row.parentKey}
                                     depth={row.inset}
                                     label={row.label}
-                                    count={row.lane.threads.length}
+                                    count={<SidebarSectionCount threads={row.lane.threads} />}
                                     expanded={!row.collapsed}
                                     isDropTarget={
                                       !isContextDrag &&
@@ -3879,7 +3881,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                                 marker="working-header"
                                 className={cn(snoozedThreads.length === 0 && "mt-auto")}
                                 label="Working"
-                                count={workingThreads.length}
+                                count={<SidebarSectionCount threads={workingThreads} />}
                                 toggle={{
                                   expanded: workingShelfExpanded,
                                   onToggle: toggleWorkingShelf,
@@ -3894,7 +3896,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                                 marker="snoozed-header"
                                 className="mt-auto"
                                 label="Snoozed"
-                                count={snoozedThreads.length}
+                                count={<SidebarSectionCount threads={snoozedThreads} />}
                                 toggle={{
                                   expanded: snoozedShelfExpanded,
                                   onToggle: toggleSnoozedShelf,
@@ -3911,7 +3913,11 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                                   !workingShelfEnabled && snoozedThreads.length === 0 && "mt-auto",
                                 )}
                                 label="Settled"
-                                count={settledCount}
+                                count={
+                                  sectionCountStyle === "number" ? (
+                                    <SidebarCountNumber count={settledCount} />
+                                  ) : null
+                                }
                                 dragging={from !== null}
                                 isDropTarget={dragTargetSection === "settled"}
                                 toggle={{

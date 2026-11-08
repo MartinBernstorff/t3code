@@ -24,6 +24,8 @@ import {
   SidebarProjectSortOrder,
   SidebarRowGlyphKind,
   SidebarThreadSort,
+  SidebarSectionCountStyle,
+  SidebarTokenColor,
   SIDEBAR_GROUP_BY_MAX_LEVELS,
   SidebarGroupBy,
   type SidebarGroupByLevels,
@@ -150,6 +152,20 @@ const SIDEBAR_GROUP_BY_LABELS: Record<SidebarGroupBy, string> = {
   agentState: "Agent state",
 };
 const isSidebarGroupBy = Schema.is(SidebarGroupBy);
+
+const SIDEBAR_SECTION_COUNT_STYLE_LABELS: Record<SidebarSectionCountStyle, string> = {
+  number: "Number",
+  tokens: "Tokens",
+};
+const isSidebarSectionCountStyle = Schema.is(SidebarSectionCountStyle);
+
+const SIDEBAR_TOKEN_COLOR_LABELS: Record<SidebarTokenColor, string> = {
+  none: "None",
+  agentState: "Agent state",
+  priority: "Priority",
+  engagement: "Engagement",
+};
+const isSidebarTokenColor = Schema.is(SidebarTokenColor);
 const NO_GROUP_BY_LEVEL = "none";
 
 function SidebarGroupByControl(props: {
@@ -564,6 +580,12 @@ export function useSettingsRestore(onRestored?: () => void) {
     ...(settings.sidebarWorkingShelfEnabled !== DEFAULT_UNIFIED_SETTINGS.sidebarWorkingShelfEnabled
       ? ["Working section"]
       : []),
+    ...(settings.sidebarSectionCountStyle !== DEFAULT_UNIFIED_SETTINGS.sidebarSectionCountStyle
+      ? ["Section counts"]
+      : []),
+    ...(settings.sidebarTokenColor !== DEFAULT_UNIFIED_SETTINGS.sidebarTokenColor
+      ? ["Token colour"]
+      : []),
     ...(!Equal.equals(settings.sidebarRowGlyphs, DEFAULT_UNIFIED_SETTINGS.sidebarRowGlyphs)
       ? ["Sidebar row glyphs"]
       : []),
@@ -743,6 +765,8 @@ export function useSettingsRestore(onRestored?: () => void) {
       sidebarThreadSort: DEFAULT_UNIFIED_SETTINGS.sidebarThreadSort,
       sidebarGroupBy: DEFAULT_UNIFIED_SETTINGS.sidebarGroupBy,
       sidebarWorkingShelfEnabled: DEFAULT_UNIFIED_SETTINGS.sidebarWorkingShelfEnabled,
+      sidebarSectionCountStyle: DEFAULT_UNIFIED_SETTINGS.sidebarSectionCountStyle,
+      sidebarTokenColor: DEFAULT_UNIFIED_SETTINGS.sidebarTokenColor,
       sidebarRowGlyphs: DEFAULT_UNIFIED_SETTINGS.sidebarRowGlyphs,
       sidebarAutoSettleAfterDays: DEFAULT_UNIFIED_SETTINGS.sidebarAutoSettleAfterDays,
       sidebarAutoSettleKeepPullRequests: DEFAULT_UNIFIED_SETTINGS.sidebarAutoSettleKeepPullRequests,
@@ -1040,6 +1064,81 @@ export function GeneralSettingsPanel() {
               }
               aria-label="Working section"
             />
+          }
+        />
+        <SettingsRow
+          {...searchableSetting("section-counts")}
+          description="Show the size of sidebar lanes and the Working and Snoozed sections as a number, or as one small token per thread."
+          resetAction={
+            settings.sidebarSectionCountStyle !==
+            DEFAULT_UNIFIED_SETTINGS.sidebarSectionCountStyle ? (
+              <SettingResetButton
+                label="section counts"
+                onClick={() =>
+                  updateSettings({
+                    sidebarSectionCountStyle: DEFAULT_UNIFIED_SETTINGS.sidebarSectionCountStyle,
+                  })
+                }
+              />
+            ) : null
+          }
+          control={
+            <Select
+              value={settings.sidebarSectionCountStyle}
+              onValueChange={(value) => {
+                if (isSidebarSectionCountStyle(value)) {
+                  updateSettings({ sidebarSectionCountStyle: value });
+                }
+              }}
+            >
+              <SelectTrigger size="sm" className="w-full sm:w-44" aria-label="Section counts">
+                <SelectValue>
+                  {SIDEBAR_SECTION_COUNT_STYLE_LABELS[settings.sidebarSectionCountStyle]}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectPopup align="end" alignItemWithTrigger={false}>
+                {SidebarSectionCountStyle.literals.map((style) => (
+                  <SelectItem hideIndicator key={style} value={style}>
+                    {SIDEBAR_SECTION_COUNT_STYLE_LABELS[style]}
+                  </SelectItem>
+                ))}
+              </SelectPopup>
+            </Select>
+          }
+        />
+        <SettingsRow
+          {...searchableSetting("token-colour")}
+          description="What colours section count tokens, whatever the Group by setting."
+          resetAction={
+            settings.sidebarTokenColor !== DEFAULT_UNIFIED_SETTINGS.sidebarTokenColor ? (
+              <SettingResetButton
+                label="token colour"
+                onClick={() =>
+                  updateSettings({ sidebarTokenColor: DEFAULT_UNIFIED_SETTINGS.sidebarTokenColor })
+                }
+              />
+            ) : null
+          }
+          control={
+            <Select
+              value={settings.sidebarTokenColor}
+              onValueChange={(value) => {
+                if (isSidebarTokenColor(value)) {
+                  updateSettings({ sidebarTokenColor: value });
+                }
+              }}
+            >
+              <SelectTrigger size="sm" className="w-full sm:w-44" aria-label="Token colour">
+                <SelectValue>{SIDEBAR_TOKEN_COLOR_LABELS[settings.sidebarTokenColor]}</SelectValue>
+              </SelectTrigger>
+              <SelectPopup align="end" alignItemWithTrigger={false}>
+                {SidebarTokenColor.literals.map((color) => (
+                  <SelectItem hideIndicator key={color} value={color}>
+                    {SIDEBAR_TOKEN_COLOR_LABELS[color]}
+                  </SelectItem>
+                ))}
+              </SelectPopup>
+            </Select>
           }
         />
         <SettingsRow

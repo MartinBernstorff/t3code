@@ -114,8 +114,8 @@ export function SidebarDragBoundary(props: {
 export function SidebarSectionHeader(props: {
   marker: "working-header" | "snoozed-header" | "settled-header";
   label: string;
-  /** A muted trailing count. */
-  count: number;
+  /** A muted trailing count; see `SidebarSectionCount`. */
+  count: ReactNode;
   className?: string;
   dragging?: boolean;
   isDropTarget?: boolean;
@@ -139,7 +139,7 @@ export function SidebarSectionHeader(props: {
         expanded={props.toggle.expanded}
         tone={props.isDropTarget ? "accent" : props.dragging ? "emphasized" : "muted"}
         data-testid={`sidebar-${shelf}-shelf-toggle`}
-        accessory={<span className="font-normal tabular-nums">{props.count}</span>}
+        accessory={props.count}
       >
         {props.label}
       </CollapsibleSectionHeader>
@@ -159,7 +159,7 @@ export function SidebarLaneHeader(props: {
   parentLaneKey: string | null;
   depth: number;
   label: string;
-  count: number;
+  count: ReactNode;
   expanded: boolean;
   /** The dragged thread is over this header and the drop would change it. */
   isDropTarget: boolean;
@@ -180,7 +180,7 @@ export function SidebarLaneHeader(props: {
         onClick={() => props.onToggle(props.laneKey)}
         expanded={props.expanded}
         tone={props.isDropTarget ? "accent" : "muted"}
-        accessory={<span className="font-normal tabular-nums">{props.count}</span>}
+        accessory={props.count}
       >
         {props.label}
       </CollapsibleSectionHeader>

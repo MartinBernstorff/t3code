@@ -210,6 +210,11 @@ Project and Agent state headers are not drop targets, and threads do not reorder
 on the Settled header to settle a thread. The
 boring sidebar keeps its project folders and ignores this setting.
 
+**Settings → General → Section counts** swaps the numbers on lane headers and the Working and
+Snoozed sections for one small square per thread, up to 12 and then a **+N**. Settled shows no
+tokens. **Settings → General → Token colour** colours them by Agent state (the default), Priority,
+or Engagement, separately from how threads are grouped.
+
 ### Choose what each thread shows
 
 On web and desktop, open **Settings → Appearance → Sidebar thread rows** to hide parts of each
