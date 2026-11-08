@@ -398,8 +398,9 @@ export function resolveThreadWorkingStartedAt(input: {
   return null;
 }
 
-export function formatWorkingDurationLabel(elapsedMs: number): string {
+export function formatWorkingDurationLabel(elapsedMs: number): string | null {
   const minutes = Number.isFinite(elapsedMs) ? Math.max(0, Math.floor(elapsedMs / 60_000)) : 0;
+  if (minutes === 0) return null;
   if (minutes < 60) return `${minutes}m`;
   return `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
 }

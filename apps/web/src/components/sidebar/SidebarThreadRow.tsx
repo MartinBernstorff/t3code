@@ -176,8 +176,12 @@ function WorkingDuration(props: { startedAt: string | null }) {
 // the shared tick lands every working row's update in the same frame.
 function WorkingDurationLabel(props: { startedMs: number }) {
   const nowMs = useNowSecond();
+  const label = formatWorkingDurationLabel(nowMs - props.startedMs);
+  if (label === null) return null;
   return (
-    <span className="tabular-nums">{formatWorkingDurationLabel(nowMs - props.startedMs)}</span>
+    <span aria-hidden className="tabular-nums">
+      {label}
+    </span>
   );
 }
 
@@ -1588,13 +1592,9 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
                             timeline speak status changes instead. */}
                           {topStatus.label}
                           {status === "preparing" || status === "working" ? (
-                            <span aria-hidden>
-                              <WorkingDuration startedAt={resolveWorkingStartedAt(thread)} />
-                            </span>
+                            <WorkingDuration startedAt={resolveWorkingStartedAt(thread)} />
                           ) : status === "waiting" ? (
-                            <span aria-hidden>
-                              <WorkingDuration startedAt={thread.latestRun?.completedAt ?? null} />
-                            </span>
+                            <WorkingDuration startedAt={thread.latestRun?.completedAt ?? null} />
                           ) : null}
                         </span>
                       )
