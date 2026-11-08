@@ -126,6 +126,14 @@ const LegacySidebarGroupBy = SidebarGroupBy.pipe(
 
 const SidebarGroupBySetting = Schema.Union([SidebarGroupByLevels, LegacySidebarGroupBy]);
 
+/** How Group by lanes and the Working and Snoozed shelves show their size. */
+export const SidebarSectionCountStyle = Schema.Literals(["number", "tokens"]);
+export type SidebarSectionCountStyle = typeof SidebarSectionCountStyle.Type;
+
+/** The thread field that colours count tokens, independent of Group by. */
+export const SidebarTokenColor = Schema.Literals(["none", "agentState", "priority", "engagement"]);
+export type SidebarTokenColor = typeof SidebarTokenColor.Type;
+
 export const SidebarProjectGroupingMode = Schema.Literals([
   "repository",
   "repository_path",
@@ -622,6 +630,12 @@ export const ClientSettingsSchema = Schema.Struct({
   ),
   sidebarGroupBy: SidebarGroupBySetting.pipe(
     Schema.withDecodingDefault(Effect.succeed(DEFAULT_SIDEBAR_GROUP_BY)),
+  ),
+  sidebarSectionCountStyle: SidebarSectionCountStyle.pipe(
+    Schema.withDecodingDefault(Effect.succeed("number")),
+  ),
+  sidebarTokenColor: SidebarTokenColor.pipe(
+    Schema.withDecodingDefault(Effect.succeed("agentState")),
   ),
   timestampFormat: TimestampFormat.pipe(
     Schema.withDecodingDefault(Effect.succeed(DEFAULT_TIMESTAMP_FORMAT)),
@@ -2010,6 +2024,8 @@ export const ClientSettingsPatch = Schema.Struct({
   sidebarRowGlyphs: Schema.optionalKey(SidebarRowGlyphKinds),
   sidebarThreadSort: Schema.optionalKey(SidebarThreadSort),
   sidebarGroupBy: Schema.optionalKey(SidebarGroupByLevels),
+  sidebarSectionCountStyle: Schema.optionalKey(SidebarSectionCountStyle),
+  sidebarTokenColor: Schema.optionalKey(SidebarTokenColor),
   timestampFormat: Schema.optionalKey(TimestampFormat),
   voiceMicrophone: Schema.optionalKey(Schema.String),
   voiceShortcutMode: Schema.optionalKey(VoiceShortcutMode),
