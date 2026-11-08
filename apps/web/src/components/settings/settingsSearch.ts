@@ -500,6 +500,12 @@ export const SETTINGS_SEARCH_ITEMS = [
     searchTerms: ["sidebar count tokens color colour agent state priority engagement"],
   },
   {
+    id: "minimal-sidebar",
+    title: "Minimal sidebar",
+    to: "/settings/general",
+    searchTerms: ["compact focus hide thread rows section counts tokens overview wip"],
+  },
+  {
     id: "sidebar-row-glyphs",
     title: "Sidebar row glyphs",
     to: "/settings/general",
