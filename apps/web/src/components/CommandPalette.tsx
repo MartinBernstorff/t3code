@@ -74,6 +74,7 @@ import {
   RotateCcwIcon,
   SettingsIcon,
   MonitorIcon,
+  PanelLeftIcon,
   PinIcon,
   PinOffIcon,
   SquarePenIcon,
@@ -108,7 +109,7 @@ import {
   copyPromptLink,
   promptLinkRepositoryOf,
 } from "./promptLinks/copyPromptLink";
-import { useClientSettings } from "../hooks/useSettings";
+import { updateClientSettings, useClientSettings } from "../hooks/useSettings";
 import { useStableCallback } from "../hooks/useStableCallback";
 import { readLocalApi } from "../localApi";
 import { configuredHostedAppUrl } from "../hostedPairing";
@@ -1734,6 +1735,18 @@ function OpenCommandPaletteDialog(props: {
     shortcutCommand: "usage.open",
     run: async () => {
       await navigate({ to: "/usage" });
+    },
+  });
+
+  actionItems.push({
+    kind: "action",
+    value: "action:sidebar-minimal",
+    searchTerms: ["sidebar", "minimal", "full", "compact", "counts", "toggle"],
+    title: clientSettings.sidebarMinimal ? "Show full sidebar" : "Show minimal sidebar",
+    icon: <PanelLeftIcon className={ITEM_ICON_CLASS} />,
+    shortcutCommand: "sidebar.toggleMinimal",
+    run: async () => {
+      await updateClientSettings({ sidebarMinimal: !clientSettings.sidebarMinimal });
     },
   });
 

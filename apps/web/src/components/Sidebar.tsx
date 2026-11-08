@@ -146,7 +146,11 @@ import { useTerminalFocus } from "../hooks/useTerminalFocus";
 import { isCommandPaletteOpen, openCommandPalette } from "../commandPaletteBus";
 import { registerSettleAndAdvance } from "../settleAndAdvance";
 import { startNewThreadFromContext } from "../lib/chatThreadActions";
-import { useBoringSidebarEnabled, useClientSettings } from "../hooks/useSettings";
+import {
+  updateClientSettings,
+  useBoringSidebarEnabled,
+  useClientSettings,
+} from "../hooks/useSettings";
 import { useCopyToClipboard } from "../hooks/useCopyToClipboard";
 import { useLocalStorage } from "../hooks/useLocalStorage";
 import { useNowMinute } from "../hooks/useNowMinute";
@@ -3344,15 +3348,24 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     else if (!sidebarOpen) setSidebarOpen(true);
     dispatchProjectScopeMenu({ type: "open-changed", open: !projectScopeMenuState.open });
   });
+  const toggleMinimalFromShortcut = useStableCallback((event: KeyboardEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (event.repeat) return;
+    void updateClientSettings({ sidebarMinimal: !sidebarMinimal });
+  });
   // Capture phase: the composer's bold guard swallows Mod+Shift+B when nothing is selected.
-  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- registers the project filter shortcut with the app's keydown dispatcher
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- registers the sidebar shortcuts with the app's keydown dispatcher
   useEffect(
     () =>
       registerCommands(
-        { "sidebar.filterByProject": toggleProjectFilterFromShortcut },
+        {
+          "sidebar.filterByProject": toggleProjectFilterFromShortcut,
+          "sidebar.toggleMinimal": toggleMinimalFromShortcut,
+        },
         { capture: true },
       ),
-    [toggleProjectFilterFromShortcut],
+    [toggleProjectFilterFromShortcut, toggleMinimalFromShortcut],
   );
 
   const shouldShowJumpHintsNow = shouldShowThreadJumpHintsForModifiers(
