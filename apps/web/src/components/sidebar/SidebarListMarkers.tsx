@@ -2,7 +2,7 @@ import { CollapsibleSectionHeader } from "../ui/collapsible-section-header";
 import { useDroppable } from "@dnd-kit/core";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { type ReactNode, useLayoutEffect } from "react";
+import { type ReactNode, useLayoutEffect, useRef } from "react";
 import { cn } from "~/lib/utils";
 import {
   animateSidebarLayoutChanges,
@@ -153,7 +153,48 @@ export function sidebarLaneRowId(laneKey: string) {
   return `lane:${laneKey}`;
 }
 
-/** A Group by lane header. Dropping a thread on it sets the lane's fields; lanes do not reorder. */
+const LANE_DROP_ZONE_START = ["start-0", "start-3", "start-6"] as const;
+
+/**
+ * A lane's dashed drop zone, from its header to its last row. Lanes are flat sibling rows,
+ * so the zone measures down to `lastRowId`; nested lanes' zones sit inside it.
+ */
+function SidebarLaneDropZone(props: {
+  laneKey: string;
+  lastRowId: string;
+  depth: number;
+  isDropTarget: boolean;
+}) {
+  const { setNodeRef } = useDroppable({ id: sidebarLaneRowId(props.laneKey) });
+  const zoneRef = useRef<HTMLDivElement | null>(null);
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- sizes the zone to its lane's sibling rows before paint; Group by rows hold still while dragging
+  useLayoutEffect(() => {
+    const zone = zoneRef.current;
+    const header = zone?.parentElement;
+    const last = header?.parentElement
+      ?.querySelector(`[data-sidebar-row="${globalThis.CSS.escape(props.lastRowId)}"]`)
+      ?.closest("li");
+    if (zone && header && last instanceof HTMLElement) {
+      zone.style.height = `${last.offsetTop + last.offsetHeight - header.offsetTop}px`;
+    }
+  }, [props.lastRowId]);
+  return (
+    <div
+      ref={(element) => {
+        zoneRef.current = element;
+        setNodeRef(element);
+      }}
+      aria-hidden
+      className={cn(
+        "pointer-events-none absolute end-0 top-0 z-10 h-full rounded-md border border-dashed",
+        LANE_DROP_ZONE_START[props.depth],
+        props.isDropTarget ? "border-primary/40 bg-primary/5" : "border-sidebar-foreground/25",
+      )}
+    />
+  );
+}
+
+/** A Group by lane header. Dropping a thread on its lane sets the lane's fields; lanes do not reorder. */
 export function SidebarLaneHeader(props: {
   laneKey: string;
   /** The enclosing lane of a nested header, for keyboard tree navigation. */
@@ -162,14 +203,14 @@ export function SidebarLaneHeader(props: {
   label: string;
   count: ReactNode;
   expanded: boolean;
-  /** The dragged thread is over this header and the drop would change it. */
+  /** Set while a thread drags and dropping it on this lane would change it. */
+  dropZone: { lastRowId: string } | null;
+  /** The dragged thread is over this lane and the drop would change it. */
   isDropTarget: boolean;
   onToggle: (laneKey: string) => void;
 }) {
-  const { setNodeRef } = useDroppable({ id: sidebarLaneRowId(props.laneKey) });
   return (
     <li
-      ref={setNodeRef}
       data-thread-selection-safe
       className={cn("relative mx-0.5 h-8 list-none", SIDEBAR_LANE_DEPTH_INSET[props.depth])}
     >
@@ -180,12 +221,20 @@ export function SidebarLaneHeader(props: {
         }
         onClick={() => props.onToggle(props.laneKey)}
         expanded={props.expanded}
-        tone={props.isDropTarget ? "accent" : "muted"}
+        tone={props.isDropTarget ? "accent" : props.dropZone ? "emphasized" : "muted"}
         accessory={props.count}
         chevron={false}
       >
         {props.label}
       </CollapsibleSectionHeader>
+      {props.dropZone ? (
+        <SidebarLaneDropZone
+          laneKey={props.laneKey}
+          lastRowId={props.dropZone.lastRowId}
+          depth={props.depth}
+          isDropTarget={props.isDropTarget}
+        />
+      ) : null}
     </li>
   );
 }

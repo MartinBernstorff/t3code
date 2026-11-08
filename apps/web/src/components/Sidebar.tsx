@@ -2167,6 +2167,25 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
       },
     });
   };
+  // Lane keys nest by path, so a row belongs to every lane whose key prefixes its own.
+  const laneDropZones = new Map<string, { lastRowId: string }>();
+  if (laneRows !== null && dragState !== null && !isContextDrag) {
+    for (const row of laneRows) {
+      const [laneKey, lastRowId] =
+        row.kind === "lane"
+          ? [row.lane.key, sidebarLaneRowId(row.lane.key)]
+          : [row.laneKey, threadShellKey(row.thread)];
+      const segments = laneKey.split("/");
+      for (let length = 1; length <= segments.length; length += 1) {
+        laneDropZones.set(segments.slice(0, length).join("/"), { lastRowId });
+      }
+    }
+    for (const laneKey of laneDropZones.keys()) {
+      if (laneDropChanges(dragState.activeKey, sidebarLaneRowId(laneKey)).length === 0) {
+        laneDropZones.delete(laneKey);
+      }
+    }
+  }
   const handleThreadDragOver = (event: DragOverEvent) => {
     if (laneRows !== null) {
       const overId = event.over === null ? null : String(event.over.id);
@@ -3756,6 +3775,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                                     label={row.label}
                                     count={<SidebarSectionCount threads={row.lane.threads} />}
                                     expanded={!row.collapsed}
+                                    dropZone={laneDropZones.get(row.lane.key) ?? null}
                                     isDropTarget={
                                       !isContextDrag &&
                                       dragState?.targetLane === sidebarLaneRowId(row.lane.key)
