@@ -175,7 +175,7 @@ describe("threadAgentState", () => {
     [
       "the waiting flag while a turn runs",
       { waitingOnOthers: true, runtime: runtime("running") },
-      "working",
+      "waitingOnOthers",
     ],
     [
       "the waiting flag with an open approval",

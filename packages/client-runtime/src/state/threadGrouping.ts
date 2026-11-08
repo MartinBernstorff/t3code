@@ -36,9 +36,8 @@ const THREAD_AGENT_STATES = ["needsYou", "working", "waitingOnOthers"] as const;
 export type ThreadAgentState = (typeof THREAD_AGENT_STATES)[number];
 
 /**
- * Requests from the agent or a guest need the user even mid-run; a turn holding for
- * background work counts as working. Anything else ended needs the user unless the
- * agent flagged that it is waiting on others.
+ * Requests from the agent or a guest need the user even mid-run. The waiting-on-others
+ * flag outranks a running turn; a turn holding for background work counts as working.
  */
 export function threadAgentState(thread: ThreadAgentStateInput): ThreadAgentState {
   const hasRequest =
@@ -47,8 +46,8 @@ export function threadAgentState(thread: ThreadAgentStateInput): ThreadAgentStat
     thread.pendingSubagentRequest != null ||
     (thread.pendingGuestMessageCount ?? 0) > 0;
   if (hasRequest) return "needsYou";
-  if (isThreadWorking(thread)) return "working";
-  return thread.waitingOnOthers ? "waitingOnOthers" : "needsYou";
+  if (thread.waitingOnOthers) return "waitingOnOthers";
+  return isThreadWorking(thread) ? "working" : "needsYou";
 }
 
 export type ThreadAgentStateSinceInput = ThreadAgentStateInput & {
