@@ -35,6 +35,7 @@ import * as SecretRequests from "../secrets/SecretRequests.ts";
 import * as ServerSettings from "../serverSettings.ts";
 import * as RemoteDelegation from "./RemoteDelegation.ts";
 import * as McpHttpServer from "../mcp/McpHttpServer.ts";
+import * as WorktreeMcpService from "../mcp/WorktreeMcpService.ts";
 import * as McpInvocationContext from "../mcp/McpInvocationContext.ts";
 import { liveThreadShell } from "../mcp/McpToolAccess.testkit.ts";
 import * as PeerForwarding from "./PeerForwarding.ts";
@@ -212,7 +213,12 @@ const serveBox = (seen: Ref.Ref<Seen>, linkSession: Ref.Ref<string>) =>
       Layer.provide(DocumentText.layer.pipe(Layer.provideMerge(NodeServices.layer))),
       Layer.provide(NodeCrypto.layer),
       Layer.provide(boxThreads(seen, linkSession)),
-      Layer.provide(Layer.mock(ThreadSearch.ThreadSearch)({})),
+      Layer.provide(
+        Layer.mergeAll(
+          Layer.mock(ThreadSearch.ThreadSearch)({}),
+          Layer.mock(WorktreeMcpService.WorktreeMcpService)({}),
+        ),
+      ),
       Layer.provide(boxLaunches(seen)),
       Layer.provide(
         Layer.mock(ManagedProjectFolders.ManagedProjectFolders)({ namedProjectsRoot: "/projects" }),
@@ -267,6 +273,7 @@ const makeLaptop = Effect.gen(function* () {
     Layer.provide(DocumentText.layer.pipe(Layer.provideMerge(NodeServices.layer))),
     Layer.provideMerge(McpHttpServer.layerInProcessMcpServer),
     Layer.provide(Layer.mock(ThreadSearch.ThreadSearch)({})),
+    Layer.provide(Layer.mock(WorktreeMcpService.WorktreeMcpService)({})),
     Layer.provide(Layer.mock(ThreadLaunch.ThreadLaunchService)({})),
     Layer.provide(
       Layer.mock(ManagedProjectFolders.ManagedProjectFolders)({ namedProjectsRoot: "/projects" }),
