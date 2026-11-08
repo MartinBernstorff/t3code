@@ -44,6 +44,11 @@ const THREAD_KEYBINDING_COMMANDS = [
   "thread.settle",
   "thread.pin",
   "thread.undo",
+  "thread.priority.urgent",
+  "thread.priority.high",
+  "thread.priority.medium",
+  "thread.priority.low",
+  "thread.priority.none",
   ...THREAD_JUMP_KEYBINDING_COMMANDS,
 ] as const;
 

@@ -48,6 +48,7 @@ import {
   type DesktopWslState,
   type EnvironmentId,
   type FilesystemBrowseResult,
+  type KeybindingCommand,
   SourceControlProviderKind,
   PRIMARY_LOCAL_ENVIRONMENT_ID,
   resolveEnvironmentMachineKind,
@@ -176,7 +177,11 @@ import {
   newProjectId,
 } from "../lib/utils";
 import { buildThreadRouteParams } from "../threadRoutes";
-import { NO_PRIORITY_LABEL, THREAD_PRIORITY_OPTIONS } from "../threadPriority";
+import {
+  NO_PRIORITY_LABEL,
+  NO_PRIORITY_SHORTCUT_COMMAND,
+  THREAD_PRIORITY_OPTIONS,
+} from "../threadPriority";
 import { THREAD_ENGAGEMENT_OPTIONS } from "../threadEngagement";
 import { ThreadPriorityGlyph } from "./ThreadPriorityGlyph";
 import { requestLinearIssue } from "./LinearIssueDialog";
@@ -1456,12 +1461,14 @@ function OpenCommandPaletteDialog(props: {
       priority: ThreadPriority | null,
       label: string,
       icon: ReactNode,
+      shortcutCommand: KeybindingCommand,
     ): CommandPaletteActionItem => ({
       kind: "action",
       value: `action:set-priority:${priority ?? "none"}`,
       searchTerms: [label, "priority"],
       title: label,
       icon,
+      shortcutCommand,
       ...(priority === currentPriority
         ? { titleTrailingContent: <CheckIcon className={ITEM_ICON_CLASS} /> }
         : {}),
@@ -1487,9 +1494,15 @@ function OpenCommandPaletteDialog(props: {
                 option.value,
                 option.label,
                 <ThreadPriorityGlyph priority={option.value} className="size-4" />,
+                option.shortcutCommand,
               ),
             ),
-            priorityItem(null, NO_PRIORITY_LABEL, <XIcon className={ITEM_ICON_CLASS} />),
+            priorityItem(
+              null,
+              NO_PRIORITY_LABEL,
+              <XIcon className={ITEM_ICON_CLASS} />,
+              NO_PRIORITY_SHORTCUT_COMMAND,
+            ),
           ],
         },
       ],
