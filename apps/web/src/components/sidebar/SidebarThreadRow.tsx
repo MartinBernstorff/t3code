@@ -529,6 +529,18 @@ const dropVerbBadge: Record<SidebarDropVerb, ReactNode> = {
       Wake
     </>
   ),
+  wait: (
+    <>
+      <HourglassIcon aria-hidden className="size-3" />
+      Wait
+    </>
+  ),
+  unwait: (
+    <>
+      <Undo2Icon aria-hidden className="size-3" />
+      Stop waiting
+    </>
+  ),
 };
 
 // Working is plain grey text, so it has no icon.

@@ -309,6 +309,7 @@ describe("threadLaneDropChanges", () => {
     unpin: true,
     unsettle: true,
     unsnooze: true,
+    unwait: true,
   } as const;
   const plain = {
     priority: null,
@@ -345,6 +346,12 @@ describe("threadLaneDropChanges", () => {
       ["section:active"],
       { ...plain, section: "settled" },
       [{ kind: "unsettle" }],
+    ],
+    [
+      "stops a Waiting thread waiting onto a priority lane",
+      ["priority:high"],
+      { ...plain, section: "waiting" },
+      [{ kind: "priority", priority: "high" }, { kind: "unwait" }],
     ],
     [
       "wakes a snoozed thread onto a priority lane",

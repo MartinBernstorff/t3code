@@ -178,6 +178,11 @@ there. A thread returns to the top of the active list when it finishes, fails, o
 answer. The Working section lists the thread you last sent work to first. Pinned threads stay in
 the pinned section, unless **Group threads by** uses lanes.
 
+Threads marked as waiting on others, such as on CI or a review, move into a **Waiting on others**
+section below Working once their turn ends. Drag a thread onto it to mark it, or drag it back to
+the active list to clear the mark. Sending the thread a message also clears it. Pinned threads
+keep the mark but stay pinned.
+
 This is on by default. Turn it off with **Settings → General → Working section** on web and desktop,
 or **Settings → General → Working section** on iOS and Android. Each device keeps its own
 choice.
