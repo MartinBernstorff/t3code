@@ -4,13 +4,29 @@ import {
   type ThreadAgentStateSinceInput,
   type ThreadGroupInput,
 } from "@t3tools/client-runtime/state/thread-grouping";
+import { scopeThreadRef } from "@t3tools/client-runtime/environment";
+import type { EnvironmentId, ThreadId } from "@t3tools/contracts";
 import type { SidebarTokenColor } from "@t3tools/contracts/settings";
+import { useAtomValue } from "@effect/atom-react";
+import { Link, useNavigate } from "@tanstack/react-router";
+import { useEffect } from "react";
 
 import { cn } from "~/lib/utils";
+import { isElectron } from "../../env";
 import { useNowSecond } from "../../hooks/useNowSecond";
 import { useClientSettings } from "../../hooks/useSettings";
+import {
+  resolveShortcutCommand,
+  shortcutLabelForCommand,
+  threadJumpCommandForIndex,
+  threadJumpIndexFromCommand,
+} from "../../keybindings";
+import { isTerminalFocused } from "../../lib/terminalFocus";
+import { primaryServerKeybindingsAtom } from "../../state/server";
+import { buildThreadRouteParams } from "../../threadRoutes";
 import { formatElapsedDurationLabel } from "../../timestampFormat";
 import { sidebarLaneLabel } from "../Sidebar.logic";
+import { Kbd } from "../ui/kbd";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 
 const TOKEN_LIMIT = 12;
@@ -48,7 +64,11 @@ export function SidebarCountNumber(props: { count: number }) {
 }
 
 type CountedThread = ThreadGroupInput &
-  ThreadAgentStateSinceInput & { readonly id: string; readonly title: string };
+  ThreadAgentStateSinceInput & {
+    readonly environmentId: EnvironmentId;
+    readonly id: ThreadId;
+    readonly title: string;
+  };
 
 /** A section header's size, as a number or as tokens per the sidebar settings. */
 export function SidebarSectionCount(props: { threads: readonly CountedThread[] }) {
@@ -106,21 +126,73 @@ function SidebarCountTokens(props: {
           </span>
         ) : null}
       </TooltipTrigger>
-      <TooltipPopup side="right" align="start">
-        <ul className="flex max-w-72 flex-col gap-0.5">
-          {titles.map((entry) => (
-            <li key={entry.key} className="flex items-center gap-1.5">
-              <span aria-hidden className={cn("size-1.5 shrink-0 rounded-xs", entry.className)} />
-              <span className="truncate">{entry.thread.title}</span>
-              <ThreadAgentStateDuration thread={entry.thread} />
-            </li>
-          ))}
-          {total > titles.length ? (
-            <li className="text-muted-foreground">+{total - titles.length} more</li>
-          ) : null}
-        </ul>
+      <TooltipPopup side="right" align="start" className="pointer-events-auto">
+        <TokenThreadList entries={titles} hiddenCount={total - titles.length} />
       </TooltipPopup>
     </Tooltip>
+  );
+}
+
+// Mounted only while the tooltip is open, so the jump shortcuts target this list only while hovered.
+function TokenThreadList(props: {
+  entries: readonly { key: string; className: string; thread: CountedThread }[];
+  hiddenCount: number;
+}) {
+  const keybindings = useAtomValue(primaryServerKeybindingsAtom);
+  const navigate = useNavigate();
+  const { entries } = props;
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- window keydown listener that claims thread jump shortcuts for the hovered list
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || event.repeat) return;
+      const command = resolveShortcutCommand(event, keybindings, {
+        platform: navigator.platform,
+        context: {
+          terminalFocus: isTerminalFocused(),
+          isWeb: !isElectron,
+          isDesktop: isElectron,
+        },
+      });
+      const index = threadJumpIndexFromCommand(command ?? "");
+      const thread = index === null ? undefined : entries[index]?.thread;
+      if (!thread) return;
+      event.preventDefault();
+      event.stopPropagation();
+      void navigate({
+        to: "/$environmentId/$threadId",
+        params: buildThreadRouteParams(scopeThreadRef(thread.environmentId, thread.id)),
+      });
+    };
+    // Capture runs before the sidebar's own jump handler, which skips prevented events.
+    window.addEventListener("keydown", onKeyDown, { capture: true });
+    return () => window.removeEventListener("keydown", onKeyDown, { capture: true });
+  }, [entries, keybindings, navigate]);
+
+  return (
+    <ul className="flex max-w-72 flex-col gap-0.5">
+      {entries.map((entry, index) => {
+        const shortcut = shortcutLabelForCommand(keybindings, threadJumpCommandForIndex(index));
+        return (
+          <li key={entry.key} className="flex items-center gap-1.5">
+            <span aria-hidden className={cn("size-1.5 shrink-0 rounded-xs", entry.className)} />
+            <Link
+              to="/$environmentId/$threadId"
+              params={buildThreadRouteParams(
+                scopeThreadRef(entry.thread.environmentId, entry.thread.id),
+              )}
+              className="truncate hover:underline"
+            >
+              {entry.thread.title}
+            </Link>
+            <ThreadAgentStateDuration thread={entry.thread} />
+            {shortcut ? <Kbd aria-hidden>{shortcut}</Kbd> : null}
+          </li>
+        );
+      })}
+      {props.hiddenCount > 0 ? (
+        <li className="text-muted-foreground">+{props.hiddenCount} more</li>
+      ) : null}
+    </ul>
   );
 }
 
