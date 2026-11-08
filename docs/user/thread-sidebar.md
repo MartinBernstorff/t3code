@@ -290,7 +290,8 @@ palette.
 
 To search only threads, press `Cmd/Ctrl+O`. It matches thread titles, project
 names, pull request numbers such as `#123`, and pull request titles across every
-project, and lists matches in sidebar order. Enter opens the thread. Opening
+project, and lists matches in sidebar order. Settled threads are left out; find
+them with `Cmd/Ctrl+K`. Enter opens the thread. Opening
 your favorite editor moved from `Cmd/Ctrl+O` to `Cmd/Ctrl+Alt+O`.
 
 Use **Settings → Keybindings** to find or customize shortcuts for searching files

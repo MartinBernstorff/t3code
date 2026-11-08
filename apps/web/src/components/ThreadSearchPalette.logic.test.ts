@@ -62,15 +62,9 @@ describe("searchThreadsForPalette", () => {
       threadSort: "manual",
     }).map((candidate) => candidate.title);
 
-  it("lists every thread in sidebar order: pinned, active, snoozed, settled", () => {
-    expect(search("")).toEqual([
-      "pinned",
-      "newer active",
-      "older active",
-      "linked",
-      "snoozed",
-      "settled",
-    ]);
+  it("lists unsettled threads in sidebar order: pinned, active, snoozed", () => {
+    expect(search("")).toEqual(["pinned", "newer active", "older active", "linked", "snoozed"]);
+    expect(search("settled")).toEqual([]);
   });
 
   it("matches project names and pull request numbers", () => {
