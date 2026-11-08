@@ -7,6 +7,7 @@ export const COMPOSER_ITEMS = [
   { id: "permissions", label: "Permissions", defaultVisible: true },
   { id: "context", label: "Context window", defaultVisible: false },
   { id: "dictation", label: "Dictation", defaultVisible: true },
+  { id: "send", label: "Send button", defaultVisible: true },
 ] as const;
 
 type ComposerItemId = (typeof COMPOSER_ITEMS)[number]["id"];

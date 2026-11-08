@@ -274,6 +274,7 @@ export const ComposerFooterPrimaryActions = memo(function ComposerFooterPrimaryA
   isEnvironmentUnavailable: boolean;
   hasSendableContent: boolean;
   canResume: boolean;
+  showSendButton: boolean;
   preserveComposerFocusOnPointerDown?: boolean;
   isEditingQueuedMessage: boolean;
   onSubmitMessage: React.MouseEventHandler<HTMLButtonElement>;
@@ -321,6 +322,7 @@ export const ComposerFooterPrimaryActions = memo(function ComposerFooterPrimaryA
         isPreparingWorktree={props.isPreparingWorktree}
         hasSendableContent={props.hasSendableContent}
         canResume={props.canResume}
+        showSendButton={props.showSendButton}
         preserveComposerFocusOnPointerDown={props.preserveComposerFocusOnPointerDown ?? false}
         isEditingQueuedMessage={props.isEditingQueuedMessage}
         onSubmitMessage={props.onSubmitMessage}

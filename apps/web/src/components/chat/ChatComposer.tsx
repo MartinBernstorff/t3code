@@ -3670,6 +3670,8 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                     isPreparingWorktree={isPreparingWorktree}
                     hasSendableContent={composerSendState.hasSendableContent || voiceInputActive}
                     canResume={showResumeAction}
+                    // Touch keyboards may have no send key, so phones keep the button.
+                    showSendButton={composerVisibility.send || isMobileViewport}
                     preserveComposerFocusOnPointerDown={isMobileViewport}
                     isEditingQueuedMessage={isEditingQueuedMessage}
                     onSubmitMessage={handleSubmitMessageStable}
