@@ -12,7 +12,6 @@ import {
   type OrchestrationV2ThreadShell,
   ThreadId,
   GitManagerError,
-  type GitPreparePullRequestThreadInput,
 } from "@t3tools/contracts";
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
 import * as NodeServices from "@effect/platform-node/NodeServices";
@@ -36,7 +35,6 @@ import * as ProjectCloneTracker from "../../../project/ProjectCloneTracker.ts";
 import * as ManagedProjectFolders from "../../../project/ManagedProjectFolders.ts";
 import * as PeerForwarding from "../../../peer/PeerForwarding.ts";
 import * as GitVcsDriver from "../../../vcs/GitVcsDriver.ts";
-import * as GitWorkflowService from "../../../git/GitWorkflowService.ts";
 import * as VcsProcess from "../../../vcs/VcsProcess.ts";
 import * as McpInvocationContext from "../../McpInvocationContext.ts";
 import * as McpToolAccess from "../../McpToolAccess.ts";
@@ -53,7 +51,6 @@ const clientLaunchHarness = (input: {
   readonly launched: Array<ThreadLaunch.ThreadLaunchInput>;
   readonly workspaceRoot?: string;
   readonly checkWorktreeBase?: ThreadLaunch.ThreadLaunchService["Service"]["checkWorktreeBase"];
-  readonly preparePullRequestThread?: GitWorkflowService.GitWorkflowService["Service"]["preparePullRequestThread"];
   readonly hostedAppUrl?: string;
   /** The orchestrator refuses the new thread's mode, as under a managed ceiling. */
   readonly refusedByCeiling?: true;
@@ -118,6 +115,22 @@ const clientLaunchHarness = (input: {
       checkWorktreeBase: input.checkWorktreeBase ?? (() => Effect.void),
       launch: (launch) => {
         input.launched.push(launch);
+        const pullRequest =
+          launch.workspaceStrategy.type === "pull_request" ? launch.workspaceStrategy : null;
+        if (pullRequest?.reference === "404") {
+          return Effect.fail(
+            new ThreadLaunch.ThreadLaunchError({
+              operation: "checkout-pull-request",
+              commandId: launch.commandId,
+              projectId: launch.projectId,
+              cause: new GitManagerError({
+                operation: "preparePullRequestThread",
+                cwd: "/projects/client-target",
+                detail: "Pull request not found.",
+              }),
+            }),
+          );
+        }
         if (input.refusedByCeiling) {
           return Effect.fail(
             new ThreadLaunch.ThreadLaunchError({
@@ -143,12 +156,9 @@ const clientLaunchHarness = (input: {
               projectId: launch.projectId,
               title: launch.title,
               modelSelection: launch.modelSelection,
-              ...(launch.workspaceStrategy.type === "existing_worktree"
-                ? {
-                    worktreePath: launch.workspaceStrategy.worktreePath,
-                    branch: launch.workspaceStrategy.branch ?? null,
-                  }
-                : {}),
+              ...(pullRequest === null
+                ? {}
+                : { worktreePath: "/projects/client-target-feature", branch: "feature" }),
             },
             runs: [],
           },
@@ -169,11 +179,6 @@ const clientLaunchHarness = (input: {
         ),
     }),
     Layer.mock(PeerForwarding.PeerForwarding)({}),
-    Layer.mock(GitWorkflowService.GitWorkflowService)(
-      input.preparePullRequestThread === undefined
-        ? {}
-        : { preparePullRequestThread: input.preparePullRequestThread },
-    ),
     Layer.mock(ManagedProjectFolders.ManagedProjectFolders)({ namedProjectsRoot: "/projects" }),
     DocumentText.layer.pipe(Layer.provideMerge(NodeServices.layer)),
   ).pipe(
@@ -500,37 +505,12 @@ it.effect("a launch binds only an existing checkout that is one of the project's
   }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
 );
 
-it.effect("a launch on a pull request binds the worktree checked out at its head branch", () =>
+it.effect("a launch on a pull request returns its worktree, or creates nothing", () =>
   Effect.gen(function* () {
     const launched: Array<ThreadLaunch.ThreadLaunchInput> = [];
-    const prepared: Array<GitPreparePullRequestThreadInput> = [];
     const { projectId, dependencies } = clientLaunchHarness({
       runtimeModeCeiling: "auto",
       launched,
-      preparePullRequestThread: (input) => {
-        prepared.push(input);
-        return input.reference === "404"
-          ? Effect.fail(
-              new GitManagerError({
-                operation: "preparePullRequestThread",
-                cwd: input.cwd,
-                detail: "Pull request not found.",
-              }),
-            )
-          : Effect.succeed({
-              pullRequest: {
-                number: 42,
-                title: "Feature",
-                url: "https://github.com/acme/app/pull/42",
-                baseBranch: "main",
-                headBranch: "feature",
-                state: "open",
-              },
-              branch: "feature",
-              worktreePath: "/projects/client-target-feature",
-              isOnPullRequestHead: true,
-            });
-      },
     });
     const toolkit = yield* ProjectToolkit.pipe(
       Effect.provide(
@@ -551,22 +531,11 @@ it.effect("a launch on a pull request binds the worktree checked out at its head
       worktreePath: "/projects/client-target-feature",
       branch: "feature",
     });
-    expect(prepared).toEqual([
-      {
-        cwd: "/projects/client-target",
-        reference: "42",
-        mode: "worktree",
-        threadId: launched[0]?.threadId,
-      },
-    ]);
-    expect(launched[0]?.workspaceStrategy).toEqual({
-      type: "existing_worktree",
-      worktreePath: "/projects/client-target-feature",
-      branch: "feature",
+    expect(launched[0]?.workspaceStrategy).toEqual({ type: "pull_request", reference: "42" });
+    expect((yield* launchOn("404")).at(-1)?.result).toMatchObject({
+      code: "invalid_request",
+      message: expect.stringContaining("No thread was created."),
     });
-
-    expect((yield* launchOn("404")).at(-1)?.result).toMatchObject({ code: "invalid_request" });
-    expect(launched).toHaveLength(1);
   }),
 );
 

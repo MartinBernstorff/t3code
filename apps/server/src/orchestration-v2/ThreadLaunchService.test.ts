@@ -15,6 +15,7 @@ import {
   ComposerContextId,
   type ChatAttachment,
   CommandId,
+  GitManagerError,
   DEFAULT_SERVER_SETTINGS,
   GitCommandError,
   MessageId,
@@ -1021,6 +1022,95 @@ it.effect("launches a worktree request for Scratch at the root, in its own folde
     assert.deepEqual(harness.claimed, [launched.threadId]);
   }).pipe(Effect.provide(harness.layer));
 });
+
+it.effect(
+  "launches on a pull request's worktree, running setup once after the thread exists",
+  () => {
+    const preparePullRequestThread = vi.fn(
+      (
+        input: Parameters<GitWorkflow.GitWorkflowService["Service"]["preparePullRequestThread"]>[0],
+      ) =>
+        input.reference === "404"
+          ? Effect.fail(
+              new GitManagerError({
+                operation: "preparePullRequestThread",
+                cwd: input.cwd,
+                detail: "Pull request not found.",
+              }),
+            )
+          : Effect.succeed({
+              pullRequest: {
+                number: 42,
+                title: "Feature",
+                url: "https://github.com/acme/app/pull/42",
+                baseBranch: "main",
+                headBranch: "feature",
+                state: "open" as const,
+              },
+              branch: "feature",
+              worktreePath: "/repo-worktrees/pr-42",
+              isOnPullRequestHead: true,
+              createdWorktree: true,
+            }),
+    );
+    const harness = makeHarness({ git: { preparePullRequestThread } });
+    return Effect.gen(function* () {
+      const launches = yield* ThreadLaunch.ThreadLaunchService;
+      const input = launchInput({
+        command: "command:launch:pr",
+        thread: "thread:launch:pr",
+        message: "Review it",
+        workspace: { type: "pull_request", reference: "42" },
+      });
+      const launched = yield* launches.launch(input);
+      assert.equal(launched.projection.thread.worktreePath, "/repo-worktrees/pr-42");
+      assert.equal(launched.projection.thread.branch, "feature");
+      const settled = yield* preparationSettled(launched.threadId);
+      assert.equal(settled.runs[0]?.status, "starting");
+      // Without a thread id the checkout runs no setup; the launch runs it once, fenced by the thread.
+      assert.deepEqual(preparePullRequestThread.mock.calls, [
+        [{ cwd: "/repo", reference: "42", mode: "worktree" }],
+      ]);
+      assert.deepEqual(
+        harness.runSetup.mock.calls.map(([call]) => [call.threadId, call.worktreePath]),
+        [[launched.threadId, "/repo-worktrees/pr-42"]],
+      );
+
+      // A replay keeps the bound checkout.
+      const replayed = yield* launches.launch(input);
+      assert.isTrue(replayed.resumed);
+      assert.equal(preparePullRequestThread.mock.calls.length, 1);
+
+      // An unresolvable pull request creates nothing.
+      const missing = yield* Effect.flip(
+        launches.launch(
+          launchInput({
+            command: "command:launch:pr-missing",
+            thread: "thread:launch:pr-missing",
+            workspace: { type: "pull_request", reference: "404" },
+          }),
+        ),
+      );
+      assert.equal(
+        missing._tag === "ThreadLaunchError" && missing.operation,
+        "checkout-pull-request",
+      );
+      const threads = yield* ThreadManagement.ThreadManagementService;
+      assert.isNull(yield* threads.getThreadShell(ThreadId.make("thread:launch:pr-missing")));
+
+      // A checkout the launch made goes away when no thread takes it.
+      yield* Effect.flip(
+        launches.launch({
+          ...input,
+          commandId: CommandId.make("command:launch:pr-collides"),
+        }),
+      );
+      assert.deepEqual(harness.removeWorktree.mock.calls, [
+        [{ cwd: "/repo", path: "/repo-worktrees/pr-42", force: true }],
+      ]);
+    }).pipe(Effect.provide(harness.layer));
+  },
+);
 
 it.effect("stores a Scratch scheduled task at the root and keeps worktrees elsewhere", () => {
   const harness = scratchHarness();
