@@ -1,5 +1,5 @@
 import { effectiveSnoozed } from "@t3tools/client-runtime/state/thread-settled";
-import { sortSettledThreads, sortSidebarThreads } from "@t3tools/client-runtime/state/thread-sort";
+import { sortSidebarThreads } from "@t3tools/client-runtime/state/thread-sort";
 import type { SidebarThreadSort } from "@t3tools/contracts/settings";
 import { foldSearchQuery } from "@t3tools/shared/paletteSearch";
 import { threadSearchPullRequests } from "@t3tools/shared/threadPullRequests";
@@ -38,7 +38,7 @@ export function matchesThreadPaletteQuery(terms: ReadonlyArray<string>, query: s
 }
 
 /**
- * Sidebar order across every project: pinned, active, snoozed, then settled.
+ * Sidebar order across every project: pinned, active, then snoozed. Settled threads are left out.
  * The Working shelf is not split out; its threads sort with the active ones.
  */
 function orderThreadsLikeSidebar(
@@ -49,7 +49,6 @@ function orderThreadsLikeSidebar(
   const pinned: SidebarThreadSummary[] = [];
   const active: SidebarThreadSummary[] = [];
   const snoozed: SidebarThreadSummary[] = [];
-  const settled: SidebarThreadSummary[] = [];
   for (const thread of threads) {
     if (thread.archivedAt !== null || isSidebarHiddenThread(thread)) continue;
     const section = resolveSidebarThreadSection({
@@ -57,14 +56,8 @@ function orderThreadsLikeSidebar(
       settled: thread.settledOverride === "settled",
       pinned: thread.pinnedAt != null,
     });
-    (section === "pinned"
-      ? pinned
-      : section === "snoozed"
-        ? snoozed
-        : section === "settled"
-          ? settled
-          : active
-    ).push(thread);
+    if (section === "settled") continue;
+    (section === "pinned" ? pinned : section === "snoozed" ? snoozed : active).push(thread);
   }
   return [
     ...sortPinnedThreadsForSidebar(pinned),
@@ -75,7 +68,6 @@ function orderThreadsLikeSidebar(
       (left, right) =>
         firstValidTimestampMs(left.snoozedUntil) - firstValidTimestampMs(right.snoozedUntil),
     ),
-    ...sortSettledThreads(settled),
   ];
 }
 
