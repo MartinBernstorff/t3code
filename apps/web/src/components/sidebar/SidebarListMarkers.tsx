@@ -140,6 +140,7 @@ export function SidebarSectionHeader(props: {
         tone={props.isDropTarget ? "accent" : props.dragging ? "emphasized" : "muted"}
         data-testid={`sidebar-${shelf}-shelf-toggle`}
         accessory={props.count}
+        chevron={false}
       >
         {props.label}
       </CollapsibleSectionHeader>
@@ -181,6 +182,7 @@ export function SidebarLaneHeader(props: {
         expanded={props.expanded}
         tone={props.isDropTarget ? "accent" : "muted"}
         accessory={props.count}
+        chevron={false}
       >
         {props.label}
       </CollapsibleSectionHeader>
