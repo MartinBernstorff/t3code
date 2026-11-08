@@ -36,6 +36,7 @@ import * as ManagedProjectFolders from "../../../project/ManagedProjectFolders.t
 import * as ThreadManagementService from "../../../orchestration-v2/ThreadManagementService.ts";
 import * as SourceControlRepositoryService from "../../../sourceControl/SourceControlRepositoryService.ts";
 import * as GitVcsDriver from "../../../vcs/GitVcsDriver.ts";
+import * as GitWorkflowService from "../../../git/GitWorkflowService.ts";
 import * as McpInvocationContext from "../../McpInvocationContext.ts";
 
 const shared = {
@@ -139,9 +140,15 @@ const ThreadLaunchTool = Tool.make("t3_thread_launch", {
     runtimeMode: Schema.optional(RuntimeMode),
     interactionMode: Schema.optional(ProviderInteractionMode),
     workspaceStrategy: Schema.optional(
-      OrchestrationV2ThreadLaunchWorkspaceStrategy.annotate({
+      Schema.Union([
+        ...OrchestrationV2ThreadLaunchWorkspaceStrategy.members,
+        Schema.Struct({
+          type: Schema.Literal("pull_request"),
+          reference: TrimmedNonEmptyString,
+        }),
+      ]).annotate({
         description:
-          "'worktree': new checkout from `baseRef`. Honor a requested base. Otherwise, independent work uses the default branch as `remote/branch` (e.g. `origin/main`) with `startFromOrigin: true`; with no remote, use the local default branch. Required unpublished commits and dependent or stacked work use their local base with `startFromOrigin: false`. 'existing_worktree': bind `worktreePath`, a project worktree. 'root': project checkout, the default, not your worktree. Uncommitted edits are not copied.",
+          "'worktree': new checkout from `baseRef`. Honor a requested base. Otherwise, independent work uses the default branch as `remote/branch` (e.g. `origin/main`) with `startFromOrigin: true`; with no remote, use the local default branch. Required unpublished commits and dependent or stacked work use their local base with `startFromOrigin: false`. 'existing_worktree': bind `worktreePath`, a project worktree. 'pull_request': a worktree on an existing pull request's head branch; `reference` is its number, URL, or branch. 'root': project checkout, the default, not your worktree. Uncommitted edits are not copied.",
       }),
     ),
     message: Schema.optional(
@@ -161,10 +168,13 @@ const ThreadLaunchTool = Tool.make("t3_thread_launch", {
     modelSelection: ModelSelection,
     runId: Schema.NullOr(RunId),
     status: Schema.NullOr(OrchestrationV2RunStatus),
+    worktreePath: Schema.optional(Schema.NullOr(TrimmedNonEmptyString)),
+    branch: Schema.optional(Schema.NullOr(TrimmedNonEmptyString)),
   }),
   dependencies: [
     ...shared.dependencies,
     ThreadLaunchService.ThreadLaunchService,
+    GitWorkflowService.GitWorkflowService,
     ManagedProjectFolders.ManagedProjectFolders,
     GitVcsDriver.GitVcsDriver,
     FileSystem.FileSystem,

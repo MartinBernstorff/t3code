@@ -4,6 +4,7 @@ import {
   ThreadId,
   OrchestratorMcpFailure,
   ProjectId,
+  type OrchestrationV2ThreadShell,
 } from "@t3tools/contracts";
 import * as Digest from "effect/crypto/Digest";
 import * as Effect from "effect/Effect";
@@ -21,6 +22,7 @@ import { mutateProjectWithClone } from "../../../project/ProjectMutation.ts";
 import * as ManagedProjectFolders from "../../../project/ManagedProjectFolders.ts";
 import * as Repositories from "../../../sourceControl/SourceControlRepositoryService.ts";
 import * as GitVcsDriver from "../../../vcs/GitVcsDriver.ts";
+import * as GitWorkflowService from "../../../git/GitWorkflowService.ts";
 import * as ServerSettings from "../../../serverSettings.ts";
 import * as ProviderRegistry from "../../../provider/ProviderRegistry.ts";
 import * as DateTime from "effect/DateTime";
@@ -65,6 +67,54 @@ const assertProjectWorktree = Effect.fn("mcp.assertProjectWorktree")(function* (
       message:
         "worktreePath must be one of the project's git worktrees. t3_worktree_list shows them.",
     });
+});
+
+/** Checks out the pull request in its own worktree, as the Pull Request dialog does. */
+const pullRequestWorktree = Effect.fn("mcp.pullRequestWorktree")(function* (input: {
+  readonly projectId: ProjectId;
+  readonly threadId: ThreadId;
+  readonly reference: string;
+  readonly launched: OrchestrationV2ThreadShell | null;
+}) {
+  // A replayed launch keeps the checkout it was bound to.
+  if (input.launched?.worktreePath)
+    return {
+      type: "existing_worktree" as const,
+      worktreePath: input.launched.worktreePath,
+      ...(input.launched.branch === null ? {} : { branch: input.launched.branch }),
+    };
+  const project = yield* Project.ProjectService.pipe(
+    Effect.flatMap((projects) => projects.getById(input.projectId)),
+    Effect.mapError(unavailable),
+  );
+  if (Option.isNone(project))
+    return yield* new OrchestratorMcpFailure({
+      code: "invalid_request",
+      message: "The project was not found.",
+    });
+  const prepared = yield* GitWorkflowService.GitWorkflowService.pipe(
+    Effect.flatMap((git) =>
+      git.preparePullRequestThread({
+        cwd: project.value.workspaceRoot,
+        reference: input.reference,
+        mode: "worktree",
+        threadId: input.threadId,
+      }),
+    ),
+    Effect.mapError(
+      (error) =>
+        new OrchestratorMcpFailure({
+          code: "invalid_request",
+          message: `${error.message} No thread was created.`,
+        }),
+    ),
+  );
+  if (prepared.worktreePath === null) return yield* unavailable();
+  return {
+    type: "existing_worktree" as const,
+    worktreePath: prepared.worktreePath,
+    branch: prepared.branch,
+  };
 });
 
 /** A fixed-length id, so a long key fits in the scratch folder name derived from it. */
@@ -225,6 +275,15 @@ export const layer = McpToolAccess.toLayer(ProjectToolkit, {
             )?.supportedRuntimeModes,
           });
         }
+        const workspaceStrategy =
+          input.workspaceStrategy?.type === "pull_request"
+            ? yield* pullRequestWorktree({
+                projectId,
+                threadId,
+                reference: input.workspaceStrategy.reference,
+                launched: replaying ? launched : null,
+              })
+            : input.workspaceStrategy;
         const result = yield* ThreadMessageIntake.launchThread({
           commandId,
           threadId,
@@ -233,7 +292,7 @@ export const layer = McpToolAccess.toLayer(ProjectToolkit, {
           modelSelection,
           runtimeMode: startedRuntimeMode,
           interactionMode,
-          workspaceStrategy: input.workspaceStrategy ?? { type: "root" },
+          workspaceStrategy: workspaceStrategy ?? { type: "root" },
           ...(input.message === undefined && attachments.length === 0
             ? {}
             : {
@@ -282,6 +341,8 @@ export const layer = McpToolAccess.toLayer(ProjectToolkit, {
           modelSelection: thread.modelSelection,
           runId: run?.id ?? null,
           status: run?.status ?? null,
+          worktreePath: thread.worktreePath,
+          branch: thread.branch,
         };
       }),
     // The launched thread carries the caller's link, if it has one.

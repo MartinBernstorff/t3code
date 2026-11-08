@@ -167,6 +167,8 @@ const ThreadLaunchResult = Schema.Struct({
   threadId: ThreadId,
   projectId: ProjectId,
   runId: Schema.NullOr(RunId),
+  worktreePath: Schema.optional(Schema.NullOr(Schema.String)),
+  branch: Schema.optional(Schema.NullOr(Schema.String)),
 });
 
 const toolFailureDetail = (result: typeof ToolResult.Type) => {
@@ -531,18 +533,24 @@ export const titleFromMessage = (message: string) => {
 const launchWorkspaceStrategy = (input: {
   readonly worktree: Option.Option<string>;
   readonly branch: Option.Option<string>;
+  readonly pr: Option.Option<string>;
 }) =>
   Option.match(input.worktree, {
     onNone: () =>
       Option.isSome(input.branch)
         ? Effect.fail(new ThreadUsageError({ detail: "--branch needs --worktree <base-ref>." }))
-        : Effect.void,
+        : Option.match(input.pr, {
+            onNone: () => Effect.void,
+            onSome: (reference) => Effect.succeed({ type: "pull_request" as const, reference }),
+          }),
     onSome: (baseRef) =>
-      Effect.succeed({
-        type: "worktree" as const,
-        baseRef,
-        ...Option.match(input.branch, { onNone: () => ({}), onSome: (branch) => ({ branch }) }),
-      }),
+      Option.isSome(input.pr)
+        ? Effect.fail(new ThreadUsageError({ detail: "--pr and --worktree are exclusive." }))
+        : Effect.succeed({
+            type: "worktree" as const,
+            baseRef,
+            ...Option.match(input.branch, { onNone: () => ({}), onSome: (branch) => ({ branch }) }),
+          }),
   });
 
 const jsonFlag = Flag.Boolean("json").pipe(
@@ -629,6 +637,12 @@ const threadStartCommand = Command.make("start", {
   ),
   branch: Flag.String("branch").pipe(
     Flag.withDescription("Branch name for the new worktree."),
+    Flag.optional,
+  ),
+  pr: Flag.String("pr").pipe(
+    Flag.withDescription(
+      "Run in a worktree checked out at this pull request's branch. Takes its number, URL, or branch.",
+    ),
     Flag.optional,
   ),
   wait: waitFlag,
