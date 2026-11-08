@@ -833,6 +833,7 @@ function listItemFromShell(
     interactionMode: shell.interactionMode,
     linkedPullRequest: shell.linkedPullRequest ?? null,
     pullRequests: threadPullRequests(shell.pullRequests),
+    ...(shell.worktreePath !== null && { worktreePath: shell.worktreePath }),
     ...threadSettlement(shell),
     ...threadSnooze(shell, nowMs),
     ...threadFields(shell),
