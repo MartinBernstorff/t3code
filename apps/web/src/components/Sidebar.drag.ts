@@ -102,8 +102,9 @@ const SETTLED_SHELF_IDS = new Set([
 export const isSidebarSettledShelfId = (id: string) => SETTLED_SHELF_IDS.has(id);
 
 /**
- * Group by drags land on lane headers under the pointer that `isLaneTarget` accepts,
- * and on the Settled shelf when the thread can settle.
+ * Group by drags land on lanes under the pointer that `isLaneTarget` accepts,
+ * and on the Settled shelf when the thread can settle. A nested lane's zone sits inside its
+ * parent's, and `pointerWithin` ranks the nearer corners first, so the innermost lane wins.
  */
 export function createSidebarLaneCollisionDetection(
   isLaneTarget: (id: string) => boolean,
