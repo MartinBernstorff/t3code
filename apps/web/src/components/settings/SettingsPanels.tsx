@@ -662,6 +662,9 @@ export function useSettingsRestore(onRestored?: () => void) {
     ...(settings.sidebarTokenColor !== DEFAULT_UNIFIED_SETTINGS.sidebarTokenColor
       ? ["Token colour"]
       : []),
+    ...(settings.sidebarMinimal !== DEFAULT_UNIFIED_SETTINGS.sidebarMinimal
+      ? ["Minimal sidebar"]
+      : []),
     ...(!Equal.equals(settings.sidebarRowGlyphs, DEFAULT_UNIFIED_SETTINGS.sidebarRowGlyphs)
       ? ["Sidebar row glyphs"]
       : []),
@@ -844,6 +847,7 @@ export function useSettingsRestore(onRestored?: () => void) {
       sidebarWorkingShelfEnabled: DEFAULT_UNIFIED_SETTINGS.sidebarWorkingShelfEnabled,
       sidebarSectionCountStyle: DEFAULT_UNIFIED_SETTINGS.sidebarSectionCountStyle,
       sidebarTokenColor: DEFAULT_UNIFIED_SETTINGS.sidebarTokenColor,
+      sidebarMinimal: DEFAULT_UNIFIED_SETTINGS.sidebarMinimal,
       sidebarRowGlyphs: DEFAULT_UNIFIED_SETTINGS.sidebarRowGlyphs,
       sidebarAutoSettleAfterDays: DEFAULT_UNIFIED_SETTINGS.sidebarAutoSettleAfterDays,
       sidebarAutoSettleKeepPullRequests: DEFAULT_UNIFIED_SETTINGS.sidebarAutoSettleKeepPullRequests,
@@ -1227,6 +1231,27 @@ export function GeneralSettingsPanel() {
                 ))}
               </SelectPopup>
             </Select>
+          }
+        />
+        <SettingsRow
+          {...searchableSetting("minimal-sidebar")}
+          description="Show only section headers and their counts. Open threads from the thread picker."
+          resetAction={
+            settings.sidebarMinimal !== DEFAULT_UNIFIED_SETTINGS.sidebarMinimal ? (
+              <SettingResetButton
+                label="minimal sidebar"
+                onClick={() =>
+                  updateSettings({ sidebarMinimal: DEFAULT_UNIFIED_SETTINGS.sidebarMinimal })
+                }
+              />
+            ) : null
+          }
+          control={
+            <Switch
+              checked={settings.sidebarMinimal}
+              onCheckedChange={(checked) => updateSettings({ sidebarMinimal: Boolean(checked) })}
+              aria-label="Minimal sidebar"
+            />
           }
         />
         <SettingsRow

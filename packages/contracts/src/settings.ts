@@ -643,6 +643,7 @@ export const ClientSettingsSchema = Schema.Struct({
   sidebarTokenColor: SidebarTokenColor.pipe(
     Schema.withDecodingDefault(Effect.succeed("agentState")),
   ),
+  sidebarMinimal: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
   timestampFormat: TimestampFormat.pipe(
     Schema.withDecodingDefault(Effect.succeed(DEFAULT_TIMESTAMP_FORMAT)),
   ),
@@ -2033,6 +2034,7 @@ export const ClientSettingsPatch = Schema.Struct({
   sidebarGroupBy: Schema.optionalKey(SidebarGroupByLevels),
   sidebarSectionCountStyle: Schema.optionalKey(SidebarSectionCountStyle),
   sidebarTokenColor: Schema.optionalKey(SidebarTokenColor),
+  sidebarMinimal: Schema.optionalKey(Schema.Boolean),
   timestampFormat: Schema.optionalKey(TimestampFormat),
   voiceMicrophone: Schema.optionalKey(Schema.String),
   voiceShortcutMode: Schema.optionalKey(VoiceShortcutMode),
