@@ -528,7 +528,6 @@ export const setThreadPriority = Effect.fn("EnvironmentCommands.setThreadPriorit
     commandId: yield* allocateCommandId(input),
     threadId: input.threadId,
     priority: input.priority,
-    engage: true,
   });
 });
 

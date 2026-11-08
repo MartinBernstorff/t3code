@@ -416,17 +416,8 @@ describe("threadLaneDropChanges", () => {
       ],
     ],
     [
-      "restores engagement after a priority drop engages the thread",
+      "leaves engagement alone when a priority drop targets the current engagement",
       ["priority:high", "engagement:inbox"],
-      plain,
-      [
-        { kind: "priority", priority: "high" },
-        { kind: "engagement", engagement: "inbox" },
-      ],
-    ],
-    [
-      "skips engagement a priority drop already sets",
-      ["priority:high", "engagement:engaged"],
       plain,
       [{ kind: "priority", priority: "high" }],
     ],

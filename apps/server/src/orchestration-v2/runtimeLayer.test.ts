@@ -2658,13 +2658,13 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
         });
         assert.equal(shellOf(yield* orchestrator.getShellSnapshot()).priority ?? null, priority);
       }
-      // A thread created without an engagement is in the inbox; only a UI priority engages it.
+      // A thread created without an engagement is in the inbox; priority never engages it.
       assert.isUndefined(shellOf(yield* orchestrator.getShellSnapshot()).engagement);
       for (const [step, command, expected] of [
-        ["priority-without-engage", { priority: "high" }, undefined],
+        ["priority", { priority: "high" }, undefined],
         ["queue", { engagement: "queued" }, "queued"],
-        ["clear-priority-with-engage", { priority: null, engage: true }, "queued"],
-        ["priority-with-engage", { priority: "low", engage: true }, "engaged"],
+        ["priority-while-queued", { priority: "low" }, "queued"],
+        ["clear-priority", { priority: null }, "queued"],
         ["inbox", { engagement: "inbox" }, "inbox"],
       ] as const) {
         yield* orchestrator.dispatch({

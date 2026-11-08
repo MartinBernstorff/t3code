@@ -3819,11 +3819,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
           };
         }
         case "thread.priority.set":
-          return {
-            ...thread,
-            priority: command.priority,
-            ...(command.engage && command.priority !== null ? { engagement: "engaged" } : {}),
-          };
+          return { ...thread, priority: command.priority };
         case "thread.engagement.set":
           return { ...thread, engagement: command.engagement };
         case "thread.waiting.set":
@@ -5831,6 +5827,19 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
         providerInstanceId: projection.thread.providerInstanceId,
         occurredAt: yield* DateTime.now,
         payload: { ...projection.thread, waitingOnOthers: false },
+      });
+      projection = applyToProjection(projection, event);
+    }
+    if (command.engage === true && projection.thread.engagement !== "engaged") {
+      const event = yield* emit(
+        events,
+        command,
+      )({
+        type: "thread.engagement-updated",
+        threadId: command.threadId,
+        providerInstanceId: projection.thread.providerInstanceId,
+        occurredAt: yield* DateTime.now,
+        payload: { ...projection.thread, engagement: "engaged" },
       });
       projection = applyToProjection(projection, event);
     }

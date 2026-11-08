@@ -260,7 +260,7 @@ it.effect("marks a never-visited thread's first completion unread", () =>
   }).pipe(Effect.provide(layerTest)),
 );
 
-it.effect("the user's next message clears waiting on others, an agent's does not", () =>
+it.effect("a client's next message clears waiting on others and engages, an agent's does not", () =>
   Effect.gen(function* () {
     const orchestrator = yield* Orchestrator.OrchestratorV2;
     const projections = yield* ProjectionStore.ProjectionStoreV2;
@@ -285,6 +285,12 @@ it.effect("the user's next message clears waiting on others, an agent's does not
       threadId,
       waitingOnOthers: true,
     });
+    yield* orchestrator.dispatch({
+      type: "thread.engagement.set",
+      commandId: CommandId.make("queue-waiting-on-others"),
+      threadId,
+      engagement: "queued",
+    });
     const dispatch = (id: string, createdBy: "user" | "agent") =>
       orchestrator.dispatch({
         type: "message.dispatch",
@@ -296,10 +302,12 @@ it.effect("the user's next message clears waiting on others, an agent's does not
         dispatchMode: { type: "defer_start" },
         createdBy,
         creationSource: createdBy === "user" ? "web" : "mcp",
+        ...(createdBy === "user" ? { engage: true } : {}),
       });
 
     yield* dispatch("agent-message-while-waiting", "agent");
     assert.isTrue((yield* projections.getThreadShell(threadId))?.waitingOnOthers);
+    assert.equal((yield* projections.getThreadShell(threadId))?.engagement, "queued");
     yield* orchestrator.dispatch({
       type: "run.interrupt",
       commandId: CommandId.make("interrupt-agent-message-while-waiting"),
@@ -310,6 +318,7 @@ it.effect("the user's next message clears waiting on others, an agent's does not
     yield* dispatch("user-message-while-waiting", "user");
     assert.isUndefined((yield* projections.getThreadShell(threadId))?.waitingOnOthers);
     assert.isFalse((yield* projections.getThread(threadId)).waitingOnOthers);
+    assert.equal((yield* projections.getThreadShell(threadId))?.engagement, "engaged");
   }).pipe(Effect.provide(layerTest)),
 );
 
