@@ -35,6 +35,7 @@ import { searchableSetting } from "./settingsSearch";
 import { AdvancedSettings } from "./AdvancedSettings";
 import { PanelAnimationsPreview } from "./PanelAnimationsPreview";
 import { TypographySection } from "./TypographySettings";
+import { ComposerItemsRow } from "./ComposerItemsRow";
 import { SidebarThreadRowItemsRow } from "./SidebarThreadRowItemsRow";
 import { ThreadDetailsItemsRow } from "./ThreadDetailsItemsRow";
 
@@ -292,6 +293,7 @@ export function AppearanceSettingsPanel() {
         />
         <ThreadDetailsItemsRow />
         <SidebarThreadRowItemsRow />
+        <ComposerItemsRow />
         <SettingsRow
           {...searchableSetting("effort-display")}
           description="Show reasoning effort in the composer as its name, such as High, or as bars."

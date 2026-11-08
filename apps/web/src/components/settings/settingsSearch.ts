@@ -356,6 +356,14 @@ export const SETTINGS_SEARCH_ITEMS = [
     ],
   },
   {
+    id: "composer-items",
+    title: "Composer controls",
+    to: "/settings/appearance",
+    searchTerms: [
+      "chat input customize show hide attach attachment button model picker effort permissions access context window meter dictation voice microphone",
+    ],
+  },
+  {
     id: "effort-display",
     title: "Effort display",
     to: "/settings/appearance",
@@ -901,16 +909,10 @@ export const SETTINGS_SEARCH_ITEMS = [
     searchTerms: ["build plan composer old"],
   },
   {
-    id: "legacy-context-window-indicator",
-    title: "Context window indicator (legacy)",
-    to: "/settings/labs",
-    searchTerms: ["composer meter usage tokens circle old"],
-  },
-  {
-    id: "legacy-context-window-indicator-cap",
+    id: "context-window-meter-cap",
     title: "Context window indicator cap",
-    to: "/settings/labs",
-    targetId: "legacy-context-window-indicator",
+    to: "/settings/appearance",
+    targetId: "composer-items",
     searchTerms: ["composer meter usage tokens limit maximum scale 200k"],
   },
   {

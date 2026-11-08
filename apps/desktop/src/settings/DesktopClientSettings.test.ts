@@ -72,6 +72,7 @@ const clientSettings: ClientSettings = {
   threadDetailsUsageEnabled: false,
   threadDetailsItems: {},
   sidebarThreadRowItems: {},
+  composerItems: {},
   legacySidebarEnabled: false,
   sidebarWorkingShelfEnabled: false,
   loadBalancingEnabled: false,

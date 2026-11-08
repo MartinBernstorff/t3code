@@ -279,6 +279,7 @@ import { useComposerImageGroups } from "./useComposerImageGroups";
 import { useComposerStash } from "./useComposerStash";
 import { useComposerContextImport } from "./useComposerContextImport";
 import { useComposerAttachmentIntake } from "./useComposerAttachmentIntake";
+import { resolveComposerVisibility } from "./composerItems";
 import {
   countPreparingComposerImages,
   usePreparingComposerImages,
@@ -1006,8 +1007,9 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     activeThreadModelSelection,
     modelOptionsByInstance,
   );
+  const composerVisibility = resolveComposerVisibility(settings);
   const reserveContextWindowMeter = shouldReserveContextWindowMeter({
-    meterEnabled: settings.contextWindowMeterEnabled,
+    meterEnabled: composerVisibility.context,
     detailLoading: props.threadSyncPhase === "loading",
     threadStarted: threadShellHasStarted(props.activeThreadShell),
     providerReportsContextWindow: selectedProviderStatus
@@ -1212,6 +1214,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     (!isComposerCollapsedMobile && showPlanFollowUpPrompt && activeProposedPlan !== null);
   const showCollapsedMobilePromptRow = isComposerCollapsedMobile;
   const showComposerAttachAction =
+    composerVisibility.attach &&
     fileStagingLimit !== null &&
     (!activePendingProgress ||
       (supportsQuestionAttachments &&
@@ -2448,6 +2451,8 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       composerControlsCollapsed={composerControlsCollapsed}
       effortDisplay={settings.effortDisplay}
       permissionsShownInStrip={props.permissionsShownInStrip}
+      showModelPicker={composerVisibility.model}
+      showPermissions={composerVisibility.permissions}
       composerControlsHidden={composerControlsHidden}
       restingHiddenBlockCount={restingHiddenBlockCount}
       iconOnlyBlockCount={iconOnlyBlockCount}
@@ -3626,9 +3631,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                   <ComposerFooterPrimaryActions
                     compact={isComposerPrimaryActionsCompact}
                     canOperateThread={canOperateThread}
-                    activeContextWindow={
-                      settings.contextWindowMeterEnabled ? activeContextWindow : null
-                    }
+                    activeContextWindow={composerVisibility.context ? activeContextWindow : null}
                     contextWindowMeterCapTokens={settings.contextWindowMeterCapTokens}
                     reserveContextWindowMeter={reserveContextWindowMeter}
                     activeThreadModelDisplayName={activeThreadModelDisplayName}
@@ -3697,14 +3700,16 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                           onCancel={() => speechInput.cancel()}
                           onSkipPostProcessing={() => speechInput.skipPostProcessing()}
                         />
-                        <ComposerSpeechButton
-                          state={speechInput.state}
-                          progress={null}
-                          shortcutLabel={dictationShortcutLabel}
-                          disabled={dictationDisabled}
-                          onStart={() => void speechInput.start()}
-                          onCancel={() => speechInput.cancel()}
-                        />
+                        {composerVisibility.dictation ? (
+                          <ComposerSpeechButton
+                            state={speechInput.state}
+                            progress={null}
+                            shortcutLabel={dictationShortcutLabel}
+                            disabled={dictationDisabled}
+                            onStart={() => void speechInput.start()}
+                            onCancel={() => speechInput.cancel()}
+                          />
+                        ) : null}
                       </>
                     ) : null}
                     <VoiceInputSetup
