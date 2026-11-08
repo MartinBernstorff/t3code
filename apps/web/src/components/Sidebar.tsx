@@ -275,6 +275,7 @@ import {
   type SidebarSweepAction,
 } from "./sidebar/SidebarThreadRow";
 import { SidebarDraftBlock } from "./sidebar/SidebarDraftBlock";
+import { resolveSidebarThreadRowVisibility } from "./sidebar/sidebarThreadRowItems";
 import {
   SidebarProjectFolderHeader,
   sidebarFolderRowId,
@@ -1018,6 +1019,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
   const confirmThreadDelete = useClientSettings((s) => s.confirmThreadDelete);
   const confirmThreadArchive = useClientSettings((s) => s.confirmThreadArchive);
   const timestampFormat = useClientSettings((s) => s.timestampFormat);
+  const threadRowVisibleItems = useClientSettings(resolveSidebarThreadRowVisibility);
   const projectGroupingSettings = useClientSettings(selectProjectGroupingSettings);
   const {
     settleThread,
@@ -3711,6 +3713,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                               EMPTY_PROVIDER_ENTRIES
                             }
                             timestampFormat={timestampFormat}
+                            visibleItems={threadRowVisibleItems}
                             onThreadClick={handleThreadClick}
                             onThreadActivate={navigateToThread}
                             onStartRename={startThreadRename}

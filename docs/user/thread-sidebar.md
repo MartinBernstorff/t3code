@@ -208,6 +208,13 @@ Project, Agent state, and Working headers are not drop targets, and threads do n
 on the Settled header to settle a thread. The
 boring sidebar keeps its project folders and ignores this setting.
 
+### Choose what each thread shows
+
+On web and desktop, open **Settings → Appearance → Sidebar thread rows** to hide parts of each
+thread in the sidebar, such as the project icon, branch, pull request, or provider icon. The
+title and status always show, and the hover card keeps every detail. Each device keeps its own
+choice.
+
 ## Settle finished work
 
 Choose **Settle thread** from its menu to move finished work out of the active list
