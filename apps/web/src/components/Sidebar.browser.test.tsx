@@ -1,6 +1,7 @@
 import { DEFAULT_CLIENT_SETTINGS, EnvironmentId, ProjectId } from "@t3tools/contracts";
 import { describe, expect, it, vi } from "vite-plus/test";
 import { userEvent } from "vite-plus/test/browser";
+import type { ReactNode } from "react";
 
 import { render } from "../../test/render";
 import { openCommandPalette } from "../commandPaletteBus";
@@ -18,7 +19,7 @@ vi.mock("../commandPaletteBus", () => ({
   isCommandPaletteOpen: () => false,
 }));
 vi.mock("./sidebar/SidebarChrome", () => ({
-  SidebarChromeHeader: () => null,
+  SidebarChromeHeader: ({ children }: { children: ReactNode }) => children,
   SidebarChromeFooter: () => null,
 }));
 

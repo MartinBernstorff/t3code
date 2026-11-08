@@ -3296,12 +3296,11 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
   return (
     <>
       <ThreadContextDragGhost />
-      <SidebarChromeHeader isElectron={isElectron} />
       <SidebarContent
         ref={sidebarContentRef}
         className="min-h-full"
         fixedHeader={
-          <SidebarGroup className="z-[1]">
+          <SidebarChromeHeader isElectron={isElectron}>
             <SidebarThreadHeader
               hasProjects={projectGroups.length > 0}
               projectScope={
@@ -3519,7 +3518,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
               activeSearchResultIndex={activeSearchResultIndex}
               onClearSearch={clearThreadSearch}
             />
-          </SidebarGroup>
+          </SidebarChromeHeader>
         }
       >
         <SidebarGroup className="flex-1" role="presentation">
