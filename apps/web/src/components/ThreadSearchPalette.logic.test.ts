@@ -71,10 +71,12 @@ describe("searchThreadsForPalette", () => {
     query: string,
     candidates: typeof threads = threads,
     layout: ThreadPaletteLayout = SECTION_LAYOUT,
+    scopedProjectKeys: ReadonlySet<string> | null = null,
   ) =>
     searchThreadsForPalette({
       threads: candidates,
       query,
+      scopedProjectKeys,
       projectTitleOf: (candidate) => (candidate.projectId === "project-api" ? "API" : "Web"),
       now: NOW,
       layout,
@@ -134,5 +136,17 @@ describe("searchThreadsForPalette", () => {
     expect(search("#4321")).toEqual(["linked"]);
     expect(search("mb-77")).toEqual(["linked"]);
     expect(search("web active")).toEqual(["older active"]);
+  });
+
+  it("keeps only threads in the sidebar's project scope", () => {
+    const [apiThread] = threads.filter((candidate) => candidate.projectId === "project-api");
+    expect(
+      searchGroups(
+        "",
+        threads,
+        SECTION_LAYOUT,
+        new Set([`${apiThread!.environmentId}:${apiThread!.projectId}`]),
+      ),
+    ).toEqual([["Active", ["newer active"]]]);
   });
 });

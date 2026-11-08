@@ -1,14 +1,20 @@
 import { useAtomValue } from "@effect/atom-react";
 import { scopedThreadKey, scopeThreadRef } from "@t3tools/client-runtime/environment";
+import { selectProjectGroupingSettings } from "@t3tools/client-runtime/state/project-grouping";
 import { isScratchProject } from "@t3tools/client-runtime/state/projects";
 import { threadWokeAt } from "@t3tools/client-runtime/state/thread-settled";
 import { useState } from "react";
+
+import { useUiStateStore } from "../uiStateStore";
 
 import { useSidebarProjectGroups } from "../hooks/useSidebarProjectGroups";
 import { useBoringSidebarEnabled, useClientSettings } from "../hooks/useSettings";
 import { useThreadRouteRef } from "../hooks/useThreadRouteTarget";
 import { useServerConfigs, useVisibleThreadShells } from "../state/entities";
-import { projectGroupsSpanEnvironments } from "../sidebarProjectGrouping";
+import {
+  projectGroupsSpanEnvironments,
+  resolveSidebarProjectScopeKeys,
+} from "../sidebarProjectGrouping";
 import { cn } from "~/lib/utils";
 import {
   useEnvironmentIdentities,
@@ -44,6 +50,25 @@ export function ThreadSearchPalette(props: { readonly setOpen: (open: boolean) =
   const boringSidebar = useBoringSidebarEnabled();
   const projectGroups = useSidebarProjectGroups();
   const { projectByKey } = useProjectLookups();
+  const projectGroupingSettings = useClientSettings(selectProjectGroupingSettings);
+  const persistedProjectScopeKeys = useUiStateStore((store) => store.sidebarProjectScopeKeys);
+  // The sidebar's project filter, read the way the sidebar reads it; archived projects mean all.
+  const projectScopeKeys = resolveSidebarProjectScopeKeys({
+    groups: projectGroups,
+    keys: persistedProjectScopeKeys,
+    settings: projectGroupingSettings,
+  });
+  const scopedProjectGroups = projectGroups.filter(
+    (group) => !group.archived && projectScopeKeys.includes(group.projectKey),
+  );
+  const scopedProjectKeys =
+    scopedProjectGroups.length === 0
+      ? null
+      : new Set(
+          scopedProjectGroups.flatMap((group) =>
+            group.memberProjectRefs.map((ref) => `${ref.environmentId}:${ref.projectId}`),
+          ),
+        );
   const routeThreadRef = useThreadRouteRef();
   const tokenColor = useClientSettings((settings) => settings.sidebarTokenColor);
   const timestampFormat = useClientSettings((settings) => settings.timestampFormat);
@@ -78,6 +103,7 @@ export function ThreadSearchPalette(props: { readonly setOpen: (open: boolean) =
   const threadGroups = searchThreadsForPalette({
     threads,
     query,
+    scopedProjectKeys,
     projectTitleOf: (thread) =>
       projectByKey.get(`${thread.environmentId}:${thread.projectId}`)?.title ?? null,
     now,
