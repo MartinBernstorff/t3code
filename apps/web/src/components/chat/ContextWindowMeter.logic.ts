@@ -84,7 +84,7 @@ export function formatContextWindowCost(cost: {
   return `${cost.currency} ${cost.amount.toFixed(fractionDigits)}`;
 }
 
-export type ContextWindowMeterTone = "neutral" | "warning" | "error";
+export type ContextWindowMeterTone = "neutral" | "warning" | "critical";
 
 const CONTEXT_WINDOW_METER_WARNING_PERCENTAGE = 75;
 
@@ -107,7 +107,7 @@ export function resolveContextWindowMeterScale(input: {
     usedPercentage: Math.min(100, percentage),
     tone:
       percentage >= 100
-        ? "error"
+        ? "critical"
         : percentage >= CONTEXT_WINDOW_METER_WARNING_PERCENTAGE
           ? "warning"
           : "neutral",

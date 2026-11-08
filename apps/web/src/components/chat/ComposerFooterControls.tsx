@@ -15,7 +15,11 @@ import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { ComposerControl, ComposerControlIcon } from "./ComposerControl";
 import { focusRequestedPermission, useComposerMenuProps } from "./composerEventScope";
 import { ComposerPrimaryActions } from "./ComposerPrimaryActions";
-import { ContextWindowMeter, ContextWindowMeterPlaceholder } from "./ContextWindowMeter";
+import {
+  ComposerUsageMeter,
+  ComposerUsageMeterPlaceholder,
+  type WeeklyUsage,
+} from "./ComposerUsageMeter";
 import { resolveModelPickerSelectedModel } from "./ModelPickerContent";
 import { ProviderModelPicker } from "./ProviderModelPicker";
 import { runtimeModeConfig } from "./runtimeModeConfig";
@@ -252,6 +256,7 @@ export const ComposerFooterPrimaryActions = memo(function ComposerFooterPrimaryA
   activeContextWindow: ContextWindowSnapshot | null;
   contextWindowMeterCapTokens: number;
   reserveContextWindowMeter: boolean;
+  weeklyUsage: WeeklyUsage | null;
   activeThreadModelDisplayName: string | null;
   isPreparingWorktree: boolean;
   pendingAction: {
@@ -291,18 +296,6 @@ export const ComposerFooterPrimaryActions = memo(function ComposerFooterPrimaryA
 }) {
   return (
     <>
-      {props.activeContextWindow ? (
-        <ContextWindowMeter
-          usage={props.activeContextWindow}
-          capTokens={props.contextWindowMeterCapTokens}
-          modelDisplayName={props.activeThreadModelDisplayName}
-          onCompact={props.onCompactContext}
-          compactDisabled={props.compactDisabled}
-          compactDisabledReason={props.compactDisabledReason}
-        />
-      ) : props.reserveContextWindowMeter ? (
-        <ContextWindowMeterPlaceholder />
-      ) : null}
       {props.children}
       <ComposerPrimaryActions
         compact={props.compact}
@@ -334,6 +327,19 @@ export const ComposerFooterPrimaryActions = memo(function ComposerFooterPrimaryA
         keepFullHistory={props.keepFullHistory}
         onToggleKeepFullHistory={props.onToggleKeepFullHistory}
       />
+      {props.activeContextWindow || props.weeklyUsage ? (
+        <ComposerUsageMeter
+          contextWindow={props.activeContextWindow}
+          capTokens={props.contextWindowMeterCapTokens}
+          weeklyUsage={props.weeklyUsage}
+          modelDisplayName={props.activeThreadModelDisplayName}
+          onCompact={props.onCompactContext}
+          compactDisabled={props.compactDisabled}
+          compactDisabledReason={props.compactDisabledReason}
+        />
+      ) : props.reserveContextWindowMeter ? (
+        <ComposerUsageMeterPlaceholder />
+      ) : null}
     </>
   );
 });
