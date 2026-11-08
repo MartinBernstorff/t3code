@@ -9,6 +9,7 @@ import {
   type ServerRemoveKeybindingInput,
   type ServerUpsertKeybindingInput,
   type ServerConfigIssue,
+  THREAD_JUMP_KEYBINDING_COMMANDS,
 } from "@t3tools/contracts";
 import * as Array from "effect/Array";
 import * as Cache from "effect/Cache";
@@ -130,6 +131,11 @@ const MOVED_DEFAULT_KEYBINDINGS: ReadonlyArray<{
     from: { key: "mod+shift+b", command: "threadPanel.toggle", when: "!terminalFocus" },
     to: { key: "mod+alt+shift+b", command: "threadPanel.toggle", when: "!terminalFocus" },
   },
+  ...THREAD_JUMP_KEYBINDING_COMMANDS.map((command, index) => ({
+    id: `${command}:web`,
+    from: { key: `mod+${index + 1}`, command, when: "!modelPickerOpen && isDesktop" },
+    to: { key: `mod+${index + 1}`, command, when: "!modelPickerOpen" },
+  })),
 ];
 
 function keybindingShortcutContext(rule: KeybindingRule): string | null {

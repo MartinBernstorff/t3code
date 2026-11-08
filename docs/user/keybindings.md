@@ -129,9 +129,9 @@ desktop app. Unknown keys evaluate to `false`.
 
 `mod+1` through `mod+9` jump to the first nine threads, and to models while the
 model picker is open. The thread jumps do not run while the model picker is open.
-Those defaults use `isDesktop` so they do not steal the
-browser's tab-switch shortcuts. Remove that condition in Settings if you want
-the same jumps in a browser.
+Thread jumps also run in a browser, where they replace its tab-switch shortcuts;
+add `isDesktop` to their condition in Settings to give those keys back. Model
+jumps run only in the desktop app.
 
 Combine keys with `!` for not, `&&` for and, `||` for or, and parentheses:
 
