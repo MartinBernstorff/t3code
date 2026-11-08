@@ -41,6 +41,7 @@ import {
   settlePromise,
   squashAtomCommandFailure,
 } from "@t3tools/client-runtime/state/runtime";
+import { canSnooze, effectiveSnoozed } from "@t3tools/client-runtime/state/thread-settled";
 import {
   AuthOrchestrationOperateScope,
   AuthSourceControlWriteScope,
@@ -63,6 +64,7 @@ import {
   CheckCircle2Icon,
   CheckIcon,
   ChevronRightIcon,
+  ClockIcon,
   CornerLeftUpIcon,
   InboxIcon,
   FileSearchIcon,
@@ -85,6 +87,9 @@ import {
   XIcon,
 } from "lucide-react";
 import { openThreadFind } from "./chat/threadFindStore";
+import { useNowAfter } from "../hooks/useDeadline";
+import { requestCustomSnooze } from "./CustomSnoozeDialog";
+import { pickSnoozePreset, resolveSnoozePresets } from "./Sidebar.snooze";
 import {
   useDeferredValue,
   useEffect,
@@ -498,13 +503,16 @@ function OpenCommandPaletteDialog(props: {
   const refreshProviders = useAtomCommand(serverEnvironment.refreshProviders, {
     reportFailure: false,
   });
-  const { settleThread, unsettleThread } = useThreadActions();
+  const { settleThread, unsettleThread, snoozeThread, unsnoozeThread } = useThreadActions();
+  const timestampFormat = useClientSettings((settings) => settings.timestampFormat);
   const { environments } = useEnvironments();
   const desktopLocalBootstraps = useDesktopLocalBootstraps();
   const primaryEnvironmentId = usePrimaryEnvironmentId();
   const availableSettingsSearchItems = useAvailableSettingsSearchItems();
   const { activeDraftThread, activeThread, defaultProjectRef, handleNewThread } =
     useHandleNewThread();
+  // Snooze actions flip to Wake while the palette is open if the wake time passes.
+  const snoozeClockMs = useNowAfter(Date.parse(activeThread?.snoozedUntil ?? "") || null);
   const paletteRouteTarget = useThreadRouteTarget();
   const projects = useProjects();
   const referenceThreadRef =
@@ -1487,6 +1495,64 @@ function OpenCommandPaletteDialog(props: {
         }
       },
     });
+
+    const now = new Date(snoozeClockMs);
+    const runSnooze = async (snoozedUntil: string) => {
+      const result = await snoozeThread(threadRef, snoozedUntil);
+      if (result._tag === "Failure" && !isAtomCommandInterrupted(result)) {
+        throw squashAtomCommandFailure(result);
+      }
+    };
+    if (effectiveSnoozed(activeThread, { now: now.toISOString() })) {
+      actionItems.push({
+        kind: "action",
+        value: "action:unsnooze-thread",
+        searchTerms: ["wake", "unsnooze", "snooze", "thread"],
+        title: "Wake thread",
+        icon: <ClockIcon className={ITEM_ICON_CLASS} />,
+        run: async () => {
+          const result = await unsnoozeThread(threadRef);
+          if (result._tag === "Failure" && !isAtomCommandInterrupted(result)) {
+            throw squashAtomCommandFailure(result);
+          }
+        },
+      });
+    } else {
+      const snoozePresets = resolveSnoozePresets(now, timestampFormat, activeThread.environmentId);
+      const snoozeDisabled = !canSnooze(activeThread, { now: now.toISOString() });
+      for (const preset of snoozePresets) {
+        actionItems.push({
+          kind: "action",
+          value: `action:snooze-thread:${preset.id}`,
+          searchTerms: ["snooze", "later", "defer", preset.label, preset.whenLabel],
+          title: `Snooze: ${preset.label}`,
+          description: preset.whenLabel,
+          disabled: snoozeDisabled,
+          icon: <ClockIcon className={ITEM_ICON_CLASS} />,
+          run: async () => {
+            const picked = pickSnoozePreset(
+              snoozePresets,
+              preset.id,
+              timestampFormat,
+              activeThread.environmentId,
+            );
+            if (picked) await runSnooze(picked.snoozedUntil);
+          },
+        });
+      }
+      actionItems.push({
+        kind: "action",
+        value: "action:snooze-thread:custom",
+        searchTerms: ["snooze", "later", "defer", "custom", "date", "time"],
+        title: "Snooze: Custom…",
+        disabled: snoozeDisabled,
+        icon: <ClockIcon className={ITEM_ICON_CLASS} />,
+        run: async () => {
+          const picked = await requestCustomSnooze();
+          if (picked) await runSnooze(picked.snoozedUntil);
+        },
+      });
+    }
   }
 
   const activeThreadCapabilities = activeThreadServerConfig?.environment.capabilities;
