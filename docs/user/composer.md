@@ -12,6 +12,13 @@ becomes an attachment when inserting it would exceed the message limit. On a
 hardware keyboard, use `Cmd+Shift+V` on Apple devices or `Ctrl+Shift+V` elsewhere
 to keep a large paste editable in the composer instead.
 
+## Choose which controls show
+
+On web and desktop, **Settings → Appearance → Composer controls** shows or hides the
+attach button, the model and effort picker, the permissions chip, the context window
+meter, and the dictation button. The dictation shortcut still works
+with its button hidden.
+
 ## Formatting
 
 The composer writes Markdown and shows it styled as you type. When your cursor
@@ -281,8 +288,8 @@ earlier messages, and the thread marks where it began with **New session**.
 Earlier messages and diffs stay in the thread. Dismiss the notice above the
 composer to keep the current session instead.
 
-On web and desktop, turn on **Settings → Labs → Legacy → Context
-window indicator (legacy)** to see context usage. The meter is off by default
+On web and desktop, turn on **Context window** in **Settings → Appearance → Composer
+controls** to see context usage. The meter is off by default
 and appears once the provider reports usage. Open it for usage details and
 **Compact context** when the provider supports compaction.
 

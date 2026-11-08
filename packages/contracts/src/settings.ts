@@ -546,6 +546,7 @@ export const ClientSettingsSchema = Schema.Struct({
   pullRequestLinksOpenInApp: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
 
   planModeEnabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
+  // Retired Legacy toggle. Still read as the default for the Context item in composerItems.
   contextWindowMeterEnabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
   contextWindowMeterCapTokens: ContextWindowMeterCapTokens.pipe(
     Schema.withDecodingDefault(Effect.succeed(DEFAULT_CONTEXT_WINDOW_METER_CAP_TOKENS)),
@@ -576,6 +577,10 @@ export const ClientSettingsSchema = Schema.Struct({
   ),
   // Sparse show/hide overrides for sidebar thread row parts, stored like threadDetailsItems.
   sidebarThreadRowItems: Schema.Record(Schema.String, Schema.Boolean).pipe(
+    Schema.withDecodingDefault(Effect.succeed({})),
+  ),
+  // Sparse show/hide overrides for composer controls, keyed like threadDetailsItems.
+  composerItems: Schema.Record(Schema.String, Schema.Boolean).pipe(
     Schema.withDecodingDefault(Effect.succeed({})),
   ),
   // Opt-in for the removed legacy sidebar. Still read so those users land in
@@ -1964,6 +1969,7 @@ export const ClientSettingsPatch = Schema.Struct({
   threadDetailsUsageEnabled: Schema.optionalKey(Schema.Boolean),
   threadDetailsItems: Schema.optionalKey(Schema.Record(Schema.String, Schema.Boolean)),
   sidebarThreadRowItems: Schema.optionalKey(Schema.Record(Schema.String, Schema.Boolean)),
+  composerItems: Schema.optionalKey(Schema.Record(Schema.String, Schema.Boolean)),
   legacySidebarEnabled: Schema.optionalKey(Schema.Boolean),
   sidebarWorkingShelfEnabled: Schema.optionalKey(Schema.Boolean),
   sidebarProjectGroupingMode: Schema.optionalKey(SidebarProjectGroupingMode),
