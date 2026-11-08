@@ -18,8 +18,6 @@ import { discardComposerDraft } from "../lib/discardComposerDraft";
 import { requestCustomSnooze } from "./CustomSnoozeDialog";
 import { requestLinearIssue } from "./LinearIssueDialog";
 import { useAtomValue } from "@effect/atom-react";
-import * as Option from "effect/Option";
-import { Atom } from "effect/reactivity";
 import * as Schema from "effect/Schema";
 import {
   DndContext,
@@ -38,15 +36,8 @@ import {
   effectiveSnoozed,
   threadWokeAt,
 } from "@t3tools/client-runtime/state/thread-settled";
-import {
-  createInboxReturnTracker,
-  isThreadWorking,
-} from "@t3tools/client-runtime/state/thread-inbox";
-import {
-  resolveSidebarLaneSort,
-  sortSettledThreads,
-  sortSidebarThreads,
-} from "@t3tools/client-runtime/state/thread-sort";
+import { isThreadWorking } from "@t3tools/client-runtime/state/thread-inbox";
+import { sortSettledThreads, sortSidebarThreads } from "@t3tools/client-runtime/state/thread-sort";
 import {
   nextShownOrder,
   threadSearchMatchKey,
@@ -146,7 +137,11 @@ import { useTerminalFocus } from "../hooks/useTerminalFocus";
 import { isCommandPaletteOpen, openCommandPalette } from "../commandPaletteBus";
 import { registerSettleAndAdvance } from "../settleAndAdvance";
 import { startNewThreadFromContext } from "../lib/chatThreadActions";
-import { useBoringSidebarEnabled, useClientSettings } from "../hooks/useSettings";
+import {
+  updateClientSettings,
+  useBoringSidebarEnabled,
+  useClientSettings,
+} from "../hooks/useSettings";
 import { useCopyToClipboard } from "../hooks/useCopyToClipboard";
 import { useLocalStorage } from "../hooks/useLocalStorage";
 import { useNowMinute } from "../hooks/useNowMinute";
@@ -164,7 +159,6 @@ import {
   useServerConfigs,
   useQuietThreadShells,
 } from "../state/entities";
-import { environmentPresentations } from "../state/presentation";
 import { primaryServerKeybindingsAtom } from "../state/server";
 import { environmentProjects } from "../state/projects";
 import { threadEnvironment } from "../state/threads";
@@ -205,13 +199,14 @@ import {
   isSidebarNestedLinkClick,
   isTrailingDoubleClick,
   orderItemsByPreferredIds,
+  orderSidebarLaneThreads,
   planSidebarThreadDrop,
   reduceSidebarProjectScopeMenuState,
   resolveAdjacentThreadId,
   resolveSidebarSweepKeys,
   resolveSidebarDropTarget,
   resolveSidebarDropVerb,
-  resolveSidebarThreadSection,
+  resolveSidebarThreadShelf,
   resolveSidebarReorderableThreadKeys,
   searchSidebarThreads,
   shouldNavigateAfterThreadPark,
@@ -220,7 +215,7 @@ import {
   sidebarThreadKeyAtY,
   sortInboxThreadsByReturn,
   sortPinnedThreadsForSidebar,
-  sortThreadsForSidebar,
+  sortSidebarActiveThreads,
   sortWorkingThreadsBySend,
   useSnoozeWakeClock,
   useThreadJumpHintsVisible,
@@ -244,7 +239,6 @@ import {
   type SnoozePreset,
 } from "./Sidebar.snooze";
 import { ProjectFavicon } from "./ProjectFavicon";
-import { deriveProviderEntriesByEnvironment } from "../providerInstances";
 import { useStableCallback } from "../hooks/useStableCallback";
 import {
   resolveSidebarRouteReveal,
@@ -275,11 +269,15 @@ import { useThreadRouteTarget } from "../hooks/useThreadRouteTarget";
 import {
   SidebarSearchResultRow,
   SortableThreadRow,
-  type SidebarProviderEntry,
   type SidebarSweepAction,
 } from "./sidebar/SidebarThreadRow";
 import { SidebarDraftBlock } from "./sidebar/SidebarDraftBlock";
+import {
+  EMPTY_PROVIDER_ENTRIES,
+  sidebarProviderEntriesAtom,
+} from "./sidebar/sidebarProviderEntries";
 import { resolveSidebarThreadRowVisibility } from "./sidebar/sidebarThreadRowItems";
+import { sidebarInboxReturns as inboxReturns } from "./sidebar/inboxReturns";
 import {
   SidebarProjectFolderHeader,
   sidebarFolderRowId,
@@ -297,56 +295,6 @@ import {
   type SidebarMinimalSection,
 } from "./sidebar/SidebarMinimalSections";
 
-function sameSidebarProviderEntries(
-  left: ReadonlyMap<string, SidebarProviderEntry>,
-  right: ReadonlyMap<string, SidebarProviderEntry>,
-): boolean {
-  if (left.size !== right.size) return false;
-  for (const [instanceId, entry] of right) {
-    const other = left.get(instanceId);
-    if (
-      other === undefined ||
-      other.driverKind !== entry.driverKind ||
-      other.enabled !== entry.enabled ||
-      other.displayName !== entry.displayName ||
-      other.accentColor !== entry.accentColor ||
-      other.acpRegistryAgentId !== entry.acpRegistryAgentId ||
-      other.acpRegistryIconUrl !== entry.acpRegistryIconUrl ||
-      other.models !== entry.models
-    ) {
-      return false;
-    }
-  }
-  return true;
-}
-
-// Resolve providers per environment because default instance ids collide across environments.
-const sidebarProviderEntriesAtom = Atom.make((get) => {
-  const providersByEnvironment = get(environmentPresentations.providersByEnvironmentAtom);
-  const derived = deriveProviderEntriesByEnvironment(
-    [...get(environmentPresentations.serverConfigsAtom)].map(
-      ([environmentId, config]) =>
-        [environmentId, providersByEnvironment.get(environmentId) ?? [], config.settings] as const,
-    ),
-  );
-  const previous = Option.getOrNull(
-    get.self<ReadonlyMap<string, ReadonlyMap<string, SidebarProviderEntry>>>(),
-  );
-  const next = new Map<string, ReadonlyMap<string, SidebarProviderEntry>>();
-  let changed = previous === null || previous.size !== derived.size;
-  for (const [environmentId, entries] of derived) {
-    const prior = previous?.get(environmentId);
-    if (prior !== undefined && sameSidebarProviderEntries(prior, entries)) {
-      next.set(environmentId, prior);
-    } else {
-      next.set(environmentId, entries);
-      changed = true;
-    }
-  }
-  return !changed && previous !== null ? previous : next;
-}).pipe(Atom.withLabel("sidebar-provider-entries"));
-
-const EMPTY_PROVIDER_ENTRIES: ReadonlyMap<string, SidebarProviderEntry> = new Map();
 const EMPTY_THREADS: readonly EnvironmentThreadShell[] = [];
 const EMPTY_LANE_KEYS: readonly string[] = [];
 const LaneKeys = Schema.Array(Schema.String);
@@ -358,8 +306,6 @@ const SNOOZED_SHELF_EXPANDED_KEY = "t3code:sidebar:snoozed-expanded";
 const WORKING_SHELF_EXPANDED_KEY = "t3code:sidebar:working-expanded";
 const WAITING_SHELF_EXPANDED_KEY = "t3code:sidebar:waiting-expanded";
 const COLLAPSED_LANES_KEY = "t3code:sidebar:collapsed-lanes";
-
-const inboxReturns = createInboxReturnTracker();
 
 type SidebarOptimisticDrop = {
   readonly key: string;
@@ -665,14 +611,7 @@ function useSidebarThreads(input: {
       },
       {
         showEmptyDropTargets: dragging,
-        orderLaneThreads: (laneThreads, lane) => {
-          const sort = resolveSidebarLaneSort(lane.path, defaultThreadSort, threadSortOverrides);
-          if (sort === "manual") return laneThreads;
-          // Pinned threads keep their drag order at the top of the lane.
-          const pinned = laneThreads.filter((thread) => thread.pinnedAt != null);
-          const unpinned = laneThreads.filter((thread) => thread.pinnedAt == null);
-          return [...pinned, ...sortSidebarThreads(unpinned, sort)];
-        },
+        orderLaneThreads: orderSidebarLaneThreads(defaultThreadSort, threadSortOverrides),
       },
     ).map((row) =>
       row.kind === "lane" ? { ...row, label: sidebarLaneLabel(row.lane, laneProjects) } : row,
@@ -814,33 +753,24 @@ function partitionSidebarThreads(input: SidebarThreadPartitionInput) {
           : { ...projected, snoozedAt: thread.snoozedAt, snoozedUntil: thread.snoozedUntil },
       );
     } else {
-      const section = resolveSidebarThreadSection({
-        snoozed: configLoaded && effectiveSnoozed(thread, { now: preciseNow }),
-        settled: configLoaded && thread.settledOverride === "settled",
-        pinned: thread.pinnedAt != null,
+      const shelf = resolveSidebarThreadShelf(thread, {
+        now: preciseNow,
+        configLoaded,
+        workingShelfEnabled,
+        pinnedJoinWorking,
+        inbox: inboxObservation,
       });
-      (section === "snoozed"
-        ? snoozed
-        : section === "settled"
-          ? settled
-          : section === "pinned"
-            ? pinnedJoinWorking && inbox(thread) === working
-              ? working
-              : pinned
-            : inbox(thread)
-      ).push(thread);
+      ({ pinned, active, working, waiting, snoozed, settled })[shelf].push(thread);
     }
   }
   // Availability gates dragging only; sorting must stay consistent across clients.
   const sortedPinned = sortPinnedThreadsForSidebar(pinned);
-  const sortedActive =
-    threadSort !== "manual"
-      ? sortSidebarThreads(active, threadSort)
-      : sortActiveBySend
-        ? sortWorkingThreadsBySend(active)
-        : workingShelfEnabled
-          ? sortInboxThreadsByReturn(active, inboxObservation.returnedAt)
-          : sortThreadsForSidebar(active);
+  const sortedActive = sortSidebarActiveThreads(active, {
+    threadSort,
+    sortActiveBySend,
+    workingShelfEnabled,
+    returnedAt: inboxObservation.returnedAt,
+  });
   return {
     pinnedThreads:
       optimisticDrop?.section !== "pinned" || optimisticDrop.order === null
@@ -3344,15 +3274,24 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     else if (!sidebarOpen) setSidebarOpen(true);
     dispatchProjectScopeMenu({ type: "open-changed", open: !projectScopeMenuState.open });
   });
+  const toggleMinimalFromShortcut = useStableCallback((event: KeyboardEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (event.repeat) return;
+    void updateClientSettings({ sidebarMinimal: !sidebarMinimal });
+  });
   // Capture phase: the composer's bold guard swallows Mod+Shift+B when nothing is selected.
-  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- registers the project filter shortcut with the app's keydown dispatcher
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- registers the sidebar shortcuts with the app's keydown dispatcher
   useEffect(
     () =>
       registerCommands(
-        { "sidebar.filterByProject": toggleProjectFilterFromShortcut },
+        {
+          "sidebar.filterByProject": toggleProjectFilterFromShortcut,
+          "sidebar.toggleMinimal": toggleMinimalFromShortcut,
+        },
         { capture: true },
       ),
-    [toggleProjectFilterFromShortcut],
+    [toggleProjectFilterFromShortcut, toggleMinimalFromShortcut],
   );
 
   const shouldShowJumpHintsNow = shouldShowThreadJumpHintsForModifiers(
