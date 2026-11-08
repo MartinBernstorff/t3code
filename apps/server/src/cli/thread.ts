@@ -829,13 +829,17 @@ const decodeLinearFlag = (value: string) =>
         ),
       );
 
-/** Omitted flags leave a field unchanged. `--snooze` uses the organize `snooze`/`unsnooze` actions. */
+/**
+ * Omitted flags leave a field unchanged. `--snooze` uses the organize `snooze`/`unsnooze` actions;
+ * `--title` uses `t3_thread_update`'s `rename`.
+ */
 const threadSetCommand = Command.make("set", {
   ...projectLocationFlags,
   thread: Argument.String("thread").pipe(
     Argument.withDescription("Thread id. Defaults to the agent's own thread when run by an agent."),
     Argument.optional,
   ),
+  title: Flag.String("title").pipe(Flag.withDescription("Thread title."), Flag.optional),
   priority: Flag.ChoiceWithValue("priority", [
     ["urgent", "urgent"],
     ["high", "high"],
@@ -866,7 +870,7 @@ const threadSetCommand = Command.make("set", {
   ),
   json: jsonFlag,
 }).pipe(
-  Command.withDescription("Change a thread's fields, such as its priority or snooze."),
+  Command.withDescription("Change a thread's fields, such as its title, priority, or snooze."),
   Command.withHandler((flags) =>
     Effect.gen(function* () {
       // Agents launch with T3CODE_THREAD_ID set to their thread (PortScanner.AGENT_THREAD_ENV).
@@ -876,6 +880,11 @@ const threadSetCommand = Command.make("set", {
         return yield* new ThreadUsageError({ detail: "Pass a thread id." });
       }
       const threadId = yield* decodeThreadId(thread.value);
+      const title = Option.isSome(flags.title)
+        ? yield* decodeTitle(flags.title.value).pipe(
+            Effect.mapError(() => new ThreadUsageError({ detail: "The title is empty." })),
+          )
+        : undefined;
       const linearIssue = Option.isSome(flags.linear)
         ? yield* decodeLinearFlag(flags.linear.value)
         : undefined;
@@ -904,15 +913,22 @@ const threadSetCommand = Command.make("set", {
           detail: `Invalid --snooze "${snooze.value.value}". Use a duration such as 2h, an ISO time, or none.`,
         });
       }
-      if (Object.keys(fields).length === 0 && Option.isNone(snooze)) {
+      if (Object.keys(fields).length === 0 && Option.isNone(snooze) && title === undefined) {
         return yield* new ThreadUsageError({
-          detail: "Pass a field to set, such as --priority or --snooze.",
+          detail: "Pass a field to set, such as --title, --priority, or --snooze.",
         });
       }
       yield* withThreadTools(
         flags,
         Effect.fn("cli.thread.set")(function* (tools) {
           let result: typeof ThreadSetResult.Type | undefined;
+          if (title !== undefined) {
+            result = yield* tools.call(
+              "t3_thread_update",
+              { threadId, action: "rename", title },
+              ThreadSetResult,
+            );
+          }
           if (Object.keys(fields).length > 0) {
             result = yield* tools.call(
               "t3_thread_organize",
