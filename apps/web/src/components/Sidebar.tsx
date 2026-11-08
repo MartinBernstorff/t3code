@@ -467,6 +467,7 @@ function useSidebarThreads(input: {
   readonly keepEmptyFolders: (group: SidebarProjectSnapshot) => boolean;
   // Project lanes for Group by Project, in order.
   readonly laneProjects: readonly SidebarProjectSnapshot[];
+  readonly dragging: boolean;
 }) {
   const {
     projectScopeKey,
@@ -480,6 +481,7 @@ function useSidebarThreads(input: {
     folderGroups,
     keepEmptyFolders: keepEmpty,
     laneProjects,
+    dragging,
   } = input;
   // Folders already separate the work, so boring mode has no Working shelf.
   const workingShelfEnabled =
@@ -629,6 +631,7 @@ function useSidebarThreads(input: {
         // A collapsed lane still shows the open thread.
         keepWhenCollapsed: (thread) => threadShellKey(thread) === routeRowThreadKey,
       },
+      { showEmptyDropTargets: dragging },
     ).map((row) =>
       row.kind === "lane" ? { ...row, label: sidebarLaneLabel(row.lane, laneProjects) } : row,
     );
@@ -1454,6 +1457,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     keepEmptyFolders: (group) =>
       scopedProjectGroups.length > 0 || (group.pinned && !group.archived),
     laneProjects: scopedProjectGroups.length === 0 ? projectGroups : scopedProjectGroups,
+    dragging: dragState !== null,
   });
 
   // Ranked across environments as the palette ranks them, so one
@@ -1871,15 +1875,12 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
         ? current
         : { ...current, contextDrag },
     );
-    if (!contextDrag) {
-      endThreadContextDrag();
-      return false;
-    }
-    restoreDragScroll();
     const threads = contextDragThreads();
     const title =
       threadByKeyRef.current.get(contextDragKeyRef.current ?? "")?.title.trim() || "Thread";
     moveThreadContextDragGhost(point, { title, count: threads.length });
+    if (!contextDrag) return false;
+    restoreDragScroll();
     return true;
   };
   const dropThreadContextDrag = (point: { x: number; y: number }) => {
@@ -3629,6 +3630,8 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                             key={threadKey}
                             sortableId={threadKey}
                             contextDrag={isContextDrag}
+                            // Group by drops only set fields, and empty lanes appear mid-drag.
+                            holdInPlace={laneRows !== null}
                             sortableDisabled={
                               projectFolders !== null ||
                               renamingThreadKey === threadKey ||

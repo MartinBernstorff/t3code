@@ -439,7 +439,10 @@ function SnoozeMenuButton(props: {
 type SortableThreadRowBag = Pick<
   ReturnType<typeof useSortable>,
   "listeners" | "setNodeRef" | "transform" | "transition" | "isDragging"
->;
+> & {
+  /** The row being dragged, including while it is dragged out as context. */
+  readonly isDragSource: boolean;
+};
 
 /** Left inset of a Group by lane's header and rows, by nesting depth. */
 export const SIDEBAR_LANE_DEPTH_INSET = ["", "ps-3", "ps-6"] as const;
@@ -460,9 +463,11 @@ export function SortableThreadRow(
     sortableId: string;
     sortableDisabled: boolean;
     contextDrag: boolean;
+    /** Keeps the dragged row in its slot; the drag ghost follows the pointer. */
+    holdInPlace: boolean;
   },
 ) {
-  const { sortableId, sortableDisabled, contextDrag, ...rowProps } = props;
+  const { sortableId, sortableDisabled, contextDrag, holdInPlace, ...rowProps } = props;
   const canOperateThread = useEnvironmentScope(
     rowProps.thread.environmentId,
     AuthOrchestrationOperateScope,
@@ -480,9 +485,10 @@ export function SortableThreadRow(
   const bag = {
     listeners,
     setNodeRef,
-    transform: contextDrag ? null : transform,
+    transform: contextDrag || holdInPlace ? null : transform,
     transition: contextDrag && isDragging ? "transform 150ms ease-out" : transition,
     isDragging: isDragging && !contextDrag,
+    isDragSource: isDragging,
   };
   // The sidebar arranges rows from quiet shells, which hold still while a
   // thread streams; reading the live shell here re-renders only this row.
@@ -991,8 +997,9 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
       "opacity-70 transition-opacity hover:opacity-100 focus-within:opacity-100 motion-reduce:transition-none",
     isFileDragOver && "ring-1 ring-inset ring-primary/70",
     isFileDragOver && !props.isActive && !isSelected && "bg-sidebar-row-hover",
+    props.sortable?.isDragSource && "opacity-50 hover:opacity-50 focus-within:opacity-50",
     props.sortable?.isDragging &&
-      "bg-sidebar bg-linear-to-b from-sidebar-row-active to-sidebar-row-active text-sidebar-foreground opacity-100 shadow-lg",
+      "bg-sidebar bg-linear-to-b from-sidebar-row-active to-sidebar-row-active text-sidebar-foreground shadow-lg",
   );
   const sortable = props.sortable;
   const sortableRootProps = sortable

@@ -80,7 +80,12 @@ interface ThreadGroupDimensionDefinition {
   readonly valueOf: (context: ThreadGroupContext) => (thread: ThreadGroupInput) => string;
   /** Listed lanes render even when empty, so they stay visible as drop targets. */
   readonly keepEmpty: boolean;
+  /** Whether dropping a thread on this lane can set it; see `threadLaneDropChanges`. */
+  readonly settable: (value: string) => boolean;
 }
+
+const anySettable = () => true;
+const noneSettable = () => false;
 
 const projectRefKey = (thread: ThreadGroupInput) => `${thread.environmentId}:${thread.projectId}`;
 
@@ -89,6 +94,7 @@ const THREAD_GROUP_DIMENSIONS: Record<ThreadGroupDimension, ThreadGroupDimension
     values: () => THREAD_GROUP_SECTIONS,
     valueOf: (context) => context.sectionOf,
     keepEmpty: false,
+    settable: (value) => value === "pinned" || value === "active",
   },
   project: {
     values: (context) => context.projects.map((project) => project.key),
@@ -100,21 +106,25 @@ const THREAD_GROUP_DIMENSIONS: Record<ThreadGroupDimension, ThreadGroupDimension
       return (thread) => groupByMember.get(projectRefKey(thread)) ?? projectRefKey(thread);
     },
     keepEmpty: false,
+    settable: noneSettable,
   },
   priority: {
     values: () => [...ThreadPriority.literals, NO_PRIORITY_LANE],
     valueOf: () => (thread) => thread.priority ?? NO_PRIORITY_LANE,
     keepEmpty: false,
+    settable: anySettable,
   },
   engagement: {
     values: () => ThreadEngagement.literals,
     valueOf: () => (thread) => thread.engagement,
     keepEmpty: true,
+    settable: anySettable,
   },
   agentState: {
     values: () => THREAD_AGENT_STATES,
     valueOf: () => threadAgentState,
     keepEmpty: false,
+    settable: noneSettable,
   },
 };
 
@@ -142,11 +152,17 @@ export function threadLaneKey(path: readonly string[]): string {
  * Splits threads into lanes for one dimension, keeping input order inside each lane.
  * Nested grouping calls this again on a lane's threads with that lane's path as `parentPath`.
  */
+export interface ThreadLaneOptions {
+  /** Also lists empty lanes a drop can set, so a dragged thread can reach them. */
+  readonly showEmptyDropTargets?: boolean;
+}
+
 export function groupThreadsBy<T extends ThreadGroupInput>(
   threads: readonly T[],
   dimension: ThreadGroupDimension,
   context: ThreadGroupContext,
   parentPath: readonly string[] = [],
+  options: ThreadLaneOptions = {},
 ): ThreadLane<T>[] {
   const definition = THREAD_GROUP_DIMENSIONS[dimension];
   const valueOf = definition.valueOf(context);
@@ -159,7 +175,9 @@ export function groupThreadsBy<T extends ThreadGroupInput>(
   }
   const lanes: ThreadLane<T>[] = [];
   for (const [value, laneThreads] of byValue) {
-    if (laneThreads.length === 0 && !definition.keepEmpty) continue;
+    const keep =
+      definition.keepEmpty || (options.showEmptyDropTargets === true && definition.settable(value));
+    if (laneThreads.length === 0 && !keep) continue;
     const path = [...parentPath, `${dimension}:${value}`];
     lanes.push({ key: threadLaneKey(path), path, dimension, value, threads: laneThreads });
   }
@@ -194,12 +212,13 @@ export function threadLaneRows<T extends ThreadGroupInput>(
     readonly keys: ReadonlySet<string>;
     readonly keepWhenCollapsed: (thread: T) => boolean;
   },
+  options: ThreadLaneOptions = {},
 ): ThreadLaneRow<T>[] {
   const rows: ThreadLaneRow<T>[] = [];
   const visit = (laneThreads: readonly T[], depth: number, parent: ThreadLane<T> | null) => {
     const dimension = levels[depth];
     if (dimension === undefined) return;
-    for (const lane of groupThreadsBy(laneThreads, dimension, context, parent?.path)) {
+    for (const lane of groupThreadsBy(laneThreads, dimension, context, parent?.path, options)) {
       const isCollapsed = collapsed.keys.has(lane.key);
       rows.push({
         kind: "lane",

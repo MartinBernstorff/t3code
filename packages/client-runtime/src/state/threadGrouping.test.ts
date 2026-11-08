@@ -250,6 +250,34 @@ describe("threadLaneRows", () => {
     });
     expect(summarizeRows(rows)).toEqual(["high (collapsed)", "- b", "low", "  working", "  - c"]);
   });
+
+  it("lists empty lanes a drop can set, at every level, only when asked", () => {
+    const only = [thread("b", { priority: "high" })];
+    expect(
+      summarizeRows(threadLaneRows(only, ["section", "priority"], NO_PROJECTS, expanded)),
+    ).toEqual(["active", "  high", "  - b"]);
+    expect(
+      summarizeRows(
+        threadLaneRows(only, ["section", "priority"], NO_PROJECTS, expanded, {
+          showEmptyDropTargets: true,
+        }),
+      ),
+    ).toEqual([
+      "pinned",
+      "  urgent",
+      "  high",
+      "  medium",
+      "  low",
+      "  none",
+      "active",
+      "  urgent",
+      "  high",
+      "  - b",
+      "  medium",
+      "  low",
+      "  none",
+    ]);
+  });
 });
 
 describe("withThreadGroupLevel", () => {
