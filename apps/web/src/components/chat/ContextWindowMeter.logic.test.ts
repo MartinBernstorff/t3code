@@ -161,17 +161,19 @@ describe("shouldReserveContextWindowMeter", () => {
 
 describe("resolveContextWindowMeterScale", () => {
   it.each([
-    ["caps a 1M window at the cap", 50_000, 1_000_000, 25, "neutral"],
-    ["uses a model window smaller than the cap", 64_000, 128_000, 50, "neutral"],
-    ["falls back to the cap when the window is unknown", 100_000, null, 50, "neutral"],
-    ["stays neutral just below 75% of the cap", 149_998, 1_000_000, 74.999, "neutral"],
-    ["turns yellow at 75% of the cap", 150_000, 1_000_000, 75, "warning"],
-    ["turns orange at the cap", 200_000, 1_000_000, 100, "critical"],
-    ["never shows more than the cap", 600_000, 1_000_000, 100, "critical"],
-    ["scales colours to a window smaller than the cap", 96_000, 128_000, 75, "warning"],
-  ] as const)("%s", (_name, usedTokens, maxTokens, usedPercentage, tone) => {
+    ["spans twice the cap on a 1M window", 50_000, 1_000_000, 400_000, 12.5, "neutral"],
+    ["uses a model window smaller than the cap", 64_000, 128_000, 128_000, 50, "neutral"],
+    ["stops at a window between the cap and twice it", 150_000, 300_000, 300_000, 50, "warning"],
+    ["spans twice the cap when the window is unknown", 100_000, null, 400_000, 25, "neutral"],
+    ["stays neutral just below 75% of the cap", 149_998, 1_000_000, 400_000, 37.4995, "neutral"],
+    ["turns yellow at 75% of the cap", 150_000, 1_000_000, 400_000, 37.5, "warning"],
+    ["turns orange at the cap, half way along", 200_000, 1_000_000, 400_000, 50, "critical"],
+    ["shows how far past the cap", 300_000, 1_000_000, 400_000, 75, "critical"],
+    ["never shows more than twice the cap", 600_000, 1_000_000, 400_000, 100, "critical"],
+    ["scales colours to a window smaller than the cap", 96_000, 128_000, 128_000, 75, "warning"],
+  ] as const)("%s", (_name, usedTokens, maxTokens, scaleTokens, usedPercentage, tone) => {
     expect(resolveContextWindowMeterScale({ usedTokens, maxTokens, capTokens: 200_000 })).toEqual({
-      scaleTokens: Math.min(maxTokens ?? 200_000, 200_000),
+      scaleTokens,
       usedPercentage,
       tone,
     });
