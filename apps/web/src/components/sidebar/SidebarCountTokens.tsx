@@ -1,11 +1,16 @@
 import {
   threadAgentState,
+  threadAgentStateSince,
+  type ThreadAgentStateSinceInput,
   type ThreadGroupInput,
 } from "@t3tools/client-runtime/state/thread-grouping";
 import type { SidebarTokenColor } from "@t3tools/contracts/settings";
 
 import { cn } from "~/lib/utils";
+import { useNowSecond } from "../../hooks/useNowSecond";
 import { useClientSettings } from "../../hooks/useSettings";
+import { formatElapsedDurationLabel } from "../../timestampFormat";
+import { sidebarLaneLabel } from "../Sidebar.logic";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 
 const TOKEN_LIMIT = 12;
@@ -42,7 +47,8 @@ export function SidebarCountNumber(props: { count: number }) {
   return <span className="font-normal tabular-nums">{props.count}</span>;
 }
 
-type CountedThread = ThreadGroupInput & { readonly id: string; readonly title: string };
+type CountedThread = ThreadGroupInput &
+  ThreadAgentStateSinceInput & { readonly id: string; readonly title: string };
 
 /** A section header's size, as a number or as tokens per the sidebar settings. */
 export function SidebarSectionCount(props: { threads: readonly CountedThread[] }) {
@@ -68,7 +74,7 @@ function SidebarCountTokens(props: {
     buckets[palette ? palette.bucketOf(thread) : 0]!.push(thread);
   }
   const tokens: { key: string; className: string }[] = [];
-  const titles: { key: string; className: string; title: string }[] = [];
+  const titles: { key: string; className: string; thread: CountedThread }[] = [];
   buckets.forEach((threads, bucket) => {
     const className = palette ? palette.classes[bucket]! : NEUTRAL_TOKEN;
     for (const thread of threads) {
@@ -78,7 +84,7 @@ function SidebarCountTokens(props: {
         titles.push({
           key: `${thread.environmentId}:${thread.id}`,
           className,
-          title: thread.title,
+          thread,
         });
       }
     }
@@ -105,7 +111,8 @@ function SidebarCountTokens(props: {
           {titles.map((entry) => (
             <li key={entry.key} className="flex items-center gap-1.5">
               <span aria-hidden className={cn("size-1.5 shrink-0 rounded-xs", entry.className)} />
-              <span className="truncate">{entry.title}</span>
+              <span className="truncate">{entry.thread.title}</span>
+              <ThreadAgentStateDuration thread={entry.thread} />
             </li>
           ))}
           {total > titles.length ? (
@@ -114,5 +121,21 @@ function SidebarCountTokens(props: {
         </ul>
       </TooltipPopup>
     </Tooltip>
+  );
+}
+
+// Mounted only while the tooltip is open, so the per-second tick costs nothing otherwise.
+function ThreadAgentStateDuration(props: { thread: ThreadAgentStateSinceInput }) {
+  const nowMs = useNowSecond();
+  const label = sidebarLaneLabel(
+    { dimension: "agentState", value: threadAgentState(props.thread) },
+    [],
+  );
+  const since = threadAgentStateSince(props.thread);
+  return (
+    <span className="ms-auto shrink-0 ps-2 text-muted-foreground tabular-nums">
+      {label}
+      {since === null ? null : ` ${formatElapsedDurationLabel(since, nowMs)}`}
+    </span>
   );
 }

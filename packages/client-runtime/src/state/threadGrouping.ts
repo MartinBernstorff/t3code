@@ -1,7 +1,9 @@
 import { ThreadEngagement, ThreadPriority } from "@t3tools/contracts";
 import type { SidebarGroupBy } from "@t3tools/contracts/settings";
 
-import type { EnvironmentThreadShell } from "./models.ts";
+import * as DateTime from "effect/DateTime";
+
+import { type EnvironmentThreadShell, resolveThreadWorkingStartedAt } from "./models.ts";
 import { isThreadWorking } from "./threadInbox.ts";
 
 export type ThreadGroupDimension = SidebarGroupBy;
@@ -47,6 +49,22 @@ export function threadAgentState(thread: ThreadAgentStateInput): ThreadAgentStat
   if (hasRequest) return "needsYou";
   if (isThreadWorking(thread)) return "working";
   return thread.waitingOnOthers ? "waitingOnOthers" : "needsYou";
+}
+
+export type ThreadAgentStateSinceInput = ThreadAgentStateInput & {
+  readonly source?: Pick<EnvironmentThreadShell["source"], "pendingRuntimeRequest">;
+};
+
+/**
+ * When the thread entered its `threadAgentState`, or null when no timestamp records it.
+ * Waiting on others counts from the end of the turn, as the flag has no timestamp of its own.
+ */
+export function threadAgentStateSince(thread: ThreadAgentStateSinceInput): string | null {
+  const state = threadAgentState(thread);
+  if (state === "working") return resolveThreadWorkingStartedAt(thread);
+  const request = thread.source?.pendingRuntimeRequest;
+  if (state === "needsYou" && request != null) return DateTime.formatIso(request.createdAt);
+  return thread.latestRun?.completedAt ?? null;
 }
 
 export interface ThreadGroupProject {
