@@ -375,7 +375,12 @@ function CommandPaletteDialog(props: {
               ? "Search threads"
               : "Command palette"
       }
-      className={cn("overflow-hidden", props.mode === "content" && "h-105")}
+      className={cn(
+        "overflow-hidden",
+        props.mode === "content" && "h-105",
+        props.mode === "threads" && "max-w-(--chat-content-max-width)",
+      )}
+      size={props.mode === "threads" ? "tall" : "default"}
       data-command-palette="true"
       data-palette-mode={props.mode}
       data-testid="command-palette"

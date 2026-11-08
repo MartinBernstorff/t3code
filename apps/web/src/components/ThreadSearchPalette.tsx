@@ -164,7 +164,7 @@ export function ThreadSearchPalette(props: { readonly setOpen: (open: boolean) =
         setHighlightedItemValue(null);
         setQuery(value);
       }}
-      panelSize="tall-list"
+      panelSize="fill"
       testId="thread-search-palette"
       value={query}
     >

@@ -59,15 +59,24 @@ function CommandDialogPopup({
   className,
   children,
   onBackdropPointerDown,
+  size = "default",
   ...props
 }: CommandDialogPrimitive.Popup.Props & {
   onBackdropPointerDown?: React.PointerEventHandler<HTMLDivElement>;
+  /** "tall" fills 90% of the window height, for long result lists. */
+  size?: "default" | "tall";
 }) {
   const popupRef = useRef<HTMLDivElement>(null);
   return (
     <CommandDialogPortal>
       <CommandDialogBackdrop onPointerDown={onBackdropPointerDown} />
-      <CommandDialogViewport>
+      <CommandDialogViewport
+        className={
+          size === "tall"
+            ? "sm:pt-[max(5vh,calc(var(--command-titlebar-height)+--spacing(2)))] sm:pb-[5vh]"
+            : undefined
+        }
+      >
         <CommandDialogPrimitive.Popup
           // The first tabbable can be an input addon, such as a submenu's Back button.
           initialFocus={() => popupRef.current?.querySelector("input") ?? true}
@@ -75,6 +84,7 @@ function CommandDialogPopup({
           className={cn(
             DIALOG_POPUP_CLASS,
             "pointer-events-auto max-h-105 max-w-xl text-foreground",
+            size === "tall" && "h-[90vh] max-h-full",
             className,
           )}
           data-slot="command-dialog-popup"
