@@ -171,12 +171,12 @@ open.
 
 Threads that are working or waiting on work they will resume from move into a collapsed
 **Working** section at the bottom of the sidebar, just above Settled. The section shows even when
-nothing is working, unless **Group threads by** uses lanes.
+nothing is working.
 That includes subagents, watched pull requests, and background commands or monitors the agent
 says it is waiting on. A dev server or other process an agent leaves running does not keep a thread
 there. A thread returns to the top of the active list when it finishes, fails, or needs an approval or
 answer. The Working section lists the thread you last sent work to first. Pinned threads stay in
-the pinned section.
+the pinned section, unless **Group threads by** uses lanes.
 
 This is on by default. Turn it off with **Settings → General → Working section** on web and desktop,
 or **Settings → General → Working section** on iOS and Android. Each device keeps its own
@@ -198,14 +198,15 @@ cannot drag threads, and the Working section is off. Each device keeps its own c
 
 ### Group threads into lanes
 
-**Settings → General → Group threads by** splits pinned, active, and working threads into lanes
+**Settings → General → Group threads by** splits pinned and active threads into lanes
 by **Section**, **Project**, **Priority**, **Engagement**, or **Agent state** (Needs you, Working,
 Waiting on others). **Section** alone, the default, keeps the sidebar as described above. Pick up to two **Then by** levels to nest lanes, for example
-Priority then Section. Each lane header shows its thread count; click it to collapse that lane on
-its own. The Engagement lanes always show, even when empty. Snoozed and Settled stay at the
+Agent state then Project. Lanes under Section and Agent state are not indented. Each lane header shows its thread count; click it to collapse that lane on
+its own. The Engagement lanes always show, even when empty. With the Working section on, every
+working thread, pinned or not, stays in Working instead of a lane. Working, Snoozed, and Settled stay at the
 bottom. While grouped, drag a thread onto a lane header to give it that lane's Priority,
 Engagement, or Section (Pinned pins, Active unpins); a nested header sets every level it names.
-Project, Agent state, and Working headers are not drop targets, and threads do not reorder. Drop
+Project and Agent state headers are not drop targets, and threads do not reorder. Drop
 on the Settled header to settle a thread. The
 boring sidebar keeps its project folders and ignores this setting.
 

@@ -218,6 +218,14 @@ describe("threadLaneRows", () => {
     ).toEqual(["high", "  pinned", "  - a", "  active", "  - b", "low", "  working", "  - c"]);
   });
 
+  it("insets nested lanes only below levels that inset", () => {
+    const insets = (levels: Parameters<typeof threadLaneRows>[1]) =>
+      threadLaneRows(threads, levels, NO_PROJECTS, expanded).map((row) => row.inset);
+    expect(new Set(insets(["section", "priority"]))).toEqual(new Set([0]));
+    expect(new Set(insets(["agentState", "priority"]))).toEqual(new Set([0]));
+    expect(insets(["priority", "section"])).toEqual([0, 1, 1, 1, 1, 0, 1, 1]);
+  });
+
   it("collapses a lane by its full path without touching same-value lanes elsewhere", () => {
     const rows = threadLaneRows(threads, ["section", "priority"], NO_PROJECTS, {
       keys: new Set([threadLaneKey(["section:active", "priority:high"])]),

@@ -998,7 +998,7 @@ export function GeneralSettingsPanel() {
         />
         <SettingsRow
           {...searchableSetting("thread-group-by")}
-          description="Lanes for the sidebar's pinned, active, and working threads, up to three levels deep. Snoozed and Settled stay at the bottom. The boring sidebar in Labs keeps its project folders."
+          description="Lanes for the sidebar's pinned and active threads, up to three levels deep. Working, Snoozed, and Settled stay at the bottom. The boring sidebar in Labs keeps its project folders."
           resetAction={
             !Equal.equals(settings.sidebarGroupBy, DEFAULT_UNIFIED_SETTINGS.sidebarGroupBy) ? (
               <SettingResetButton
