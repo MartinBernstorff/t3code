@@ -2,6 +2,7 @@ import * as Schema from "effect/Schema";
 import * as SchemaTransformation from "effect/SchemaTransformation";
 import { RepositoryIdentity, ThreadEnvMode } from "./environment.ts";
 import { ModelSelection } from "./modelSelection.ts";
+import { LinearWorkspaceSlug } from "./linearIssue.ts";
 import {
   CommandId,
   ForwardCompatibleUnion,
@@ -161,6 +162,7 @@ export const Project = Schema.Struct({
   defaultThreadEnvMode: Schema.optional(Schema.NullOr(ThreadEnvMode)),
   // Opt-in because background sync performs network I/O and may move the checkout.
   autoPull: Schema.optional(Schema.Boolean),
+  linearWorkspaceSlug: Schema.optional(Schema.NullOr(LinearWorkspaceSlug)),
   scripts: Schema.Array(ProjectScript),
   pinnedAt: Schema.optional(Schema.NullOr(IsoDateTime)),
   archivedAt: Schema.optional(Schema.NullOr(IsoDateTime)),
@@ -193,6 +195,11 @@ export const ProjectUpdatePayload = Schema.Struct({
   projectIcon: Schema.optional(Schema.NullOr(ProjectIconOverride)),
   faviconPath: Schema.optional(Schema.NullOr(TrimmedNonEmptyString)),
   defaultThreadEnvMode: Schema.optional(Schema.NullOr(ThreadEnvMode)),
+  linearWorkspaceSlug: Schema.optional(
+    Schema.NullOr(LinearWorkspaceSlug).annotate({
+      description: "Links thread Linear issues to linear.app/<slug>.",
+    }),
+  ),
   scripts: Schema.optional(Schema.Array(ProjectScript)),
   pinned: Schema.optional(Schema.Boolean),
   archived: Schema.optional(

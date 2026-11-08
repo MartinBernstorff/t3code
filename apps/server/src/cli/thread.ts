@@ -1,4 +1,5 @@
 import {
+  LinearIssueId,
   OrchestratorMcpFailure,
   OrchestratorMcpThreadListResult,
   OrchestratorMcpThreadReadResult,
@@ -6,6 +7,7 @@ import {
   OrchestratorMcpThreadWaitResult,
   ProjectId,
   RunId,
+  ThreadEngagement,
   ThreadId,
   TrimmedNonEmptyString,
   type OrchestratorMcpThreadListItem,
@@ -13,7 +15,10 @@ import {
   type OrchestratorMcpThreadTimelineItem,
 } from "@t3tools/contracts";
 import * as HostProcess from "@t3tools/shared/HostProcess";
+import * as Clock from "effect/Clock";
+import * as Config from "effect/Config";
 import * as Console from "effect/Console";
+import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
@@ -711,6 +716,18 @@ const threadSendCommand = Command.make("send", {
   ),
 );
 
+/** Only fields that are set; empty when none are. */
+export const threadFieldsLine = (thread: OrchestratorMcpThreadReadResult["thread"]): string =>
+  [
+    thread.priority !== undefined ? `priority ${thread.priority}` : null,
+    thread.engagement ?? null,
+    thread.waitingOnOthers === true ? "waiting on others" : null,
+    thread.snoozedUntil !== null ? `snoozed until ${thread.snoozedUntil}` : null,
+    thread.linearIssue ?? null,
+  ]
+    .filter((part) => part !== null)
+    .join("  ");
+
 const threadShowCommand = Command.make("show", {
   ...projectLocationFlags,
   thread: threadArgument,
@@ -753,6 +770,10 @@ const threadShowCommand = Command.make("show", {
           if (thread.worktreePath !== null) {
             yield* Console.log(`${thread.branch ?? "(no branch)"}  ${thread.worktreePath}`);
           }
+          const fields = threadFieldsLine(thread);
+          if (fields !== "") {
+            yield* Console.log(fields);
+          }
           if (thread.pendingRequestCount > 0) {
             yield* Console.log(`Waiting for ${thread.pendingRequestCount} answer(s).`);
           }
@@ -765,12 +786,150 @@ const threadShowCommand = Command.make("show", {
   ),
 );
 
+const ThreadSetResult = Schema.Struct({ sequence: Schema.Number });
+
+const SNOOZE_UNIT_MILLIS = { m: 60_000, h: 3_600_000, d: 86_400_000, w: 604_800_000 } as const;
+
+/** `none` wakes the thread; `30m`, `2h`, `3d`, `1w` count from now; anything else must be an ISO time. */
+const parseSnooze = (value: string, nowMillis: number): string | null | undefined => {
+  if (value === "none") return null;
+  const relative = /^(\d+)([mhdw])$/.exec(value);
+  const millis = relative
+    ? Number(relative[1]) * SNOOZE_UNIT_MILLIS[relative[2] as keyof typeof SNOOZE_UNIT_MILLIS]
+    : undefined;
+  if (millis !== undefined) {
+    return millis > 0 ? DateTime.formatIso(DateTime.makeUnsafe(nowMillis + millis)) : undefined;
+  }
+  if (!/^\d{4}-\d{2}-\d{2}T/.test(value)) return undefined;
+  return Option.getOrUndefined(Option.map(DateTime.make(value), DateTime.formatIso));
+};
+
+const decodeLinearIssueId = Schema.decodeUnknownEffect(LinearIssueId);
+const decodeLinearFlag = (value: string) =>
+  value.trim().toLowerCase() === "none"
+    ? Effect.succeed(null)
+    : decodeLinearIssueId(value.trim().toUpperCase()).pipe(
+        Effect.mapError(
+          () =>
+            new ThreadUsageError({ detail: `'${value}' is not a Linear issue id like MB-123.` }),
+        ),
+      );
+
+/** Omitted flags leave a field unchanged. `--snooze` uses the organize `snooze`/`unsnooze` actions. */
+const threadSetCommand = Command.make("set", {
+  ...projectLocationFlags,
+  thread: Argument.String("thread").pipe(
+    Argument.withDescription("Thread id. Defaults to the agent's own thread when run by an agent."),
+    Argument.optional,
+  ),
+  priority: Flag.ChoiceWithValue("priority", [
+    ["urgent", "urgent"],
+    ["high", "high"],
+    ["medium", "medium"],
+    ["low", "low"],
+    ["none", null],
+  ]).pipe(Flag.withDescription("Thread priority, or none to clear it."), Flag.optional),
+  engagement: Flag.Literals("engagement", ThreadEngagement.literals).pipe(
+    Flag.withDescription("Thread engagement."),
+    Flag.optional,
+  ),
+  waiting: Flag.ChoiceWithValue("waiting", [
+    ["on", true],
+    ["off", false],
+  ]).pipe(
+    Flag.withDescription("Whether the thread is waiting on others, such as CI or a review."),
+    Flag.optional,
+  ),
+  snooze: Flag.String("snooze").pipe(
+    Flag.withDescription(
+      "Snooze for a duration (30m, 2h, 3d, 1w) or until an ISO time, or none to wake the thread.",
+    ),
+    Flag.optional,
+  ),
+  linear: Flag.String("linear").pipe(
+    Flag.withDescription("Linear issue id, such as MB-123, or none to unlink it."),
+    Flag.optional,
+  ),
+  json: jsonFlag,
+}).pipe(
+  Command.withDescription("Change a thread's fields, such as its priority or snooze."),
+  Command.withHandler((flags) =>
+    Effect.gen(function* () {
+      // Agents launch with T3CODE_THREAD_ID set to their thread (PortScanner.AGENT_THREAD_ENV).
+      const agentThread = yield* Config.option(Config.String("T3CODE_THREAD_ID"));
+      const thread = Option.orElse(flags.thread, () => agentThread);
+      if (Option.isNone(thread)) {
+        return yield* new ThreadUsageError({ detail: "Pass a thread id." });
+      }
+      const threadId = yield* decodeThreadId(thread.value);
+      const linearIssue = Option.isSome(flags.linear)
+        ? yield* decodeLinearFlag(flags.linear.value)
+        : undefined;
+      const fields = {
+        ...Option.match(flags.priority, {
+          onNone: () => ({}),
+          onSome: (priority) => ({ priority }),
+        }),
+        ...Option.match(flags.engagement, {
+          onNone: () => ({}),
+          onSome: (engagement) => ({ engagement }),
+        }),
+        ...Option.match(flags.waiting, {
+          onNone: () => ({}),
+          onSome: (waitingOnOthers) => ({ waitingOnOthers }),
+        }),
+        ...(linearIssue === undefined ? {} : { linearIssue }),
+      };
+      const nowMillis = yield* Clock.currentTimeMillis;
+      const snooze = Option.map(flags.snooze, (value) => ({
+        value,
+        until: parseSnooze(value, nowMillis),
+      }));
+      if (Option.isSome(snooze) && snooze.value.until === undefined) {
+        return yield* new ThreadUsageError({
+          detail: `Invalid --snooze "${snooze.value.value}". Use a duration such as 2h, an ISO time, or none.`,
+        });
+      }
+      if (Object.keys(fields).length === 0 && Option.isNone(snooze)) {
+        return yield* new ThreadUsageError({
+          detail: "Pass a field to set, such as --priority or --snooze.",
+        });
+      }
+      yield* withThreadTools(
+        flags,
+        Effect.fn("cli.thread.set")(function* (tools) {
+          let result: typeof ThreadSetResult.Type | undefined;
+          if (Object.keys(fields).length > 0) {
+            result = yield* tools.call(
+              "t3_thread_organize",
+              { threadId, action: "set", ...fields },
+              ThreadSetResult,
+            );
+          }
+          if (Option.isSome(snooze)) {
+            const until = snooze.value.until;
+            result = yield* tools.call(
+              "t3_thread_organize",
+              until === null
+                ? { threadId, action: "unsnooze" }
+                : { threadId, action: "snooze", snoozedUntil: until },
+              ThreadSetResult,
+            );
+          }
+          yield* flags.json ? printJson(result) : Console.log("Updated.");
+        }),
+      );
+    }).pipe(reportThreadErrors),
+  ),
+);
+
 export const threadCommand = Command.make("thread").pipe(
-  Command.withDescription("Start, message, and read threads on the running server."),
+  Command.withDescription("Start, message, read, and organize threads on the running server."),
   Command.withSubcommands([
     threadListCommand,
     threadStartCommand,
     threadSendCommand,
     threadShowCommand,
+    threadSetCommand,
   ]),
 );

@@ -2,9 +2,8 @@
 
 Transcription edits a composer draft. It does not submit an agent turn. Audio is
 temporary client input, and only normal message submission sends the resulting
-text to the agent. Mobile defaults to on-device transcription. Sending audio off
-the device requires an explicit grant naming one environment and, for cloud
-transcription, one provider.
+text. Any client that sends audio off the device needs a grant for one environment
+and, for cloud transcription, one provider.
 
 The [shared controller](../../packages/client-runtime/src/voice-input/controller.ts)
 owns the operation while the client supplies capture and transcription. Preparation
@@ -16,11 +15,9 @@ capture and `finish` replaces the file-based `transcribe`.
 
 ## Where audio may go
 
-On mobile, on-device transcription needs no audio grant. Environment and cloud
-transcription share a recorder and upload only finished recordings. The client
-keeps the grant in device-bound secure storage, outside preference backups, and
-rechecks it after native decoding and before upload.
-
+Only an explicit audio grant authorizes off-device transcription. The
+recorder is the same for both destinations; only a finished recording can be
+uploaded, and its grant is checked again after native decoding and before dispatch.
 The [web grant](../../apps/web/src/speech/voiceConsent.ts) lives outside the preferences snapshot so another
 window saving unrelated settings cannot resurrect a revoked grant. Each new choice
 gets a distinct grant, even if the destination was previously selected. The
@@ -71,11 +68,8 @@ Explicitly installing a speech model also retries the detector without waiting.
 ## Cancellation and resource ownership
 
 Cancellation invalidates a result immediately, but resources stay owned until the
-underlying work settles. Apple's native transcription call cannot be interrupted
-once started. Releasing the session or deleting its recording when the abort signal
+underlying work settles. Releasing the session or deleting its recording when the abort signal
 fires would race that work. The [transcription contract](../../packages/client-runtime/src/voice-input/transcription.ts)
-therefore requires implementations to settle only after their work has stopped;
-the [Apple binding](../../apps/mobile/src/native/voiceTranscription.ios.ts) checks
-cancellation between native calls and discards late results. On the server,
+therefore requires implementations to settle only after their work has stopped. On the server,
 interrupting a batch request kills the worker process instead; the next request
 reloads the model.

@@ -1,12 +1,14 @@
 import { EnvironmentId, ProjectId, ThreadId } from "@t3tools/contracts";
+import { compileResolvedKeybindingsConfig } from "@t3tools/shared/keybindings";
 import { describe, expect, it, vi } from "vite-plus/test";
-import { page } from "vite-plus/test/browser";
+import { page, userEvent } from "vite-plus/test/browser";
 
 import { render } from "../../test/render";
 import { openCommandPalette } from "../commandPaletteBus";
 import { useCommandPaletteStore } from "../commandPaletteStore";
 import { makeThreadFixture } from "../test-fixtures";
 import type { Project, Thread } from "../types";
+import { installCommandPaletteCommands } from "../shortcuts/commandPaletteCommands";
 import { CommandPalette } from "./CommandPalette";
 
 const entities = vi.hoisted(() => ({
@@ -90,5 +92,37 @@ describe("CommandPalette open intents", () => {
     await page.getByRole("option", { name: /Acme/ }).first().click();
 
     await vi.waitFor(() => expect(screen.router?.state.location.pathname).toBe("/local/parent"));
+  });
+});
+
+describe("Thread search palette", () => {
+  it("opens on mod+o and navigates to the picked thread", async () => {
+    const environmentId = EnvironmentId.make("local");
+    setup({
+      threads: [
+        makeThreadFixture({ id: ThreadId.make("alpha"), environmentId, title: "Fix sidebar lag" }),
+        makeThreadFixture({ id: ThreadId.make("beta"), environmentId, title: "Deploy relay" }),
+      ],
+    });
+    using _platform = vi.spyOn(navigator, "platform", "get").mockReturnValue("Linux x86_64");
+    await using screen = await render(<CommandPalette>{null}</CommandPalette>);
+    using commands = new DisposableStack();
+    const keybindings = compileResolvedKeybindingsConfig([
+      { key: "mod+o", command: "threadSearch.toggle" },
+    ]);
+    commands.defer(
+      installCommandPaletteCommands(screen.router!, { keybindings: () => keybindings }),
+    );
+
+    await userEvent.keyboard("{Control>}o{/Control}");
+    const input = page.getByPlaceholder("Search threads by title, project, or PR…");
+    await expect.element(input).toHaveFocus();
+    await userEvent.type(input, "deploy");
+    await expect
+      .element(page.getByRole("option", { name: /Fix sidebar lag/ }))
+      .not.toBeInTheDocument();
+    await userEvent.keyboard("{Enter}");
+
+    await vi.waitFor(() => expect(screen.router?.state.location.pathname).toBe("/local/beta"));
   });
 });

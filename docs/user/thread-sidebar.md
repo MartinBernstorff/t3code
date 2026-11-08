@@ -58,6 +58,42 @@ in a new thread's model picker to add or remove them. A regular click returns to
 single model. Choose a base branch and send. Each selection starts a separate thread
 and worktree while you stay in the new thread composer. This requires a Git project.
 
+## Set a thread's priority
+
+Set **Priority** from a thread's menu, or run **Set priority...** from the command
+palette for the open thread. The sidebar shows the priority as an icon before the
+thread title. Agents can set it too.
+
+To list active threads by priority, set **Settings > General > Thread order** to
+**Priority**: urgent first, threads without a priority last, oldest first within a
+priority. Dragging still moves threads between sections, but not within the active list.
+
+**Activity** instead lists the threads you have sent the most messages to first,
+then the ones you messaged most recently.
+
+## Set a thread's engagement
+
+Engagement marks whether you are working on a thread now (**Engaged**), have not
+looked at it yet (**Inbox**), or plan to work on it next (**Queued**). Set it from a
+thread's menu, or run **Set engagement...** from the command palette. Threads you
+create in the app start as Engaged; threads that agents, scripts, or scheduled tasks
+create start in the Inbox. Setting a priority in the app also marks the thread Engaged.
+
+## Threads waiting on others
+
+An agent waiting on CI or a review can mark its thread as waiting on others. The
+sidebar shows an hourglass on the thread, and its finished turns do not notify you
+or mark the thread unread. Your next message in the thread clears the mark. You can
+also set or clear it from the thread's menu.
+
+## Link a Linear issue
+
+Choose **Link Linear issue…** from a thread's menu or the command palette, and enter an
+issue id such as `MB-123` or paste the issue's link. Agents can link the issue they work
+on. The id shows next to the thread title and opens the issue in Linear once the
+project has a Linear workspace (see [Project settings](project-settings.md#linear-workspace));
+without one it is plain text. Thread search (Cmd+O) finds threads by issue id.
+
 ## Pin and reorder threads
 
 Pin a thread from its menu to keep it above your active work.
@@ -159,6 +195,26 @@ needs you. Use the pen button on a folder, or right-click it, to start a thread 
 Pinned threads stay above the folders, and Snoozed and Settled stay below them. In this mode you
 cannot drag threads, and the Working section is off. Each device keeps its own choice.
 
+### Group threads into lanes
+
+**Settings → General → Group threads by** splits pinned, active, and working threads into lanes
+by **Section**, **Project**, **Priority**, **Engagement**, or **Agent state** (Needs you, Working,
+Waiting on others). **Section** alone, the default, keeps the sidebar as described above. Pick up to two **Then by** levels to nest lanes, for example
+Priority then Section. Each lane header shows its thread count; click it to collapse that lane on
+its own. The Engagement lanes always show, even when empty. Snoozed and Settled stay at the
+bottom. While grouped, drag a thread onto a lane header to give it that lane's Priority,
+Engagement, or Section (Pinned pins, Active unpins); a nested header sets every level it names.
+Project, Agent state, and Working headers are not drop targets, and threads do not reorder. Drop
+on the Settled header to settle a thread. The
+boring sidebar keeps its project folders and ignores this setting.
+
+### Choose what each thread shows
+
+On web and desktop, open **Settings → Appearance → Sidebar thread rows** to hide parts of each
+thread in the sidebar, such as the project icon, branch, pull request, or provider icon. The
+title and status always show, and the hover card keeps every detail. Each device keeps its own
+choice.
+
 ## Settle finished work
 
 Choose **Settle thread** from its menu to move finished work out of the active list
@@ -231,6 +287,11 @@ one word of three or more letters, or two for Chinese, Japanese, and Korean.
 On mobile, the thread list search also lists message matches and opens them at
 the matching message; on an iPad with a keyboard, `Cmd+K` opens the same
 palette.
+
+To search only threads, press `Cmd/Ctrl+O`. It matches thread titles, project
+names, pull request numbers such as `#123`, and pull request titles across every
+project, and lists matches in sidebar order. Enter opens the thread. Opening
+your favorite editor moved from `Cmd/Ctrl+O` to `Cmd/Ctrl+Alt+O`.
 
 Use **Settings → Keybindings** to find or customize shortcuts for searching files
 and copying a thread reference. A copied reference uses the thread's pull request

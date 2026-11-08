@@ -1,5 +1,13 @@
-import type { ContextMenuItem } from "@t3tools/contracts";
+import type {
+  ContextMenuItem,
+  LinearIssueId,
+  ThreadEngagement,
+  ThreadPriority,
+} from "@t3tools/contracts";
 import type { SnoozePreset } from "@t3tools/client-runtime/state/thread-settled";
+
+import { THREAD_ENGAGEMENT_OPTIONS } from "../threadEngagement";
+import { NO_PRIORITY_LABEL, THREAD_PRIORITY_OPTIONS } from "../threadPriority";
 
 export type ThreadActionMenuId =
   | "find"
@@ -17,6 +25,13 @@ export type ThreadActionMenuId =
   | "snooze"
   | `snooze:${string}`
   | "unsnooze"
+  | "priority"
+  | `priority:${ThreadPriority | "none"}`
+  | "engagement"
+  | `engagement:${ThreadEngagement}`
+  | "waiting-on"
+  | "waiting-off"
+  | "linear-issue"
   | "rename"
   | "regenerate-title"
   | "mark-unread"
@@ -80,6 +95,10 @@ export interface ThreadActionMenuState {
   readonly autoSettleEnabled: boolean;
   readonly isSnoozed: boolean;
   readonly canSnoozeNow: boolean;
+  readonly priority: ThreadPriority | null;
+  readonly engagement: ThreadEngagement;
+  readonly waitingOnOthers: boolean;
+  readonly linearIssue: LinearIssueId | null;
   readonly isRegeneratingTitle: boolean;
   /** Archive rejects attached providers, so disable it while running. */
   readonly isRunning: boolean;
@@ -89,12 +108,31 @@ export interface ThreadActionMenuState {
     readonly snooze: boolean;
     readonly pinning: boolean;
     readonly titleRegeneration: boolean;
+    readonly priority: boolean;
+    readonly engagement: boolean;
+    readonly waiting: boolean;
+    readonly linearIssue: boolean;
   };
   readonly snoozePresets: ReadonlyArray<SnoozePreset>;
   /** Guest links need their own grant, so the caller checks it instead of `canOperate`. */
   readonly canShareWithGuest?: boolean;
   /** A No project thread with its own folder, on a server that can promote it. */
   readonly canTurnIntoProject?: boolean;
+}
+
+/** The priority a menu action sets, or undefined when the action is not a priority choice. */
+export function priorityFromThreadAction(
+  action: ThreadActionMenuId,
+): ThreadPriority | null | undefined {
+  if (action === "priority:none") return null;
+  return THREAD_PRIORITY_OPTIONS.find((option) => action === `priority:${option.value}`)?.value;
+}
+
+/** The engagement a menu action sets, or undefined when the action is not an engagement choice. */
+export function engagementFromThreadAction(
+  action: ThreadActionMenuId,
+): ThreadEngagement | undefined {
+  return THREAD_ENGAGEMENT_OPTIONS.find((option) => action === `engagement:${option.value}`)?.value;
 }
 
 /** Local navigation, read markers, and copying remain available to read-only clients. */
@@ -164,6 +202,58 @@ export function buildThreadActionMenuItems(
                   },
                 ],
               },
+        ]
+      : []),
+    ...(state.supports.priority
+      ? [
+          {
+            id: "priority" as const,
+            label: "Priority",
+            icon: "chart-no-axes-column-increasing",
+            children: [
+              ...THREAD_PRIORITY_OPTIONS.map((option) => ({
+                id: `priority:${option.value}` as const,
+                label: option.label,
+                checked: state.priority === option.value,
+              })),
+              {
+                id: "priority:none" as const,
+                label: NO_PRIORITY_LABEL,
+                checked: state.priority === null,
+                separatorBefore: true,
+              },
+            ],
+          },
+        ]
+      : []),
+    ...(state.supports.engagement
+      ? [
+          {
+            id: "engagement" as const,
+            label: "Engagement",
+            icon: "inbox",
+            children: THREAD_ENGAGEMENT_OPTIONS.map((option) => ({
+              id: `engagement:${option.value}` as const,
+              label: option.label,
+              checked: state.engagement === option.value,
+            })),
+          },
+        ]
+      : []),
+    ...(state.supports.waiting
+      ? [
+          state.waitingOnOthers
+            ? { id: "waiting-off" as const, label: "Stop waiting on others", icon: "hourglass" }
+            : { id: "waiting-on" as const, label: "Mark waiting on others", icon: "hourglass" },
+        ]
+      : []),
+    ...(state.supports.linearIssue
+      ? [
+          {
+            id: "linear-issue" as const,
+            label: state.linearIssue ? `Linear issue ${state.linearIssue}…` : "Link Linear issue…",
+            icon: "link",
+          },
         ]
       : []),
     { id: "rename", label: "Rename thread", icon: "pencil", separatorBefore: true },

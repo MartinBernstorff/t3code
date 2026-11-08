@@ -22,7 +22,14 @@ import {
   type ResponseStreamingMode,
   type QuitConfirmationMode,
   SidebarProjectSortOrder,
+  SidebarRowGlyphKind,
+  SidebarThreadSort,
+  SIDEBAR_GROUP_BY_MAX_LEVELS,
+  SidebarGroupBy,
+  type SidebarGroupByLevels,
 } from "@t3tools/contracts/settings";
+import { withThreadGroupLevel } from "@t3tools/client-runtime/state/thread-grouping";
+import { AUTO_UPDATE_DISABLED } from "@t3tools/shared/autoUpdate";
 import { desktopUpdateChannelOf } from "@t3tools/shared/cliRelease";
 import { createModelSelection } from "@t3tools/shared/model";
 import { resolvePastedPath } from "@t3tools/shared/path";
@@ -98,6 +105,7 @@ import {
   SettingsSection,
 } from "./settingsLayout";
 import { searchableSetting } from "./settingsSearch";
+import { SIDEBAR_ROW_GLYPH_LABELS, toggleSidebarRowGlyphKind } from "../sidebar/sidebarRowGlyphs";
 import { BackgroundActivitySettingsRow } from "./BackgroundActivitySettings";
 import { AdvancedSettings } from "./AdvancedSettings";
 import { PullRequestLinksOpenInAppSetting } from "./IntegrationsSettings";
@@ -126,6 +134,73 @@ const SIDEBAR_PROJECT_SORT_ORDER_LABELS: Record<SidebarProjectSortOrder, string>
   manual: "Manual",
 };
 const isSidebarProjectSortOrder = Schema.is(SidebarProjectSortOrder);
+
+const SIDEBAR_THREAD_SORT_LABELS: Record<SidebarThreadSort, string> = {
+  manual: "Manual",
+  priority: "Priority",
+  activity: "Activity",
+};
+const isSidebarThreadSort = Schema.is(SidebarThreadSort);
+
+const SIDEBAR_GROUP_BY_LABELS: Record<SidebarGroupBy, string> = {
+  section: "Section",
+  project: "Project",
+  priority: "Priority",
+  engagement: "Engagement",
+  agentState: "Agent state",
+};
+const isSidebarGroupBy = Schema.is(SidebarGroupBy);
+const NO_GROUP_BY_LEVEL = "none";
+
+function SidebarGroupByControl(props: {
+  levels: SidebarGroupByLevels;
+  onChange: (levels: SidebarGroupBy[]) => void;
+}) {
+  // A "Then by" level is offered once the level above it is set.
+  const shownLevels = Math.min(props.levels.length + 1, SIDEBAR_GROUP_BY_MAX_LEVELS);
+  return (
+    <div className="flex w-full flex-wrap justify-end gap-2 sm:w-auto">
+      {Array.from({ length: shownLevels }, (_, index) => {
+        const value = props.levels[index] ?? NO_GROUP_BY_LEVEL;
+        const above = props.levels.slice(0, index);
+        const label = index === 0 ? "Group threads by" : "Then by";
+        return (
+          <Select
+            key={index}
+            value={value}
+            onValueChange={(next) => {
+              if (next === NO_GROUP_BY_LEVEL) {
+                props.onChange(withThreadGroupLevel(props.levels, index, null));
+              } else if (isSidebarGroupBy(next)) {
+                props.onChange(withThreadGroupLevel(props.levels, index, next));
+              }
+            }}
+          >
+            <SelectTrigger size="sm" className="w-full sm:w-32" aria-label={label}>
+              <SelectValue>
+                {value === NO_GROUP_BY_LEVEL ? "Then by…" : SIDEBAR_GROUP_BY_LABELS[value]}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectPopup align="end" alignItemWithTrigger={false}>
+              {index > 0 ? (
+                <SelectItem hideIndicator value={NO_GROUP_BY_LEVEL}>
+                  None
+                </SelectItem>
+              ) : null}
+              {SidebarGroupBy.literals
+                .filter((groupBy) => !above.includes(groupBy))
+                .map((groupBy) => (
+                  <SelectItem hideIndicator key={groupBy} value={groupBy}>
+                    {SIDEBAR_GROUP_BY_LABELS[groupBy]}
+                  </SelectItem>
+                ))}
+            </SelectPopup>
+          </Select>
+        );
+      })}
+    </div>
+  );
+}
 
 const TIMESTAMP_FORMAT_LABELS = {
   locale: "System default",
@@ -480,8 +555,17 @@ export function useSettingsRestore(onRestored?: () => void) {
     ...(settings.sidebarProjectSortOrder !== DEFAULT_UNIFIED_SETTINGS.sidebarProjectSortOrder
       ? ["Project order"]
       : []),
+    ...(settings.sidebarThreadSort !== DEFAULT_UNIFIED_SETTINGS.sidebarThreadSort
+      ? ["Thread order"]
+      : []),
+    ...(!Equal.equals(settings.sidebarGroupBy, DEFAULT_UNIFIED_SETTINGS.sidebarGroupBy)
+      ? ["Group threads by"]
+      : []),
     ...(settings.sidebarWorkingShelfEnabled !== DEFAULT_UNIFIED_SETTINGS.sidebarWorkingShelfEnabled
       ? ["Working section"]
+      : []),
+    ...(!Equal.equals(settings.sidebarRowGlyphs, DEFAULT_UNIFIED_SETTINGS.sidebarRowGlyphs)
+      ? ["Sidebar row glyphs"]
       : []),
     ...(settings.sidebarAutoSettleAfterDays !== DEFAULT_UNIFIED_SETTINGS.sidebarAutoSettleAfterDays
       ? ["Auto-settle inactive threads"]
@@ -525,11 +609,15 @@ export function useSettingsRestore(onRestored?: () => void) {
       ? ["Rich text composer"]
       : []),
     ...(settings.sendShortcut !== DEFAULT_UNIFIED_SETTINGS.sendShortcut ? ["Send shortcut"] : []),
+    ...(settings.weeklyUsageMeterEnabled !== DEFAULT_UNIFIED_SETTINGS.weeklyUsageMeterEnabled
+      ? ["Weekly usage meter"]
+      : []),
     ...(settings.followUpBehavior !== DEFAULT_UNIFIED_SETTINGS.followUpBehavior
       ? ["Follow-up behavior"]
       : []),
-    ...(settings.contextWindowMeterEnabled !== DEFAULT_UNIFIED_SETTINGS.contextWindowMeterEnabled
-      ? ["Context window indicator"]
+    ...(settings.contextWindowMeterCapTokens !==
+    DEFAULT_UNIFIED_SETTINGS.contextWindowMeterCapTokens
+      ? ["Context window indicator cap"]
       : []),
     ...(settings.responseStreamingMode !== DEFAULT_UNIFIED_SETTINGS.responseStreamingMode
       ? ["Response streaming"]
@@ -644,14 +732,18 @@ export function useSettingsRestore(onRestored?: () => void) {
       showSkillsInSlashMenu: DEFAULT_UNIFIED_SETTINGS.showSkillsInSlashMenu,
       composerRichTextEnabled: DEFAULT_UNIFIED_SETTINGS.composerRichTextEnabled,
       sendShortcut: DEFAULT_UNIFIED_SETTINGS.sendShortcut,
+      weeklyUsageMeterEnabled: DEFAULT_UNIFIED_SETTINGS.weeklyUsageMeterEnabled,
       followUpBehavior: DEFAULT_UNIFIED_SETTINGS.followUpBehavior,
-      contextWindowMeterEnabled: DEFAULT_UNIFIED_SETTINGS.contextWindowMeterEnabled,
+      contextWindowMeterCapTokens: DEFAULT_UNIFIED_SETTINGS.contextWindowMeterCapTokens,
       environmentIdentificationMode: DEFAULT_UNIFIED_SETTINGS.environmentIdentificationMode,
       glassOpacity: DEFAULT_UNIFIED_SETTINGS.glassOpacity,
       panelAnimationDurationMs: DEFAULT_UNIFIED_SETTINGS.panelAnimationDurationMs,
       sidebarProjectGroupingMode: DEFAULT_UNIFIED_SETTINGS.sidebarProjectGroupingMode,
       sidebarProjectSortOrder: DEFAULT_UNIFIED_SETTINGS.sidebarProjectSortOrder,
+      sidebarThreadSort: DEFAULT_UNIFIED_SETTINGS.sidebarThreadSort,
+      sidebarGroupBy: DEFAULT_UNIFIED_SETTINGS.sidebarGroupBy,
       sidebarWorkingShelfEnabled: DEFAULT_UNIFIED_SETTINGS.sidebarWorkingShelfEnabled,
+      sidebarRowGlyphs: DEFAULT_UNIFIED_SETTINGS.sidebarRowGlyphs,
       sidebarAutoSettleAfterDays: DEFAULT_UNIFIED_SETTINGS.sidebarAutoSettleAfterDays,
       sidebarAutoSettleKeepPullRequests: DEFAULT_UNIFIED_SETTINGS.sidebarAutoSettleKeepPullRequests,
       sidebarAutoSettleOnMerge: DEFAULT_UNIFIED_SETTINGS.sidebarAutoSettleOnMerge,
@@ -765,19 +857,6 @@ export function LegacyFeaturesSection() {
           />
         }
       />
-      <SettingsRow
-        {...searchableSetting("legacy-context-window-indicator")}
-        description="Shows context window usage as a circular indicator in the composer."
-        control={
-          <Switch
-            checked={settings.contextWindowMeterEnabled}
-            onCheckedChange={(checked) =>
-              updateSettings({ contextWindowMeterEnabled: Boolean(checked) })
-            }
-            aria-label="Context window indicator (legacy)"
-          />
-        }
-      />
     </SettingsSection>
   );
 }
@@ -883,6 +962,61 @@ export function GeneralSettingsPanel() {
           }
         />
         <SettingsRow
+          {...searchableSetting("thread-order")}
+          description="Order of the sidebar's Active threads. Priority: urgent first, oldest first within a priority. Activity: most messages from you first, then most recently messaged."
+          resetAction={
+            settings.sidebarThreadSort !== DEFAULT_UNIFIED_SETTINGS.sidebarThreadSort ? (
+              <SettingResetButton
+                label="thread order"
+                onClick={() =>
+                  updateSettings({ sidebarThreadSort: DEFAULT_UNIFIED_SETTINGS.sidebarThreadSort })
+                }
+              />
+            ) : null
+          }
+          control={
+            <Select
+              value={settings.sidebarThreadSort}
+              onValueChange={(value) => {
+                if (isSidebarThreadSort(value)) {
+                  updateSettings({ sidebarThreadSort: value });
+                }
+              }}
+            >
+              <SelectTrigger size="sm" className="w-full sm:w-44" aria-label="Thread order">
+                <SelectValue>{SIDEBAR_THREAD_SORT_LABELS[settings.sidebarThreadSort]}</SelectValue>
+              </SelectTrigger>
+              <SelectPopup align="end" alignItemWithTrigger={false}>
+                {SidebarThreadSort.literals.map((sort) => (
+                  <SelectItem hideIndicator key={sort} value={sort}>
+                    {SIDEBAR_THREAD_SORT_LABELS[sort]}
+                  </SelectItem>
+                ))}
+              </SelectPopup>
+            </Select>
+          }
+        />
+        <SettingsRow
+          {...searchableSetting("thread-group-by")}
+          description="Lanes for the sidebar's pinned, active, and working threads, up to three levels deep. Snoozed and Settled stay at the bottom. The boring sidebar in Labs keeps its project folders."
+          resetAction={
+            !Equal.equals(settings.sidebarGroupBy, DEFAULT_UNIFIED_SETTINGS.sidebarGroupBy) ? (
+              <SettingResetButton
+                label="group threads by"
+                onClick={() =>
+                  updateSettings({ sidebarGroupBy: DEFAULT_UNIFIED_SETTINGS.sidebarGroupBy })
+                }
+              />
+            ) : null
+          }
+          control={
+            <SidebarGroupByControl
+              levels={settings.sidebarGroupBy}
+              onChange={(sidebarGroupBy) => updateSettings({ sidebarGroupBy })}
+            />
+          }
+        />
+        <SettingsRow
           {...searchableSetting("working-shelf")}
           description="Fold working and monitoring threads into a Working section. They return to the top of the inbox when they need you. The boring sidebar in Labs has no Working section."
           resetAction={
@@ -906,6 +1040,42 @@ export function GeneralSettingsPanel() {
               }
               aria-label="Working section"
             />
+          }
+        />
+        <SettingsRow
+          {...searchableSetting("sidebar-row-glyphs")}
+          description="Choose which glyphs appear before thread titles in the sidebar."
+          resetAction={
+            !Equal.equals(settings.sidebarRowGlyphs, DEFAULT_UNIFIED_SETTINGS.sidebarRowGlyphs) ? (
+              <SettingResetButton
+                label="sidebar row glyphs"
+                onClick={() =>
+                  updateSettings({ sidebarRowGlyphs: DEFAULT_UNIFIED_SETTINGS.sidebarRowGlyphs })
+                }
+              />
+            ) : null
+          }
+          control={
+            <div className="flex flex-wrap items-center gap-3">
+              {SidebarRowGlyphKind.literals.map((kind) => (
+                <label key={kind} className="flex items-center gap-2 text-sm">
+                  {SIDEBAR_ROW_GLYPH_LABELS[kind]}
+                  <Switch
+                    checked={settings.sidebarRowGlyphs.includes(kind)}
+                    onCheckedChange={(checked) =>
+                      updateSettings({
+                        sidebarRowGlyphs: toggleSidebarRowGlyphKind(
+                          settings.sidebarRowGlyphs,
+                          kind,
+                          Boolean(checked),
+                        ),
+                      })
+                    }
+                    aria-label={`${SIDEBAR_ROW_GLYPH_LABELS[kind]} glyph`}
+                  />
+                </label>
+              ))}
+            </div>
           }
         />
       </SettingsSection>
@@ -1159,6 +1329,32 @@ export function ChatSettingsPanel() {
                 ))}
               </SelectPopup>
             </Select>
+          }
+        />
+        <SettingsRow
+          {...searchableSetting("weekly-usage-meter")}
+          description="Show the provider's weekly usage limit next to the send button."
+          resetAction={
+            settings.weeklyUsageMeterEnabled !==
+            DEFAULT_UNIFIED_SETTINGS.weeklyUsageMeterEnabled ? (
+              <SettingResetButton
+                label="weekly usage meter"
+                onClick={() =>
+                  updateSettings({
+                    weeklyUsageMeterEnabled: DEFAULT_UNIFIED_SETTINGS.weeklyUsageMeterEnabled,
+                  })
+                }
+              />
+            ) : null
+          }
+          control={
+            <Switch
+              checked={settings.weeklyUsageMeterEnabled}
+              onCheckedChange={(checked) =>
+                updateSettings({ weeklyUsageMeterEnabled: Boolean(checked) })
+              }
+              aria-label="Weekly usage meter"
+            />
           }
         />
         <AdvancedSettings targetIds={[searchableSetting("skills-in-slash-menu").id]}>
@@ -2056,7 +2252,7 @@ export function AboutSettingsPanel() {
             }
           />
         ) : null}
-        {isElectron || HOSTED_APP_CHANNEL ? (
+        {!AUTO_UPDATE_DISABLED && (isElectron || HOSTED_APP_CHANNEL) ? (
           <AboutVersionSection />
         ) : (
           <>
@@ -2065,6 +2261,7 @@ export function AboutSettingsPanel() {
               title={<AboutVersionTitle />}
               description="Current version of the application."
             />
+            {AUTO_UPDATE_DISABLED && isElectron ? <CliCommandSettingsRow /> : null}
           </>
         )}
         <MobileAppSettingsRow />

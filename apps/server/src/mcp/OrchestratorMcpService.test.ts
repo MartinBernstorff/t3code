@@ -3511,7 +3511,13 @@ describe("OrchestratorMcpService thread list", () => {
     snoozedUntil: snoozed ? DateTime.makeUnsafe("2099-01-01T00:00:00Z") : null,
   });
   const shells = [
-    shell("thread:a-snoozed", "project:a", true),
+    {
+      ...shell("thread:a-snoozed", "project:a", true),
+      priority: "urgent" as const,
+      engagement: "queued" as const,
+      waitingOnOthers: true,
+      linearIssue: "MB-7",
+    },
     shell("thread:a-awake", "project:a", false),
     shell("thread:b-snoozed", "project:b", true),
   ];
@@ -3557,6 +3563,13 @@ describe("OrchestratorMcpService thread list", () => {
           ["thread:b-snoozed", "project:b"],
         ],
       );
+      assert.deepInclude(listed.threads[0], {
+        priority: "urgent",
+        engagement: "queued",
+        waitingOnOthers: true,
+        linearIssue: "MB-7",
+      });
+      assert.notProperty(listed.threads[1], "priority");
     }).pipe(Effect.provide(service)),
   );
 });

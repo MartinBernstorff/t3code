@@ -22,6 +22,7 @@ import {
 import {
   readLatestMessages,
   threadCommand,
+  threadFieldsLine,
   type ThreadTools,
   titleFromMessage,
   waitForRun,
@@ -132,6 +133,85 @@ it.effect(
         ),
       ),
     ),
+);
+
+it.effect("set sends each flag as a t3_thread_organize set field", () =>
+  Effect.gen(function* () {
+    const fs = yield* FileSystem.FileSystem;
+    const path = yield* Path.Path;
+    const baseDir = yield* fs.makeTempDirectoryScoped({ prefix: "t3-thread-set-" });
+    yield* persistServerRuntimeState({
+      path: path.join(baseDir, "userdata", "server-runtime.json"),
+      state: yield* makePersistedServerRuntimeState({
+        config: { host: "127.0.0.1", devUrl: undefined },
+        port: 3_773,
+      }),
+    });
+    const calls: Array<{ readonly tool: string; readonly args: unknown }> = [];
+    using _session = vi.spyOn(McpBridge, "mcpToolSession").mockReturnValue(
+      Effect.succeed({
+        call: (tool, args) => {
+          calls.push({ tool, args });
+          return Effect.succeed({ structuredContent: { sequence: 1 } });
+        },
+      }),
+    );
+    const run = (...args: ReadonlyArray<string>) =>
+      Command.runWith(threadCommand, { version: "0.0.0" })(["set", ...args, "--base-dir", baseDir]);
+
+    yield* run(threadId, "--priority", "urgent");
+    yield* run(threadId, "--priority", "none");
+    yield* run(threadId, "--waiting", "on");
+    // Without a thread id, the agent's T3CODE_THREAD_ID picks the thread.
+    yield* run("--waiting", "off");
+    yield* run(threadId, "--engagement", "queued");
+    yield* run(threadId, "--priority", "low", "--snooze", "2h");
+    yield* run(threadId, "--snooze", "2030-01-02T09:00:00+01:00");
+    yield* run(threadId, "--snooze", "none");
+    const empty = yield* Effect.flip(run(threadId));
+    const badSnooze = yield* Effect.flip(run(threadId, "--snooze", "tomorrow"));
+    yield* run(threadId, "--linear", "mb-123", "--priority", "low");
+    yield* run(threadId, "--linear", "none");
+    const badLinear = yield* Effect.flip(run(threadId, "--linear", "MB123"));
+
+    assert.deepStrictEqual(calls, [
+      { tool: "t3_thread_organize", args: { threadId, action: "set", priority: "urgent" } },
+      { tool: "t3_thread_organize", args: { threadId, action: "set", priority: null } },
+      { tool: "t3_thread_organize", args: { threadId, action: "set", waitingOnOthers: true } },
+      { tool: "t3_thread_organize", args: { threadId, action: "set", waitingOnOthers: false } },
+      { tool: "t3_thread_organize", args: { threadId, action: "set", engagement: "queued" } },
+      { tool: "t3_thread_organize", args: { threadId, action: "set", priority: "low" } },
+      {
+        tool: "t3_thread_organize",
+        args: { threadId, action: "snooze", snoozedUntil: "1970-01-01T02:00:00.000Z" },
+      },
+      {
+        tool: "t3_thread_organize",
+        args: { threadId, action: "snooze", snoozedUntil: "2030-01-02T08:00:00.000Z" },
+      },
+      { tool: "t3_thread_organize", args: { threadId, action: "unsnooze" } },
+      {
+        tool: "t3_thread_organize",
+        args: { threadId, action: "set", priority: "low", linearIssue: "MB-123" },
+      },
+      { tool: "t3_thread_organize", args: { threadId, action: "set", linearIssue: null } },
+    ]);
+    assert.strictEqual(empty._tag, "ThreadUsageError");
+    assert.strictEqual(badSnooze._tag, "ThreadUsageError");
+    assert.strictEqual(badLinear._tag, "ThreadUsageError");
+  }).pipe(
+    Effect.scoped,
+    Effect.provide(
+      Layer.mergeAll(
+        NodeServices.layer,
+        NodeCrypto.layer,
+        NetService.layer,
+        ConfigProvider.layer(
+          ConfigProvider.fromEnv({ env: { T3CODE_PORT: "3773", T3CODE_THREAD_ID: threadId } }),
+        ),
+      ),
+    ),
+  ),
 );
 
 /** Answers each tool call with the next scripted response for that tool. */
@@ -287,6 +367,24 @@ it.effect("show returns a --messages count larger than one call can spread", () 
     );
   }),
 );
+
+it("show prints only the thread fields that are set", () => {
+  const thread = {
+    snoozedUntil: null,
+  } as unknown as Parameters<typeof threadFieldsLine>[0];
+  assert.strictEqual(threadFieldsLine(thread), "");
+  assert.strictEqual(
+    threadFieldsLine({
+      ...thread,
+      priority: "high",
+      engagement: "engaged",
+      waitingOnOthers: true,
+      snoozedUntil: "2030-01-02T08:00:00.000Z",
+      linearIssue: "MB-12",
+    }),
+    "priority high  engaged  waiting on others  snoozed until 2030-01-02T08:00:00.000Z  MB-12",
+  );
+});
 
 it("titles from a long first line without splitting an emoji", () => {
   const title = titleFromMessage(`${"a".repeat(78)}😀 and the rest of a long first line`);

@@ -147,7 +147,10 @@ const preprocess = async (options: Parameters<Preprocessor>[0]) => {
     workers.map(
       (worker) =>
         new Promise<ReturnType<typeof findSchemas>>((resolve, reject) => {
-          worker.once("message", resolve);
+          // Node also posts `watch:import` records on this port, so wait for the array.
+          worker.on("message", (message: unknown) => {
+            if (Array.isArray(message)) resolve(message as ReturnType<typeof findSchemas>);
+          });
           worker.once("error", reject);
           worker.once("exit", (code) => {
             if (code !== 0) reject(new Error(`knip-schemas worker exited with code ${code}`));

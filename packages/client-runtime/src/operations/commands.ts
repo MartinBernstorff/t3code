@@ -24,6 +24,10 @@ import {
   type RuntimeMode,
   type RuntimeRequestId,
   type ThreadId,
+  type ThreadPriority,
+  type ThreadEngagement,
+  type LinearIssueId,
+  type LinearWorkspaceSlug,
   type ThreadEnvMode,
   type UploadChatAttachment,
   type GuestMessageId,
@@ -58,6 +62,7 @@ export interface UpdateProjectInput extends CommandMetadata {
   readonly autoPull?: boolean;
   readonly projectIcon?: ProjectIconOverride | null;
   readonly faviconPath?: string | null;
+  readonly linearWorkspaceSlug?: LinearWorkspaceSlug | null;
   readonly defaultThreadEnvMode?: ThreadEnvMode | null;
   readonly scripts?: ReadonlyArray<ProjectScript>;
   readonly pinned?: boolean;
@@ -375,6 +380,9 @@ export const updateProject = Effect.fn("EnvironmentCommands.updateProject")(func
     ...(input.autoPull === undefined ? {} : { autoPull: input.autoPull }),
     ...(input.projectIcon === undefined ? {} : { projectIcon: input.projectIcon }),
     ...(input.faviconPath === undefined ? {} : { faviconPath: input.faviconPath }),
+    ...(input.linearWorkspaceSlug === undefined
+      ? {}
+      : { linearWorkspaceSlug: input.linearWorkspaceSlug }),
     ...(input.defaultThreadEnvMode === undefined
       ? {}
       : { defaultThreadEnvMode: input.defaultThreadEnvMode }),
@@ -508,6 +516,63 @@ export const pinThread = Effect.fn("EnvironmentCommands.pinThread")(function* (
     ...(input.orderKey === undefined ? {} : { orderKey: input.orderKey }),
   });
 });
+
+export interface SetThreadPriorityInput extends ThreadCommandInput {
+  readonly priority: ThreadPriority | null;
+}
+export const setThreadPriority = Effect.fn("EnvironmentCommands.setThreadPriority")(function* (
+  input: SetThreadPriorityInput,
+) {
+  return yield* dispatch({
+    type: "thread.priority.set",
+    commandId: yield* allocateCommandId(input),
+    threadId: input.threadId,
+    priority: input.priority,
+    engage: true,
+  });
+});
+
+export interface SetThreadEngagementInput extends ThreadCommandInput {
+  readonly engagement: ThreadEngagement;
+}
+export const setThreadEngagement = Effect.fn("EnvironmentCommands.setThreadEngagement")(function* (
+  input: SetThreadEngagementInput,
+) {
+  return yield* dispatch({
+    type: "thread.engagement.set",
+    commandId: yield* allocateCommandId(input),
+    threadId: input.threadId,
+    engagement: input.engagement,
+  });
+});
+
+export interface SetThreadWaitingInput extends ThreadCommandInput {
+  readonly waitingOnOthers: boolean;
+}
+export const setThreadWaiting = Effect.fn("EnvironmentCommands.setThreadWaiting")(function* (
+  input: SetThreadWaitingInput,
+) {
+  return yield* dispatch({
+    type: "thread.waiting.set",
+    commandId: yield* allocateCommandId(input),
+    threadId: input.threadId,
+    waitingOnOthers: input.waitingOnOthers,
+  });
+});
+
+export interface SetThreadLinearIssueInput extends ThreadCommandInput {
+  readonly linearIssue: LinearIssueId | null;
+}
+export const setThreadLinearIssue = Effect.fn("EnvironmentCommands.setThreadLinearIssue")(
+  function* (input: SetThreadLinearIssueInput) {
+    return yield* dispatch({
+      type: "thread.linear-issue.set",
+      commandId: yield* allocateCommandId(input),
+      threadId: input.threadId,
+      linearIssue: input.linearIssue,
+    });
+  },
+);
 
 export interface SetThreadAutoSettleInput extends ThreadCommandInput {
   readonly enabled: boolean;

@@ -1,5 +1,6 @@
 import { scopeProjectRef } from "@t3tools/client-runtime/environment";
 import { requestCustomSnooze } from "../components/CustomSnoozeDialog";
+import { requestLinearIssue } from "../components/LinearIssueDialog";
 import { openGuestShareDialog } from "../components/chat/guestShareDialogState";
 import {
   type AtomCommandResult,
@@ -18,6 +19,8 @@ import { useRouter } from "@tanstack/react-router";
 import { pickSnoozePreset, resolveSnoozePresets } from "../components/Sidebar.snooze";
 import {
   buildThreadActionMenuItems,
+  engagementFromThreadAction,
+  priorityFromThreadAction,
   threadActionRequiresOperate,
   type ThreadActionMenuId,
 } from "../components/threadActionMenu.logic";
@@ -29,7 +32,7 @@ import { useOrchestrationCommand } from "../state/use-orchestration-command";
 import { readEnvironmentScope } from "../state/session";
 import {
   readEnvironmentServerConfigLoaded,
-  readEnvironmentSupportsAutoSettleOptOut,
+  readEnvironmentCapabilities,
   readThreadShell,
   useProjects,
 } from "../state/entities";
@@ -83,6 +86,10 @@ export function useThreadActionMenu(input: {
     pinThread,
     confirmAndUnpinThread,
     setThreadAutoSettle,
+    setThreadPriority,
+    setThreadEngagement,
+    setThreadWaiting,
+    setThreadLinearIssue,
     archiveThread,
     deleteThread,
     markThreadUnread,
@@ -124,12 +131,17 @@ export function useThreadActionMenu(input: {
       if (!thread) return;
       const now = new Date();
       const configLoaded = readEnvironmentServerConfigLoaded(threadRef.environmentId);
+      const capabilities = readEnvironmentCapabilities(threadRef.environmentId);
       const supports = {
         settlement: configLoaded,
-        autoSettleOptOut: readEnvironmentSupportsAutoSettleOptOut(threadRef.environmentId),
+        autoSettleOptOut: capabilities?.threadAutoSettleOptOut === true,
         snooze: configLoaded,
         pinning: configLoaded,
         titleRegeneration: configLoaded,
+        priority: capabilities?.threadPriority === true,
+        engagement: capabilities?.threadEngagement === true,
+        waiting: capabilities?.threadWaitingOnOthers === true,
+        linearIssue: capabilities?.threadLinearIssue === true,
       };
       const isRegeneratingTitle = thread.titleRegeneration != null;
       const snoozePresets = resolveSnoozePresets(now, timestampFormat, threadRef.environmentId);
@@ -143,6 +155,10 @@ export function useThreadActionMenu(input: {
         autoSettleEnabled: thread.autoSettleDisabledAt == null,
         isSnoozed: supports.snooze && effectiveSnoozed(thread, { now: now.toISOString() }),
         canSnoozeNow: canSnooze(thread, { now: now.toISOString() }),
+        priority: thread.priority,
+        engagement: thread.engagement,
+        waitingOnOthers: thread.waitingOnOthers,
+        linearIssue: thread.linearIssue,
         isRegeneratingTitle,
         isRunning: !threadRuntimeCanArchive(thread.runtime),
         supports,
@@ -189,6 +205,35 @@ export function useThreadActionMenu(input: {
           failureToast(title, squashAtomCommandFailure(result));
         }
       };
+      const priority = priorityFromThreadAction(action);
+      if (priority !== undefined) {
+        await reportFailure("Failed to set thread priority", () =>
+          setThreadPriority(threadRef, priority),
+        );
+        return;
+      }
+      const engagement = engagementFromThreadAction(action);
+      if (engagement !== undefined) {
+        await reportFailure("Failed to set thread engagement", () =>
+          setThreadEngagement(threadRef, engagement),
+        );
+        return;
+      }
+      if (action === "waiting-on" || action === "waiting-off") {
+        await reportFailure("Failed to update waiting on others", () =>
+          setThreadWaiting(threadRef, action === "waiting-on"),
+        );
+        return;
+      }
+      if (action === "linear-issue") {
+        const issue = await requestLinearIssue(thread.linearIssue);
+        if (issue !== undefined) {
+          await reportFailure("Failed to link Linear issue", () =>
+            setThreadLinearIssue(threadRef, issue),
+          );
+        }
+        return;
+      }
       switch (action) {
         case "find":
           onFind?.(threadRef);

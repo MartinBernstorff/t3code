@@ -293,9 +293,13 @@ export function applyOrchestrationV2ProjectionEvent(
     case "thread.provider-switched":
     case "thread.guest-share-updated":
       return { ...base, thread: event.payload };
-    // Visited tracking and tags are not activity: skip the updatedAt bump.
+    // Visited tracking, tags, priority, engagement, and waiting are not activity: skip the updatedAt bump.
     case "thread.visited":
     case "thread.tags-updated":
+    case "thread.priority-updated":
+    case "thread.engagement-updated":
+    case "thread.waiting-updated":
+    case "thread.linear-issue-updated":
     case "thread.marked-unread":
       return { ...projection, thread: event.payload };
     case "run.created":

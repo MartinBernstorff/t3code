@@ -1,4 +1,5 @@
 import { HOSTED_APP_CHANNEL } from "~/branding";
+import { AUTO_UPDATE_DISABLED } from "@t3tools/shared/autoUpdate";
 import { isElectron, isSecretsFeatureEnabled } from "~/env";
 import { isMacPlatform, isWindowsPlatform, normalizeSearchText } from "~/lib/utils";
 import { STATIC_KEYBINDING_COMMANDS, type KeybindingCommand } from "@t3tools/contracts";
@@ -337,11 +338,27 @@ export const SETTINGS_SEARCH_ITEMS = [
     searchTerms: ["wide full width column layout messages composer monitor"],
   },
   {
+    id: "sidebar-thread-row-items",
+    title: "Sidebar thread rows",
+    to: "/settings/appearance",
+    searchTerms: [
+      "customize show hide sidebar thread row project icon name branch pull request diff changed lines terminals machine provider model time",
+    ],
+  },
+  {
     id: "thread-details-items",
     title: "Thread details",
     to: "/settings/appearance",
     searchTerms: [
       "customize show hide panel card environment editor scripts branch pull request git changes servers automations lineage usage limits 5 hour weekly quota tokens context window",
+    ],
+  },
+  {
+    id: "composer-items",
+    title: "Composer controls",
+    to: "/settings/appearance",
+    searchTerms: [
+      "chat input customize show hide attach attachment button model picker effort permissions access context window meter dictation voice microphone",
     ],
   },
   {
@@ -429,6 +446,20 @@ export const SETTINGS_SEARCH_ITEMS = [
     searchTerms: ["sort projects sidebar manual created recent"],
   },
   {
+    id: "thread-order",
+    title: "Thread order",
+    to: "/settings/general",
+    searchTerms: ["sort threads sidebar priority urgent manual activity turns messages"],
+  },
+  {
+    id: "thread-group-by",
+    title: "Group threads by",
+    to: "/settings/general",
+    searchTerms: [
+      "group sidebar lanes nested then by section project priority engagement inbox queued agent state needs you working waiting",
+    ],
+  },
+  {
     id: "snooze-options",
     title: "Snooze options",
     to: "/settings/threads",
@@ -453,6 +484,12 @@ export const SETTINGS_SEARCH_ITEMS = [
     title: "Working section",
     to: "/settings/general",
     searchTerms: ["hide fold running monitoring threads inbox sidebar shelf"],
+  },
+  {
+    id: "sidebar-row-glyphs",
+    title: "Sidebar row glyphs",
+    to: "/settings/general",
+    searchTerms: ["priority waiting icon indicator thread title display options"],
   },
   {
     id: "boring-sidebar",
@@ -702,6 +739,12 @@ export const SETTINGS_SEARCH_ITEMS = [
     searchTerms: ["enter return command ctrl multiline prompt new line composer"],
   },
   {
+    id: "weekly-usage-meter",
+    title: "Weekly usage meter",
+    to: "/settings/chat",
+    searchTerms: ["usage limits quota weekly rate limit meter composer"],
+  },
+  {
     id: "follow-up-behavior",
     title: "Follow-up behavior",
     to: "/settings/chat",
@@ -866,10 +909,11 @@ export const SETTINGS_SEARCH_ITEMS = [
     searchTerms: ["build plan composer old"],
   },
   {
-    id: "legacy-context-window-indicator",
-    title: "Context window indicator (legacy)",
-    to: "/settings/labs",
-    searchTerms: ["composer meter usage tokens circle old"],
+    id: "context-window-meter-cap",
+    title: "Context window indicator cap",
+    to: "/settings/appearance",
+    targetId: "composer-items",
+    searchTerms: ["composer meter usage tokens limit maximum scale 200k"],
   },
   {
     id: "keybindings",
@@ -1456,7 +1500,8 @@ export function settingsForThisPlatform(
   return items.filter(
     (item) =>
       (isElectron || item.desktopOnly !== true) &&
-      (!item.releaseChannelOnly || isElectron || HOSTED_APP_CHANNEL !== null) &&
+      (!item.releaseChannelOnly ||
+        (!AUTO_UPDATE_DISABLED && (isElectron || HOSTED_APP_CHANNEL !== null))) &&
       (!item.secretsFeatureOnly || isSecretsFeatureEnabled) &&
       (!item.macOnly || isMacPlatform(platform)) &&
       (!item.windowsOnly || isWindowsPlatform(platform)),

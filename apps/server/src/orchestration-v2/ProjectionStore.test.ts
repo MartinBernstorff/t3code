@@ -5094,6 +5094,7 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
     ["a typed /compact", "user", "mobile", undefined, false, "/compact"],
     ["a normalized idle command", "agent", "server", undefined, true, " \t\u00a0/COMPACT\u3000\n"],
     ["an ordinary prompt with idle metadata", "user", "web", "onReturn", false, "Continue"],
+    ["an agent-sent prompt", "agent", "server", undefined, false, "Continue"],
   ] as const)(
     "keeps the shell on the user's last turn only during %s",
     ([name, createdBy, creationSource, idleCompaction, silent, text]) =>
@@ -5133,27 +5134,30 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
             deletedAt: null,
           },
         });
-        yield* projectionStore.apply({
-          id: EventId.make(`event:projection-shell-silent:${key}:message`),
-          type: "message.updated",
-          threadId,
-          occurredAt: now,
-          payload: {
-            createdBy,
-            creationSource,
-            ...(idleCompaction === undefined ? {} : { idleCompaction }),
-            id: messageId,
+        // The second upsert is an edit, which must not count the turn again.
+        for (const suffix of ["message", "message-edit"]) {
+          yield* projectionStore.apply({
+            id: EventId.make(`event:projection-shell-silent:${key}:${suffix}`),
+            type: "message.updated",
             threadId,
-            runId,
-            nodeId: null,
-            role: "user",
-            text,
-            attachments: [],
-            streaming: false,
-            createdAt: now,
-            updatedAt: now,
-          },
-        });
+            occurredAt: now,
+            payload: {
+              createdBy,
+              creationSource,
+              ...(idleCompaction === undefined ? {} : { idleCompaction }),
+              id: messageId,
+              threadId,
+              runId,
+              nodeId: null,
+              role: "user",
+              text,
+              attachments: [],
+              streaming: false,
+              createdAt: now,
+              updatedAt: now,
+            },
+          });
+        }
         yield* projectionStore.apply({
           id: EventId.make(`event:projection-shell-silent:${key}:run`),
           type: "run.created",
@@ -5193,19 +5197,23 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
             activityRunStatus: shell?.activityRunStatus ?? null,
             activeRunId: shell?.activeRunId ?? null,
             latestUserMessageAt: shell?.latestUserMessageAt != null,
+            userTurnCount: shell?.userTurnCount,
           }));
         });
+        const userTurnCount = !silent && createdBy === "user" ? 1 : 0;
         const visible = {
           latestRunId: runId,
           activityRunStatus: "running" as const,
           activeRunId: runId,
           latestUserMessageAt: true,
+          userTurnCount,
         };
         const hidden = {
           latestRunId: null,
           activityRunStatus: null,
           activeRunId: null,
           latestUserMessageAt: false,
+          userTurnCount,
         };
         assert.deepStrictEqual(yield* presented, [
           silent ? hidden : visible,

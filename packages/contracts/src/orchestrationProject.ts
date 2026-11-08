@@ -4,6 +4,7 @@ import { IsoDateTime, ProjectId, TrimmedNonEmptyString } from "./baseSchemas.ts"
 import { RepositoryIdentity, ThreadEnvMode } from "./environment.ts";
 import { ModelSelection } from "./modelSelection.ts";
 import { ProjectScript, ReceivedProjectIcon } from "./project.ts";
+import { LinearWorkspaceSlug } from "./linearIssue.ts";
 
 export const OrchestrationProjectShell = Schema.Struct({
   id: ProjectId,
@@ -16,6 +17,7 @@ export const OrchestrationProjectShell = Schema.Struct({
   autoPull: Schema.optional(Schema.Boolean),
   faviconPath: Schema.optional(Schema.NullOr(TrimmedNonEmptyString)),
   projectIcon: Schema.optional(Schema.NullOr(ReceivedProjectIcon)),
+  linearWorkspaceSlug: Schema.optional(Schema.NullOr(LinearWorkspaceSlug)),
   scripts: Schema.Array(ProjectScript),
   // Pinned projects lead project pickers; archived ones leave them. Optional so older servers decode.
   pinnedAt: Schema.optional(Schema.NullOr(IsoDateTime)),

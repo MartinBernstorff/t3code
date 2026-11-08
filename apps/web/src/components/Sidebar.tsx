@@ -1,5 +1,12 @@
 import { attachSidebarTree } from "../lib/sidebarTree";
 import { type EnvironmentId, type ScopedProjectRef } from "@t3tools/contracts";
+import type { SidebarThreadSort } from "@t3tools/contracts/settings";
+import {
+  type ThreadGroupInput,
+  type ThreadGroupSection,
+  threadLaneDropChanges,
+  threadLaneRows,
+} from "@t3tools/client-runtime/state/thread-grouping";
 import type { EnvironmentServerConfig } from "@t3tools/client-runtime/connection";
 import { ThreadContextDragGhost } from "./chat/ThreadContextDragGhost";
 import {
@@ -9,6 +16,7 @@ import {
 } from "./chat/threadContextDrag";
 import { discardComposerDraft } from "../lib/discardComposerDraft";
 import { requestCustomSnooze } from "./CustomSnoozeDialog";
+import { requestLinearIssue } from "./LinearIssueDialog";
 import { useAtomValue } from "@effect/atom-react";
 import * as Option from "effect/Option";
 import { Atom } from "effect/reactivity";
@@ -34,7 +42,7 @@ import {
   createInboxReturnTracker,
   isThreadWorking,
 } from "@t3tools/client-runtime/state/thread-inbox";
-import { sortSettledThreads } from "@t3tools/client-runtime/state/thread-sort";
+import { sortSettledThreads, sortSidebarThreads } from "@t3tools/client-runtime/state/thread-sort";
 import {
   nextShownOrder,
   threadSearchMatchKey,
@@ -175,6 +183,8 @@ import { ProjectRowActions } from "./ProjectComboboxRow";
 import {
   buildDraftActionMenuItems,
   buildThreadActionMenuItems,
+  engagementFromThreadAction,
+  priorityFromThreadAction,
   threadActionRequiresOperate,
 } from "./threadActionMenu.logic";
 import {
@@ -201,6 +211,7 @@ import {
   searchSidebarThreads,
   shouldCreateNewThreadInCurrentProject,
   shouldNavigateAfterThreadPark,
+  sidebarLaneLabel,
   sidebarListItemId,
   sidebarThreadKeyAtY,
   sortInboxThreadsByReturn,
@@ -215,7 +226,9 @@ import {
 } from "./Sidebar.logic";
 import {
   createSidebarCollisionDetection,
+  createSidebarLaneCollisionDetection,
   createSidebarSortingStrategy,
+  isSidebarSettledShelfId,
   restrictBelowSidebarLabel,
 } from "./Sidebar.drag";
 import { SidebarPointerSensor } from "./Sidebar.pointer";
@@ -262,14 +275,17 @@ import {
   type SidebarSweepAction,
 } from "./sidebar/SidebarThreadRow";
 import { SidebarDraftBlock } from "./sidebar/SidebarDraftBlock";
+import { resolveSidebarThreadRowVisibility } from "./sidebar/sidebarThreadRowItems";
 import {
   SidebarProjectFolderHeader,
   sidebarFolderRowId,
 } from "./sidebar/SidebarProjectFolderHeader";
 import {
   SidebarDragBoundary,
+  SidebarLaneHeader,
   SidebarSectionHeader,
   SidebarSectionPlaceholder,
+  sidebarLaneRowId,
 } from "./sidebar/SidebarListMarkers";
 
 function sameSidebarProviderEntries(
@@ -323,12 +339,15 @@ const sidebarProviderEntriesAtom = Atom.make((get) => {
 
 const EMPTY_PROVIDER_ENTRIES: ReadonlyMap<string, SidebarProviderEntry> = new Map();
 const EMPTY_THREADS: readonly EnvironmentThreadShell[] = [];
+const EMPTY_LANE_KEYS: readonly string[] = [];
+const LaneKeys = Schema.Array(Schema.String);
 
 const SETTLED_TAIL_INITIAL_COUNT = 10;
 const SETTLED_TAIL_PAGE_COUNT = 25;
 const SETTLED_SHELF_EXPANDED_KEY = "t3code:sidebar:settled-expanded";
 const SNOOZED_SHELF_EXPANDED_KEY = "t3code:sidebar:snoozed-expanded";
 const WORKING_SHELF_EXPANDED_KEY = "t3code:sidebar:working-expanded";
+const COLLAPSED_LANES_KEY = "t3code:sidebar:collapsed-lanes";
 
 const inboxReturns = createInboxReturnTracker();
 
@@ -354,6 +373,7 @@ interface SidebarThreadPartitionInput {
   readonly workingShelfEnabled: boolean;
   /** Boring mode: folders list active threads by the user's latest message. */
   readonly sortActiveBySend: boolean;
+  readonly threadSort: SidebarThreadSort;
   // Snooze wakes, the queued-turn grace and the Working shelf's exit grace depend
   // on the clock, so the minute tick, the precise snooze-wake tick and the inbox
   // tracker's expiry version are inputs: a new key repartitions.
@@ -380,8 +400,10 @@ function resolveDraggedOrders(input: {
   readonly settledThreads: readonly EnvironmentThreadShell[];
   readonly activeThreads: readonly EnvironmentThreadShell[];
   readonly workingShelfEnabled: boolean;
+  readonly threadSort: SidebarThreadSort;
 }): typeof NO_DRAGGED_ORDERS {
-  const { drag, threadByKey, settledThreads, activeThreads, workingShelfEnabled } = input;
+  const { drag, threadByKey, settledThreads, activeThreads, workingShelfEnabled, threadSort } =
+    input;
   const thread = threadByKey.get(drag.activeKey);
   if (thread === undefined) return NO_DRAGGED_ORDERS;
   const others = (list: readonly EnvironmentThreadShell[]) =>
@@ -391,13 +413,34 @@ function resolveDraggedOrders(input: {
       ...others(settledThreads),
       applySidebarThreadDrop(thread, "settled", drag.occurredAt),
     ]).map(threadShellKey),
-    activeOrder: workingShelfEnabled
-      ? sortInboxThreadsByReturn(
-          [...others(activeThreads), applySidebarThreadDrop(thread, "active", drag.occurredAt)],
-          inboxReturns.returnedAt,
-        ).map(threadShellKey)
-      : undefined,
+    activeOrder:
+      threadSort !== "manual"
+        ? sortSidebarThreads(
+            [...others(activeThreads), applySidebarThreadDrop(thread, "active", drag.occurredAt)],
+            threadSort,
+          ).map(threadShellKey)
+        : workingShelfEnabled
+          ? sortInboxThreadsByReturn(
+              [...others(activeThreads), applySidebarThreadDrop(thread, "active", drag.occurredAt)],
+              inboxReturns.returnedAt,
+            ).map(threadShellKey)
+          : undefined,
   };
+}
+
+// In Group by mode, lanes draw these rows and markers at the active placeholder.
+const LANE_REPLACED_ITEMS = new Set([
+  "thread:pinned",
+  "thread:active",
+  "thread:working",
+  "marker:pinned-header",
+  "marker:pinned-divider",
+  "marker:active-placeholder",
+  "marker:working-header",
+]);
+
+function sidebarListItemPart(item: SidebarListItem): string {
+  return item.kind === "thread" ? `thread:${item.section}` : `marker:${item.marker}`;
 }
 
 function routeThreadOnly(
@@ -423,6 +466,9 @@ function useSidebarThreads(input: {
   readonly folderGroups: readonly SidebarProjectSnapshot[] | null;
   // Keeps folders with no active threads, so a project the user filtered to or pinned can start one.
   readonly keepEmptyFolders: (group: SidebarProjectSnapshot) => boolean;
+  // Project lanes for Group by Project, in order.
+  readonly laneProjects: readonly SidebarProjectSnapshot[];
+  readonly dragging: boolean;
 }) {
   const {
     projectScopeKey,
@@ -435,10 +481,23 @@ function useSidebarThreads(input: {
     routeRowThreadKey,
     folderGroups,
     keepEmptyFolders: keepEmpty,
+    laneProjects,
+    dragging,
   } = input;
   // Folders already separate the work, so boring mode has no Working shelf.
   const workingShelfEnabled =
     useClientSettings((s) => s.sidebarWorkingShelfEnabled) && folderGroups === null;
+  const threadSort = useClientSettings((s) => s.sidebarThreadSort);
+  const groupBy = useClientSettings((s) => s.sidebarGroupBy);
+  // Boring mode keeps its project folders; Group by applies to the standard sidebar.
+  // Section alone keeps the standard sidebar, with its drag targets and Working shelf.
+  const laneLevels =
+    folderGroups === null && !(groupBy.length === 1 && groupBy[0] === "section") ? groupBy : null;
+  const [collapsedLaneKeys, setCollapsedLaneKeys] = useLocalStorage(
+    COLLAPSED_LANES_KEY,
+    EMPTY_LANE_KEYS,
+    LaneKeys,
+  );
   const inboxReturnsVersion = useSyncExternalStore(
     inboxReturns.subscribe,
     inboxReturns.getSnapshot,
@@ -483,6 +542,7 @@ function useSidebarThreads(input: {
     optimisticDrop,
     workingShelfEnabled,
     sortActiveBySend: folderGroups !== null,
+    threadSort,
     clockKey: `${nowMinute}:${snoozeWakeClock}:${inboxReturnsVersion}`,
   });
 
@@ -540,29 +600,65 @@ function useSidebarThreads(input: {
               : EMPTY_THREADS,
           };
         });
-  const orderedThreads = [
-    ...pinnedThreads,
-    ...(projectFolders === null
-      ? activeThreads
-      : projectFolders.flatMap((folder) => folder.threads)),
-    ...visibleWorkingThreads,
-    ...visibleSnoozedThreads,
-    ...renderedSettledThreads,
-  ];
-  const sectionByThreadKey = new Map<string, SidebarSection>();
-  for (const [list, section] of [
+  const sectionLists = [
     [pinnedThreads, "pinned"],
     [activeThreads, "active"],
     [workingThreads, "working"],
     [snoozedThreads, "snoozed"],
     [settledThreads, "settled"],
-  ] as const) {
+  ] as const;
+  // Lanes replace the pinned, active, and working rows; the snoozed and settled shelves stay.
+  const laneRows = (() => {
+    if (laneLevels === null) return null;
+    const sectionOfThread = new Map<ThreadGroupInput, ThreadGroupSection>();
+    for (const [list, section] of sectionLists) {
+      if (section === "snoozed" || section === "settled") continue;
+      for (const thread of list) sectionOfThread.set(thread, section);
+    }
+    return threadLaneRows(
+      [...pinnedThreads, ...activeThreads, ...workingThreads],
+      laneLevels,
+      {
+        projects: laneProjects.map((group) => ({
+          key: group.projectKey,
+          memberProjectKeys: group.memberProjectRefs.map(
+            (ref) => `${ref.environmentId}:${ref.projectId}`,
+          ),
+        })),
+        sectionOf: (thread) => sectionOfThread.get(thread) ?? "active",
+      },
+      {
+        keys: new Set(collapsedLaneKeys),
+        // A collapsed lane still shows the open thread.
+        keepWhenCollapsed: (thread) => threadShellKey(thread) === routeRowThreadKey,
+      },
+      { showEmptyDropTargets: dragging },
+    ).map((row) =>
+      row.kind === "lane" ? { ...row, label: sidebarLaneLabel(row.lane, laneProjects) } : row,
+    );
+  })();
+  const orderedThreads = [
+    ...(laneRows !== null
+      ? laneRows.flatMap((row) => (row.kind === "thread" ? [row.thread] : []))
+      : [
+          ...pinnedThreads,
+          ...(projectFolders === null
+            ? activeThreads
+            : projectFolders.flatMap((folder) => folder.threads)),
+          ...visibleWorkingThreads,
+        ]),
+    ...visibleSnoozedThreads,
+    ...renderedSettledThreads,
+  ];
+  const sectionByThreadKey = new Map<string, SidebarSection>();
+  for (const [list, section] of sectionLists) {
     for (const thread of list) sectionByThreadKey.set(threadShellKey(thread), section);
   }
   return {
     ...partition,
     threads,
     workingShelfEnabled,
+    threadSort,
     searchableThreads: [
       ...pinnedThreads,
       ...activeThreads,
@@ -586,6 +682,11 @@ function useSidebarThreads(input: {
     workingShelfExpanded,
     toggleWorkingShelf: () => setWorkingShelfExpanded((value) => !value),
     projectFolders,
+    laneRows,
+    toggleLane: (laneKey: string) =>
+      setCollapsedLaneKeys((keys) =>
+        keys.includes(laneKey) ? keys.filter((key) => key !== laneKey) : [...keys, laneKey],
+      ),
     toggleProjectFolder: (group: SidebarProjectSnapshot) => {
       const keys = sidebarFolderExpansionKeys(group);
       setProjectExpanded(keys, !resolveProjectExpanded(projectExpandedById, keys));
@@ -618,6 +719,7 @@ function partitionSidebarThreads(input: SidebarThreadPartitionInput) {
     optimisticDrop,
     workingShelfEnabled,
     sortActiveBySend,
+    threadSort,
   } = input;
   const preciseNow = new Date().toISOString();
   const visible = filterSidebarV2VisibleThreads(threads, scopedProjectKeys, delegatedUnderParent);
@@ -675,11 +777,14 @@ function partitionSidebarThreads(input: SidebarThreadPartitionInput) {
   }
   // Availability gates dragging only; sorting must stay consistent across clients.
   const sortedPinned = sortPinnedThreadsForSidebar(pinned);
-  const sortedActive = sortActiveBySend
-    ? sortWorkingThreadsBySend(active)
-    : workingShelfEnabled
-      ? sortInboxThreadsByReturn(active, inboxObservation.returnedAt)
-      : sortThreadsForSidebar(active);
+  const sortedActive =
+    threadSort !== "manual"
+      ? sortSidebarThreads(active, threadSort)
+      : sortActiveBySend
+        ? sortWorkingThreadsBySend(active)
+        : workingShelfEnabled
+          ? sortInboxThreadsByReturn(active, inboxObservation.returnedAt)
+          : sortThreadsForSidebar(active);
   return {
     pinnedThreads:
       optimisticDrop?.section !== "pinned" || optimisticDrop.order === null
@@ -914,6 +1019,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
   const confirmThreadDelete = useClientSettings((s) => s.confirmThreadDelete);
   const confirmThreadArchive = useClientSettings((s) => s.confirmThreadArchive);
   const timestampFormat = useClientSettings((s) => s.timestampFormat);
+  const threadRowVisibleItems = useClientSettings(resolveSidebarThreadRowVisibility);
   const projectGroupingSettings = useClientSettings(selectProjectGroupingSettings);
   const {
     settleThread,
@@ -924,6 +1030,10 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     unpinThread,
     confirmAndUnpinThread,
     setThreadAutoSettle,
+    setThreadPriority,
+    setThreadEngagement,
+    setThreadWaiting,
+    setThreadLinearIssue,
     turnThreadIntoProject,
     reorderPinnedThread,
     reorderActiveThread,
@@ -1051,6 +1161,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     readonly occurredAt: string;
     readonly activationY: number | null;
     readonly targetSection: SidebarSection | null;
+    readonly targetLane: string | null;
     readonly contextDrag: boolean;
   } | null>(null);
   const dragSensorRef = useRef<SidebarPointerSensor | null>(null);
@@ -1293,6 +1404,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
 
   const {
     workingShelfEnabled,
+    threadSort,
     pinnedThreads,
     draggableThreadKeys,
     activeReorderableThreadKeys,
@@ -1315,6 +1427,8 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     toggleWorkingShelf,
     projectFolders,
     toggleProjectFolder,
+    laneRows,
+    toggleLane,
     renderedSettledThreads,
     visibleSnoozedThreads,
     visibleWorkingThreads,
@@ -1344,6 +1458,8 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
       : null,
     keepEmptyFolders: (group) =>
       scopedProjectGroups.length > 0 || (group.pinned && !group.archived),
+    laneProjects: scopedProjectGroups.length === 0 ? projectGroups : scopedProjectGroups,
+    dragging: dragState !== null,
   });
 
   // Ranked across environments as the palette ranks them, so one
@@ -1709,8 +1825,16 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     };
   };
 
-  const isContextDrag = dragState?.contextDrag === true || dragState?.activeSection === "working";
-  const dragTargetSection = isContextDrag ? null : (dragState?.targetSection ?? null);
+  // Working rows only drag out as context, except onto Group by lane headers.
+  const isContextDrag =
+    dragState?.contextDrag === true ||
+    (dragState?.activeSection === "working" && laneRows === null);
+  const dragTargetLane = dragState?.targetLane ?? null;
+  const dragTargetSection = isContextDrag
+    ? null
+    : dragTargetLane !== null && isSidebarSettledShelfId(dragTargetLane)
+      ? "settled"
+      : (dragState?.targetSection ?? null);
   const finishThreadDrag = (started: boolean) => {
     dragSensorRef.current = null;
     contextDragKeyRef.current = null;
@@ -1753,15 +1877,12 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
         ? current
         : { ...current, contextDrag },
     );
-    if (!contextDrag) {
-      endThreadContextDrag();
-      return false;
-    }
-    restoreDragScroll();
     const threads = contextDragThreads();
     const title =
       threadByKeyRef.current.get(contextDragKeyRef.current ?? "")?.title.trim() || "Thread";
     moveThreadContextDragGhost(point, { title, count: threads.length });
+    if (!contextDrag) return false;
+    restoreDragScroll();
     return true;
   };
   const dropThreadContextDrag = (point: { x: number; y: number }) => {
@@ -1907,7 +2028,8 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     setDragState({
       activeKey,
       activeSection,
-      targetSection: activeSection,
+      targetSection: laneRows === null ? activeSection : null,
+      targetLane: null,
       contextDrag: false,
       occurredAt: new Date().toISOString(),
       activationY:
@@ -1985,6 +2107,9 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     projectFolders
       ?.map((folder) => `${folder.group.projectKey}:${folder.threads.length}`)
       .join("\n") ?? "",
+    laneRows
+      ?.map((row) => (row.kind === "lane" ? `lane:${row.lane.key}` : threadShellKey(row.thread)))
+      .join("\n") ?? "",
     visibleDraftSessionCount,
     routeDraftIdForRows ?? "",
   ].join("\0");
@@ -2003,7 +2128,44 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     previousShelfExpansionKeyRef.current = shelfExpansionKey;
     listMotionRef.current?.update(listMotionPass.animate && shelvesUnchanged);
   }, [listMotionPass, shelfExpansionKey]);
+  const lanePathByRowId = new Map(
+    (laneRows ?? []).flatMap((row) =>
+      row.kind === "lane" ? [[sidebarLaneRowId(row.lane.key), row.lane.path] as const] : [],
+    ),
+  );
+  const laneDropChanges = (threadKey: string, laneRowId: string) => {
+    const path = lanePathByRowId.get(laneRowId);
+    const thread = threadByKey.get(threadKey);
+    const section = sectionByThreadKey.get(threadKey);
+    if (path === undefined || thread === undefined || section === undefined) return [];
+    const configLoaded = serverConfigs.has(thread.environmentId);
+    const capabilities = serverConfigs.get(thread.environmentId)?.environment.capabilities;
+    return threadLaneDropChanges(path, {
+      priority: thread.priority,
+      engagement: thread.engagement,
+      pinned: thread.pinnedAt != null,
+      section,
+      // Same gates as the thread menu.
+      supports: {
+        priority: capabilities?.threadPriority === true,
+        engagement: capabilities?.threadEngagement === true,
+        pin: configLoaded,
+        unpin: configLoaded,
+        unsettle: configLoaded,
+        unsnooze: configLoaded,
+      },
+    });
+  };
   const handleThreadDragOver = (event: DragOverEvent) => {
+    if (laneRows !== null) {
+      const overId = event.over === null ? null : String(event.over.id);
+      setDragState((current) =>
+        current === null || current.activeKey !== String(event.active.id)
+          ? current
+          : { ...current, targetLane: overId },
+      );
+      return;
+    }
     const target = event.over
       ? resolveSidebarDropTarget(sidebarListItems, String(event.active.id), String(event.over.id))
       : null;
@@ -2024,10 +2186,12 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
           settledThreads,
           activeThreads,
           workingShelfEnabled,
+          threadSort,
         });
   const sidebarSortingStrategy = createSidebarSortingStrategy({
     items: sidebarListItems,
-    enabled: !isContextDrag,
+    // Group by drops only set fields, so rows hold still.
+    enabled: !isContextDrag && laneRows === null,
     boundaryLabelHeight: SIDEBAR_DRAG_LABEL_HEIGHT,
     settledOrder: draggedSettledOrder,
     ...(draggedActiveOrder === undefined ? {} : { activeOrder: draggedActiveOrder }),
@@ -2040,6 +2204,12 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
   const draggedFromSection = dragState?.activeSection;
   const dragActivationY = dragState?.activationY;
   const dndCollisionDetection = (() => {
+    if (laneRows !== null) {
+      return createSidebarLaneCollisionDetection(
+        (id) => draggedThreadKey !== undefined && laneDropChanges(draggedThreadKey, id).length > 0,
+        draggedFromSection !== undefined && draggedFromSection !== "settled",
+      );
+    }
     if (draggedThreadKey === undefined || draggedFromSection === undefined)
       return createSidebarCollisionDetection(() => true);
     const source = threadByKey.get(draggedThreadKey);
@@ -2062,7 +2232,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
             activeOrder: activeKeys,
             activeKeysById,
             activeReorderableKeys: activeReorderableThreadKeys,
-            activeTimeOrdered: workingShelfEnabled,
+            activeTimeOrdered: workingShelfEnabled || threadSort !== "manual",
           }).kind !== "none"
         );
       },
@@ -2072,8 +2242,60 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
       },
     );
   })();
+  const handleLaneDrop = (activeKey: string, laneRowId: string) => {
+    const thread = threadByKey.get(activeKey);
+    const changes = laneDropChanges(activeKey, laneRowId);
+    if (thread === undefined || changes.length === 0 || !checkThreadOperations([thread])) return;
+    const threadRef = scopeThreadRef(thread.environmentId, thread.id);
+    void (async () => {
+      for (const change of changes) {
+        const [operation, title] =
+          change.kind === "priority"
+            ? [setThreadPriority(threadRef, change.priority), "Failed to set thread priority"]
+            : change.kind === "engagement"
+              ? [
+                  setThreadEngagement(threadRef, change.engagement),
+                  "Failed to set thread engagement",
+                ]
+              : change.kind === "pin"
+                ? [pinThread(threadRef, {}), "Failed to pin thread"]
+                : change.kind === "unpin"
+                  ? [unpinThread(threadRef), "Failed to unpin thread"]
+                  : change.kind === "unsettle"
+                    ? [unsettleThread(threadRef), "Failed to un-settle thread"]
+                    : [unsnoozeThread(threadRef), "Failed to wake thread"];
+        const result = await operation;
+        if (result._tag === "Success") continue;
+        if (!isAtomCommandInterrupted(result)) {
+          const error = squashAtomCommandFailure(result);
+          toastManager.add(
+            stackedThreadToast({
+              type: "error",
+              title,
+              description: error instanceof Error ? error.message : "An error occurred.",
+            }),
+          );
+        }
+        return;
+      }
+    })();
+  };
   const handleThreadDragEnd = (event: DragEndEvent) => {
     const activeKey = String(event.active.id);
+    if (laneRows !== null) {
+      const overId = event.over === null ? null : String(event.over.id);
+      if (overId !== null && isSidebarSettledShelfId(overId)) {
+        const thread = threadByKey.get(activeKey);
+        if (
+          thread !== undefined &&
+          sectionByThreadKey.get(activeKey) !== "settled" &&
+          checkThreadOperations([thread])
+        ) {
+          attemptSettle(scopeThreadRef(thread.environmentId, thread.id));
+        }
+      } else if (overId !== null) handleLaneDrop(activeKey, overId);
+      return;
+    }
     const activeSection = sectionByThreadKey.get(activeKey);
     const target =
       event.over === null
@@ -2095,7 +2317,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
       activeOrder: activeKeys,
       activeKeysById,
       activeReorderableKeys: activeReorderableThreadKeys,
-      activeTimeOrdered: workingShelfEnabled,
+      activeTimeOrdered: workingShelfEnabled || threadSort !== "manual",
     });
     if (plan.kind === "none") return;
     if (plan.kind === "settle" && settlingThreadKeysRef.current.has(activeKey)) return;
@@ -2593,9 +2815,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
           projectByKey.get(`${thread.environmentId}:${thread.projectId}`)?.workspaceRoot ??
           null;
         const configLoaded = serverConfigs.has(thread.environmentId);
-        const supportsAutoSettleOptOut =
-          serverConfigs.get(thread.environmentId)?.environment.capabilities
-            .threadAutoSettleOptOut === true;
+        const capabilities = serverConfigs.get(thread.environmentId)?.environment.capabilities;
         const isRegeneratingTitle = thread.titleRegeneration != null;
         const isSettled = settledThreadKeysRef.current.has(threadKey);
         const isSnoozed = snoozedThreadKeysRef.current.has(threadKey);
@@ -2634,6 +2854,10 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
               autoSettleEnabled: thread.autoSettleDisabledAt == null,
               isSnoozed,
               canSnoozeNow: canSnooze(thread, { now: new Date().toISOString() }),
+              priority: thread.priority,
+              engagement: thread.engagement,
+              waitingOnOthers: thread.waitingOnOthers,
+              linearIssue: thread.linearIssue,
               isRegeneratingTitle,
               isRunning: !threadRuntimeCanArchive(thread.runtime),
               canShareWithGuest: appAtomRegistry.get(
@@ -2642,10 +2866,14 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
               canTurnIntoProject: canTurnThreadIntoProject(threadRef),
               supports: {
                 settlement: configLoaded,
-                autoSettleOptOut: supportsAutoSettleOptOut,
+                autoSettleOptOut: capabilities?.threadAutoSettleOptOut === true,
                 snooze: configLoaded,
                 pinning: configLoaded,
                 titleRegeneration: configLoaded,
+                priority: capabilities?.threadPriority === true,
+                engagement: capabilities?.threadEngagement === true,
+                waiting: capabilities?.threadWaitingOnOthers === true,
+                linearIssue: capabilities?.threadLinearIssue === true,
               },
               snoozePresets,
             }),
@@ -2665,6 +2893,66 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                   thread.environmentId,
                 );
           if (preset) attemptSnooze(threadRef, preset);
+          return;
+        }
+        const priority = priorityFromThreadAction(clicked.value);
+        if (priority !== undefined) {
+          const result = await setThreadPriority(threadRef, priority);
+          if (result._tag === "Failure" && !isAtomCommandInterrupted(result)) {
+            const error = squashAtomCommandFailure(result);
+            toastManager.add(
+              stackedThreadToast({
+                type: "error",
+                title: "Failed to set thread priority",
+                description: error instanceof Error ? error.message : "An error occurred.",
+              }),
+            );
+          }
+          return;
+        }
+        const engagement = engagementFromThreadAction(clicked.value);
+        if (engagement !== undefined) {
+          const result = await setThreadEngagement(threadRef, engagement);
+          if (result._tag === "Failure" && !isAtomCommandInterrupted(result)) {
+            const error = squashAtomCommandFailure(result);
+            toastManager.add(
+              stackedThreadToast({
+                type: "error",
+                title: "Failed to set thread engagement",
+                description: error instanceof Error ? error.message : "An error occurred.",
+              }),
+            );
+          }
+          return;
+        }
+        if (clicked.value === "waiting-on" || clicked.value === "waiting-off") {
+          const result = await setThreadWaiting(threadRef, clicked.value === "waiting-on");
+          if (result._tag === "Failure" && !isAtomCommandInterrupted(result)) {
+            const error = squashAtomCommandFailure(result);
+            toastManager.add(
+              stackedThreadToast({
+                type: "error",
+                title: "Failed to update waiting on others",
+                description: error instanceof Error ? error.message : "An error occurred.",
+              }),
+            );
+          }
+          return;
+        }
+        if (clicked.value === "linear-issue") {
+          const issue = await requestLinearIssue(thread.linearIssue);
+          if (issue === undefined) return;
+          const result = await setThreadLinearIssue(threadRef, issue);
+          if (result._tag === "Failure" && !isAtomCommandInterrupted(result)) {
+            const error = squashAtomCommandFailure(result);
+            toastManager.add(
+              stackedThreadToast({
+                type: "error",
+                title: "Failed to link Linear issue",
+                description: error instanceof Error ? error.message : "An error occurred.",
+              }),
+            );
+          }
           return;
         }
         switch (clicked.value) {
@@ -3324,6 +3612,8 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                         section: SidebarSection,
                         // The tree row of the project folder this row sits in.
                         folderRow?: string,
+                        laneRow?: string,
+                        laneDepth = 0,
                       ) => {
                         const threadKey = scopedThreadKey(
                           scopeThreadRef(thread.environmentId, thread.id),
@@ -3342,6 +3632,8 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                             key={threadKey}
                             sortableId={threadKey}
                             contextDrag={isContextDrag}
+                            // Group by drops only set fields, and empty lanes appear mid-drag.
+                            holdInPlace={laneRows !== null}
                             sortableDisabled={
                               projectFolders !== null ||
                               renamingThreadKey === threadKey ||
@@ -3350,8 +3642,10 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                             }
                             thread={thread}
                             variant={rowVariant}
+                            laneDepth={laneDepth}
                             navigationParent={
                               folderRow ??
+                              laneRow ??
                               (section === "working" ||
                               section === "snoozed" ||
                               section === "settled"
@@ -3419,6 +3713,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                               EMPTY_PROVIDER_ENTRIES
                             }
                             timestampFormat={timestampFormat}
+                            visibleItems={threadRowVisibleItems}
                             onThreadClick={handleThreadClick}
                             onThreadActivate={navigateToThread}
                             onStartRename={startThreadRename}
@@ -3440,6 +3735,8 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                         );
                       };
                       const from = isContextDrag ? null : (dragState?.activeSection ?? null);
+                      // Lanes hold working threads, so no Working header is shown above the shelves.
+                      const shownWorkingCount = laneRows === null ? workingThreads.length : 0;
                       const items: ReactNode[] = [
                         <SidebarDraftBlock
                           key="draft-sessions"
@@ -3452,6 +3749,42 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                         />,
                       ];
                       for (const item of sidebarListItems) {
+                        if (
+                          laneRows !== null &&
+                          LANE_REPLACED_ITEMS.has(sidebarListItemPart(item))
+                        ) {
+                          if (item.kind === "marker" && item.marker === "active-placeholder") {
+                            for (const row of laneRows) {
+                              items.push(
+                                row.kind === "lane" ? (
+                                  <SidebarLaneHeader
+                                    key={`lane:${row.lane.key}`}
+                                    laneKey={row.lane.key}
+                                    parentLaneKey={row.parentKey}
+                                    depth={row.depth}
+                                    label={row.label}
+                                    count={row.lane.threads.length}
+                                    expanded={!row.collapsed}
+                                    isDropTarget={
+                                      !isContextDrag &&
+                                      dragState?.targetLane === sidebarLaneRowId(row.lane.key)
+                                    }
+                                    onToggle={toggleLane}
+                                  />
+                                ) : (
+                                  renderThreadRow(
+                                    row.thread,
+                                    sectionByThreadKey.get(threadShellKey(row.thread)) ?? "active",
+                                    undefined,
+                                    sidebarLaneRowId(row.laneKey),
+                                    row.depth,
+                                  )
+                                ),
+                              );
+                            }
+                          }
+                          continue;
+                        }
                         if (item.kind === "thread") {
                           // Folders draw active rows in their own place below.
                           if (projectFolders !== null && item.section === "active") continue;
@@ -3544,7 +3877,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                               <SidebarSectionHeader
                                 key="snoozed-shelf-header"
                                 marker="snoozed-header"
-                                className={cn(workingThreads.length === 0 && "mt-auto")}
+                                className={cn(shownWorkingCount === 0 && "mt-auto")}
                                 label="Snoozed"
                                 count={snoozedThreads.length}
                                 toggle={{
@@ -3560,7 +3893,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                                 key="settled-shelf-header"
                                 marker="settled-header"
                                 className={cn(
-                                  workingThreads.length + snoozedThreads.length === 0 && "mt-auto",
+                                  shownWorkingCount + snoozedThreads.length === 0 && "mt-auto",
                                 )}
                                 label="Settled"
                                 count={settledCount}

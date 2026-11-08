@@ -312,6 +312,48 @@ describe("ClientSettings notifications", () => {
   });
 });
 
+describe("ClientSettings context window meter", () => {
+  it("caps the meter at 200k tokens unless the user picks another cap", () => {
+    expect(decodeClientSettings({}).contextWindowMeterCapTokens).toBe(200_000);
+    expect(decodeClientSettings({ contextWindowMeterCapTokens: 400_000 })).toMatchObject({
+      contextWindowMeterCapTokens: 400_000,
+    });
+    expect(decodeClientSettingsPatch({})).not.toHaveProperty("contextWindowMeterCapTokens");
+  });
+});
+
+describe("ClientSettings sidebar row glyphs", () => {
+  it("shows every glyph unless the user hides it", () => {
+    expect(decodeClientSettings({}).sidebarRowGlyphs).toEqual(["priority", "waitingOnOthers"]);
+    expect(decodeClientSettings({ sidebarRowGlyphs: [] }).sidebarRowGlyphs).toEqual([]);
+    expect(decodeClientSettingsPatch({})).not.toHaveProperty("sidebarRowGlyphs");
+  });
+});
+
+describe("ClientSettings sidebar group by", () => {
+  it("migrates the legacy single value to one level", () => {
+    const settings = decodeClientSettings({ sidebarGroupBy: "priority" });
+
+    expect(settings.sidebarGroupBy).toEqual(["priority"]);
+    expect(encodeClientSettings(settings).sidebarGroupBy).toEqual(["priority"]);
+    expect(decodeClientSettings({}).sidebarGroupBy).toEqual(["section"]);
+  });
+
+  it("accepts up to three distinct levels", () => {
+    expect(
+      decodeClientSettingsPatch({ sidebarGroupBy: ["priority", "section", "project"] })
+        .sidebarGroupBy,
+    ).toEqual(["priority", "section", "project"]);
+    for (const invalid of [
+      [],
+      ["priority", "priority"],
+      ["section", "project", "priority", "engagement"],
+    ]) {
+      expect(() => decodeClientSettingsPatch({ sidebarGroupBy: invalid })).toThrow();
+    }
+  });
+});
+
 describe("ClientSettings quit confirmation", () => {
   it.each([
     [true, "hold"],

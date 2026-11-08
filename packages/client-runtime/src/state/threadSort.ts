@@ -1,5 +1,9 @@
-import type { ProjectId } from "@t3tools/contracts";
-import type { SidebarProjectSortOrder, SidebarThreadSortOrder } from "@t3tools/contracts/settings";
+import { ThreadPriority, type ProjectId } from "@t3tools/contracts";
+import type {
+  SidebarProjectSortOrder,
+  SidebarThreadSort,
+  SidebarThreadSortOrder,
+} from "@t3tools/contracts/settings";
 import type { EnvironmentThreadShell } from "./models.ts";
 
 export interface ThreadSortInput {
@@ -141,6 +145,60 @@ export function sortThreads<T extends { readonly id: string } & ThreadSortInput>
         (left.thread.id < right.thread.id ? 1 : left.thread.id > right.thread.id ? -1 : 0),
     )
     .map(({ thread }) => thread);
+}
+
+export interface SidebarThreadSortInput {
+  readonly id: string;
+  readonly title: string;
+  readonly createdAt: string;
+  readonly priority?: ThreadPriority | null | undefined;
+  readonly userTurnCount?: number | undefined;
+  readonly latestUserMessageAt?: string | null | undefined;
+  readonly latestUserAuthoredMessageAt?: string | null | undefined;
+}
+
+type ThreadComparator = (left: SidebarThreadSortInput, right: SidebarThreadSortInput) => number;
+
+function priorityRank(thread: SidebarThreadSortInput): number {
+  return thread.priority == null
+    ? ThreadPriority.literals.length
+    : ThreadPriority.literals.indexOf(thread.priority);
+}
+
+const compareCreatedOldestFirst: ThreadComparator = (left, right) =>
+  (toSortableTimestamp(left.createdAt) ?? 0) - (toSortableTimestamp(right.createdAt) ?? 0);
+
+// Older servers omit the authored timestamp; their latest user message is the closest stand-in.
+function latestUserTurnMs(thread: SidebarThreadSortInput): number {
+  const at =
+    thread.latestUserAuthoredMessageAt === undefined
+      ? thread.latestUserMessageAt
+      : thread.latestUserAuthoredMessageAt;
+  return toSortableTimestamp(at ?? undefined) ?? 0;
+}
+
+const compareTitle: ThreadComparator = (left, right) => left.title.localeCompare(right.title);
+
+/** One entry per non-manual sidebar sort; each ends in a title tiebreak. */
+const SIDEBAR_THREAD_COMPARATORS: Record<Exclude<SidebarThreadSort, "manual">, ThreadComparator> = {
+  priority: (left, right) =>
+    priorityRank(left) - priorityRank(right) ||
+    compareCreatedOldestFirst(left, right) ||
+    compareTitle(left, right),
+  activity: (left, right) =>
+    (right.userTurnCount ?? 0) - (left.userTurnCount ?? 0) ||
+    latestUserTurnMs(right) - latestUserTurnMs(left) ||
+    compareTitle(left, right),
+};
+
+export function sortSidebarThreads<T extends SidebarThreadSortInput>(
+  threads: readonly T[],
+  sort: Exclude<SidebarThreadSort, "manual">,
+): T[] {
+  const compare = SIDEBAR_THREAD_COMPARATORS[sort];
+  return threads.toSorted(
+    (left, right) => compare(left, right) || (left.id < right.id ? -1 : left.id > right.id ? 1 : 0),
+  );
 }
 
 export function getLatestThreadForProject<

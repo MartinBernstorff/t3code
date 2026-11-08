@@ -72,11 +72,59 @@ const DEFAULT_DIFF_LAYOUT: DiffLayout = "stacked";
 
 export const SidebarProjectSortOrder = Schema.Literals(["updated_at", "created_at", "manual"]);
 export type SidebarProjectSortOrder = typeof SidebarProjectSortOrder.Type;
-export const DEFAULT_SIDEBAR_PROJECT_SORT_ORDER: SidebarProjectSortOrder = "updated_at";
+const DEFAULT_SIDEBAR_PROJECT_SORT_ORDER: SidebarProjectSortOrder = "updated_at";
 
 export const SidebarThreadSortOrder = Schema.Literals(["updated_at", "created_at"]);
 export type SidebarThreadSortOrder = typeof SidebarThreadSortOrder.Type;
 const DEFAULT_SIDEBAR_THREAD_SORT_ORDER: SidebarThreadSortOrder = "updated_at";
+
+export const SidebarRowGlyphKind = Schema.Literals(["priority", "waitingOnOthers"]);
+export type SidebarRowGlyphKind = typeof SidebarRowGlyphKind.Type;
+const SidebarRowGlyphKinds = Schema.Array(SidebarRowGlyphKind);
+const DEFAULT_SIDEBAR_ROW_GLYPHS: ReadonlyArray<SidebarRowGlyphKind> = [
+  "priority",
+  "waitingOnOthers",
+];
+
+// Order of the sidebar's Active list. "manual" keeps drag order and the Working shelf's returns.
+export const SidebarThreadSort = Schema.Literals(["manual", "priority", "activity"]);
+export type SidebarThreadSort = typeof SidebarThreadSort.Type;
+const DEFAULT_SIDEBAR_THREAD_SORT: SidebarThreadSort = "manual";
+
+// "section" is the pinned/active/working split; Snoozed and Settled always stay as bottom shelves.
+export const SidebarGroupBy = Schema.Literals([
+  "section",
+  "project",
+  "priority",
+  "engagement",
+  "agentState",
+]);
+export type SidebarGroupBy = typeof SidebarGroupBy.Type;
+export const SIDEBAR_GROUP_BY_MAX_LEVELS = 3;
+/** Outermost level first; each level differs from the levels above it. */
+export const SidebarGroupByLevels = Schema.Array(SidebarGroupBy).check(
+  Schema.makeFilter(
+    (levels) =>
+      levels.length >= 1 &&
+      levels.length <= SIDEBAR_GROUP_BY_MAX_LEVELS &&
+      new Set(levels).size === levels.length,
+    { expected: "one to three distinct Group by levels" },
+  ),
+);
+export type SidebarGroupByLevels = typeof SidebarGroupByLevels.Type;
+const DEFAULT_SIDEBAR_GROUP_BY: SidebarGroupByLevels = ["section"];
+
+const LegacySidebarGroupBy = SidebarGroupBy.pipe(
+  Schema.decodeTo(
+    SidebarGroupByLevels,
+    SchemaTransformation.transform({
+      decode: (groupBy): SidebarGroupByLevels => [groupBy],
+      encode: (levels) => levels[0] ?? "section",
+    }),
+  ),
+);
+
+const SidebarGroupBySetting = Schema.Union([SidebarGroupByLevels, LegacySidebarGroupBy]);
 
 export const SidebarProjectGroupingMode = Schema.Literals([
   "repository",
@@ -162,6 +210,16 @@ export const PanelAnimationDurationMs = Schema.Int.check(
 );
 export type PanelAnimationDurationMs = typeof PanelAnimationDurationMs.Type;
 const DEFAULT_PANEL_ANIMATION_DURATION_MS: PanelAnimationDurationMs = 0;
+export const MIN_CONTEXT_WINDOW_METER_CAP_TOKENS = 1_000;
+export const MAX_CONTEXT_WINDOW_METER_CAP_TOKENS = 10_000_000;
+export const ContextWindowMeterCapTokens = Schema.Int.check(
+  Schema.isBetween({
+    minimum: MIN_CONTEXT_WINDOW_METER_CAP_TOKENS,
+    maximum: MAX_CONTEXT_WINDOW_METER_CAP_TOKENS,
+  }),
+);
+export type ContextWindowMeterCapTokens = typeof ContextWindowMeterCapTokens.Type;
+const DEFAULT_CONTEXT_WINDOW_METER_CAP_TOKENS: ContextWindowMeterCapTokens = 200_000;
 
 export const MIN_INTERFACE_FONT_SIZE = 12;
 export const MAX_INTERFACE_FONT_SIZE = 20;
@@ -502,11 +560,16 @@ export const ClientSettingsSchema = Schema.Struct({
   pullRequestLinksOpenInApp: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
 
   planModeEnabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
+  // Retired Legacy toggle. Still read as the default for the Context item in composerItems.
   contextWindowMeterEnabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
+  contextWindowMeterCapTokens: ContextWindowMeterCapTokens.pipe(
+    Schema.withDecodingDefault(Effect.succeed(DEFAULT_CONTEXT_WINDOW_METER_CAP_TOKENS)),
+  ),
   composerRichTextEnabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
   sendShortcut: Schema.Literals(["enter", "mod-enter-multiline", "mod-enter"]).pipe(
     Schema.withDecodingDefault(Effect.succeed("enter")),
   ),
+  weeklyUsageMeterEnabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
   followUpBehavior: Schema.Literals(["queue", "steer"]).pipe(
     Schema.withDecodingDefault(Effect.succeed("steer")),
   ),
@@ -526,6 +589,14 @@ export const ClientSettingsSchema = Schema.Struct({
   threadDetailsItems: Schema.Record(Schema.String, Schema.Boolean).pipe(
     Schema.withDecodingDefault(Effect.succeed({})),
   ),
+  // Sparse show/hide overrides for sidebar thread row parts, stored like threadDetailsItems.
+  sidebarThreadRowItems: Schema.Record(Schema.String, Schema.Boolean).pipe(
+    Schema.withDecodingDefault(Effect.succeed({})),
+  ),
+  // Sparse show/hide overrides for composer controls, keyed like threadDetailsItems.
+  composerItems: Schema.Record(Schema.String, Schema.Boolean).pipe(
+    Schema.withDecodingDefault(Effect.succeed({})),
+  ),
   // Opt-in for the removed legacy sidebar. Still read so those users land in
   // the boring sidebar; the boring sidebar toggle clears it.
   legacySidebarEnabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
@@ -542,6 +613,15 @@ export const ClientSettingsSchema = Schema.Struct({
   ),
   sidebarThreadSortOrder: SidebarThreadSortOrder.pipe(
     Schema.withDecodingDefault(Effect.succeed(DEFAULT_SIDEBAR_THREAD_SORT_ORDER)),
+  ),
+  sidebarRowGlyphs: SidebarRowGlyphKinds.pipe(
+    Schema.withDecodingDefault(Effect.succeed(DEFAULT_SIDEBAR_ROW_GLYPHS)),
+  ),
+  sidebarThreadSort: SidebarThreadSort.pipe(
+    Schema.withDecodingDefault(Effect.succeed(DEFAULT_SIDEBAR_THREAD_SORT)),
+  ),
+  sidebarGroupBy: SidebarGroupBySetting.pipe(
+    Schema.withDecodingDefault(Effect.succeed(DEFAULT_SIDEBAR_GROUP_BY)),
   ),
   timestampFormat: TimestampFormat.pipe(
     Schema.withDecodingDefault(Effect.succeed(DEFAULT_TIMESTAMP_FORMAT)),
@@ -1905,8 +1985,10 @@ export const ClientSettingsPatch = Schema.Struct({
   pullRequestLinksOpenInApp: Schema.optionalKey(Schema.Boolean),
   planModeEnabled: Schema.optionalKey(Schema.Boolean),
   contextWindowMeterEnabled: Schema.optionalKey(Schema.Boolean),
+  contextWindowMeterCapTokens: Schema.optionalKey(ContextWindowMeterCapTokens),
   composerRichTextEnabled: Schema.optionalKey(Schema.Boolean),
   sendShortcut: Schema.optionalKey(Schema.Literals(["enter", "mod-enter-multiline", "mod-enter"])),
+  weeklyUsageMeterEnabled: Schema.optionalKey(Schema.Boolean),
   followUpBehavior: Schema.optionalKey(Schema.Literals(["queue", "steer"])),
   proactivePanelsEnabled: Schema.optionalKey(Schema.Boolean),
   showSkillsInSlashMenu: Schema.optionalKey(Schema.Boolean),
@@ -1915,6 +1997,8 @@ export const ClientSettingsPatch = Schema.Struct({
   toolCallVisibility: Schema.optionalKey(ToolCallVisibility),
   threadDetailsUsageEnabled: Schema.optionalKey(Schema.Boolean),
   threadDetailsItems: Schema.optionalKey(Schema.Record(Schema.String, Schema.Boolean)),
+  sidebarThreadRowItems: Schema.optionalKey(Schema.Record(Schema.String, Schema.Boolean)),
+  composerItems: Schema.optionalKey(Schema.Record(Schema.String, Schema.Boolean)),
   legacySidebarEnabled: Schema.optionalKey(Schema.Boolean),
   sidebarWorkingShelfEnabled: Schema.optionalKey(Schema.Boolean),
   sidebarProjectGroupingMode: Schema.optionalKey(SidebarProjectGroupingMode),
@@ -1923,6 +2007,9 @@ export const ClientSettingsPatch = Schema.Struct({
   ),
   sidebarProjectSortOrder: Schema.optionalKey(SidebarProjectSortOrder),
   sidebarThreadSortOrder: Schema.optionalKey(SidebarThreadSortOrder),
+  sidebarRowGlyphs: Schema.optionalKey(SidebarRowGlyphKinds),
+  sidebarThreadSort: Schema.optionalKey(SidebarThreadSort),
+  sidebarGroupBy: Schema.optionalKey(SidebarGroupByLevels),
   timestampFormat: Schema.optionalKey(TimestampFormat),
   voiceMicrophone: Schema.optionalKey(Schema.String),
   voiceShortcutMode: Schema.optionalKey(VoiceShortcutMode),

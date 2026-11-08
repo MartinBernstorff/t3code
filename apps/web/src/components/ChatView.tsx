@@ -1,7 +1,11 @@
 import { ChildThreadApprovals } from "./chat/ChildThreadApprovals";
 import { workspaceAreaProps } from "../lib/workspaceFocus";
 import { sourceControlClients } from "@t3tools/client-runtime/source-control-clients";
-import { resolveNewThreadModelSelection } from "@t3tools/shared/usageLimits";
+import {
+  collectProviderUsageLimits,
+  resolveNewThreadModelSelection,
+  selectWeeklyUsage,
+} from "@t3tools/shared/usageLimits";
 import { queuedRunEditBlockedReason } from "@t3tools/client-runtime/queued-run-edit";
 import { ScrollToEndButton, WorkspaceFileDropOverlay } from "./chat/TimelineOverlays";
 import { usePasteToFocusComposer } from "./chat/usePasteToFocusComposer";
@@ -1411,6 +1415,20 @@ export default function ChatView(props: ChatViewProps) {
     providers: providerStatuses,
     sources: serverConfig?.usageLimitSources ?? EMPTY_USAGE_LIMIT_SOURCES,
   });
+  const weeklyUsageReport =
+    settings.weeklyUsageMeterEnabled && activeProviderInstanceId !== null
+      ? collectProviderUsageLimits(
+          activeProviderInstanceId,
+          providerStatuses,
+          serverConfig?.usageLimitSources ?? EMPTY_USAGE_LIMIT_SOURCES,
+          // Only stamps the report's createdAt, which the meter never reads.
+          0,
+        )
+      : null;
+  const weeklyUsage =
+    weeklyUsageReport !== null && activeProviderInstanceId !== null
+      ? selectWeeklyUsage(weeklyUsageReport, activeProviderInstanceId)
+      : null;
   const {
     beginLocalDispatch,
     resetLocalDispatch,
@@ -3368,6 +3386,7 @@ export default function ChatView(props: ChatViewProps) {
               isServerThread={isServerThread}
               activeThreadTitle={activeThread.title}
               activeThreadLinkOrigin={activeThreadShell?.linkOrigin?.label ?? null}
+              activeThreadLinearIssue={activeThreadShell?.linearIssue ?? null}
               activeProject={activeProject ?? null}
               parentThreadLink={headerParentThreadLink}
               onOpenThread={onOpenRelatedThreadStable}
@@ -3676,6 +3695,7 @@ export default function ChatView(props: ChatViewProps) {
                                     : composerBannerItems
                                 }
                                 resumeCompactionTokens={resumeCompactionTokens}
+                                weeklyUsage={weeklyUsage}
                                 keepFullHistory={keepFullHistory}
                                 onToggleKeepFullHistory={toggleKeepFullHistoryStable}
                                 sideChatAvailable={sideChat.available}

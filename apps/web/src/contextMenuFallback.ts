@@ -9,6 +9,36 @@ const ICON_PATHS: Record<string, ReadonlyArray<{ tag: string; attrs: Record<stri
     { tag: "path", attrs: { d: "M10 12h4" } },
   ],
   check: [{ tag: "path", attrs: { d: "M20 6 9 17l-5-5" } }],
+  inbox: [
+    { tag: "polyline", attrs: { points: "22 12 16 12 14 15 10 15 8 12 2 12" } },
+    {
+      tag: "path",
+      attrs: {
+        d: "M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z",
+      },
+    },
+  ],
+  "chart-no-axes-column-increasing": [
+    { tag: "path", attrs: { d: "M5 21v-6" } },
+    { tag: "path", attrs: { d: "M12 21V9" } },
+    { tag: "path", attrs: { d: "M19 21V3" } },
+  ],
+  hourglass: [
+    { tag: "path", attrs: { d: "M5 22h14" } },
+    { tag: "path", attrs: { d: "M5 2h14" } },
+    {
+      tag: "path",
+      attrs: { d: "M17 22v-4.172a2 2 0 0 0-.586-1.414L12 12l-4.414 4.414A2 2 0 0 0 7 17.828V22" },
+    },
+    {
+      tag: "path",
+      attrs: { d: "M7 2v4.172a2 2 0 0 0 .586 1.414L12 12l4.414-4.414A2 2 0 0 0 17 6.172V2" },
+    },
+  ],
+  link: [
+    { tag: "path", attrs: { d: "M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" } },
+    { tag: "path", attrs: { d: "M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" } },
+  ],
   timer: [
     { tag: "line", attrs: { x1: "10", x2: "14", y1: "2", y2: "2" } },
     { tag: "line", attrs: { x1: "12", x2: "15", y1: "14", y2: "11" } },

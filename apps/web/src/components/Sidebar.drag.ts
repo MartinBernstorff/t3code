@@ -1,4 +1,9 @@
-import { closestCenter, type CollisionDetection, type Modifier } from "@dnd-kit/core";
+import {
+  closestCenter,
+  pointerWithin,
+  type CollisionDetection,
+  type Modifier,
+} from "@dnd-kit/core";
 import { verticalListSortingStrategy, type SortingStrategy } from "@dnd-kit/sortable";
 import {
   resolveSidebarDropTarget,
@@ -87,6 +92,31 @@ export function createSidebarCollisionDetection(
     validity.set(id, valid);
     return valid ? collisions : collisions.filter((collision) => collision.id === args.active.id);
   };
+}
+
+const SETTLED_SHELF_IDS = new Set([
+  sidebarMarkerId("settled-header"),
+  sidebarMarkerId("settled-placeholder"),
+]);
+
+export const isSidebarSettledShelfId = (id: string) => SETTLED_SHELF_IDS.has(id);
+
+/**
+ * Group by drags land on lane headers under the pointer that `isLaneTarget` accepts,
+ * and on the Settled shelf when the thread can settle.
+ */
+export function createSidebarLaneCollisionDetection(
+  isLaneTarget: (id: string) => boolean,
+  canSettle: boolean,
+): CollisionDetection {
+  return (args) =>
+    pointerWithin({
+      ...args,
+      droppableContainers: args.droppableContainers.filter((container) => {
+        const id = String(container.id);
+        return isSidebarSettledShelfId(id) ? canSettle : isLaneTarget(id);
+      }),
+    });
 }
 
 export function createSidebarSortingStrategy(input: {

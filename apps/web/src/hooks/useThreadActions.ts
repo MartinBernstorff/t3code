@@ -14,6 +14,9 @@ import {
   EnvironmentId,
   type ScopedThreadRef,
   ThreadId,
+  type ThreadPriority,
+  type ThreadEngagement,
+  type LinearIssueId,
   sessionGrantsScope,
 } from "@t3tools/contracts";
 import { resolveWorktreeCleanup } from "@t3tools/shared/projectSettings";
@@ -296,6 +299,18 @@ export function useThreadActions() {
     reportFailure: false,
   });
   const setThreadAutoSettleMutation = useOrchestrationCommand(threadEnvironment.setAutoSettle, {
+    reportFailure: false,
+  });
+  const setThreadPriorityMutation = useOrchestrationCommand(threadEnvironment.setPriority, {
+    reportFailure: false,
+  });
+  const setThreadEngagementMutation = useOrchestrationCommand(threadEnvironment.setEngagement, {
+    reportFailure: false,
+  });
+  const setThreadWaitingMutation = useOrchestrationCommand(threadEnvironment.setWaiting, {
+    reportFailure: false,
+  });
+  const setThreadLinearIssueMutation = useOrchestrationCommand(threadEnvironment.setLinearIssue, {
     reportFailure: false,
   });
   const reorderPinnedThreadMutation = useOrchestrationCommand(threadEnvironment.reorderPin, {
@@ -687,6 +702,30 @@ export function useThreadActions() {
     });
   };
 
+  const setThreadPriority = (target: ScopedThreadRef, priority: ThreadPriority | null) =>
+    setThreadPriorityMutation({
+      environmentId: target.environmentId,
+      input: { threadId: target.threadId, priority },
+    });
+
+  const setThreadEngagement = (target: ScopedThreadRef, engagement: ThreadEngagement) =>
+    setThreadEngagementMutation({
+      environmentId: target.environmentId,
+      input: { threadId: target.threadId, engagement },
+    });
+
+  const setThreadWaiting = (target: ScopedThreadRef, waitingOnOthers: boolean) =>
+    setThreadWaitingMutation({
+      environmentId: target.environmentId,
+      input: { threadId: target.threadId, waitingOnOthers },
+    });
+
+  const setThreadLinearIssue = (target: ScopedThreadRef, linearIssue: LinearIssueId | null) =>
+    setThreadLinearIssueMutation({
+      environmentId: target.environmentId,
+      input: { threadId: target.threadId, linearIssue },
+    });
+
   const pinThread = async (target: ScopedThreadRef, opts: { orderKey?: string } = {}) => {
     if (!readEnvironmentServerConfigLoaded(target.environmentId)) {
       return AsyncResult.failure(
@@ -965,6 +1004,10 @@ export function useThreadActions() {
     reorderActiveThread,
     markThreadUnread,
     setThreadAutoSettle,
+    setThreadPriority,
+    setThreadEngagement,
+    setThreadWaiting,
+    setThreadLinearIssue,
     turnThreadIntoProject: (target: ScopedThreadRef) =>
       createProjectFromThread({
         environmentId: target.environmentId,

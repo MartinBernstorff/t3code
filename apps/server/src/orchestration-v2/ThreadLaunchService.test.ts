@@ -350,9 +350,10 @@ it.effect.each(
       const threads = yield* ThreadManagement.ThreadManagementService;
       const existing =
         target === "existing"
-          ? yield* launches.launch(
-              launchInput({ command: "command:existing", thread: "thread:existing" }),
-            )
+          ? yield* launches.launch({
+              ...launchInput({ command: "command:existing", thread: "thread:existing" }),
+              engagement: "engaged",
+            })
           : null;
       const { task } = yield* tasks.upsert({
         id: ScheduledTaskId.make("scheduled-task:attribution"),
@@ -385,6 +386,8 @@ it.effect.each(
       assert.equal(wire.messages[0]?.text, task.prompt);
       assert.equal(wire.messages[0]?.scheduledTaskId, task.id);
       assert.equal(wire.messages[0]?.createdBy, createdBy);
+      // Only the client's launch engages a thread; a scheduled run leaves a new one in the inbox.
+      assert.equal(projection.thread.engagement, target === "existing" ? "engaged" : undefined);
       const turnItem = wire.turnItems.find(
         (item): item is Extract<typeof item, { type: "user_message" }> =>
           item.type === "user_message",

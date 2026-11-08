@@ -51,15 +51,18 @@ import {
   SourceControlProviderKind,
   PRIMARY_LOCAL_ENVIRONMENT_ID,
   resolveEnvironmentMachineKind,
+  type ThreadPriority,
 } from "@t3tools/contracts";
 import { useLocation, useNavigate } from "@tanstack/react-router";
 import {
   ArrowLeftIcon,
   BugIcon,
   ChartNoAxesColumnIcon,
+  ChartNoAxesColumnIncreasingIcon,
   CheckIcon,
   ChevronRightIcon,
   CornerLeftUpIcon,
+  InboxIcon,
   FileSearchIcon,
   FolderGit2Icon,
   FolderIcon,
@@ -76,6 +79,7 @@ import {
   SquarePenIcon,
   TextSearchIcon,
   UserPlusIcon,
+  XIcon,
 } from "lucide-react";
 import { openThreadFind } from "./chat/threadFindStore";
 import {
@@ -171,6 +175,10 @@ import {
   newProjectId,
 } from "../lib/utils";
 import { buildThreadRouteParams } from "../threadRoutes";
+import { NO_PRIORITY_LABEL, THREAD_PRIORITY_OPTIONS } from "../threadPriority";
+import { THREAD_ENGAGEMENT_OPTIONS } from "../threadEngagement";
+import { ThreadPriorityGlyph } from "./ThreadPriorityGlyph";
+import { requestLinearIssue } from "./LinearIssueDialog";
 import { useAvailableSettingsSearchItems } from "./settings/useAvailableSettingsSearchItems";
 import {
   applyWslEnvironmentConfiguration,
@@ -212,6 +220,7 @@ import {
   getEnvironmentBrowsePlatform,
   remoteProjectInputPlaceholder,
   reduceCommandPaletteSearchState,
+  isChildSearchMode,
   type SearchOverlayMode,
 } from "./CommandPalette.logic";
 import { resolveEnvironmentOptionLabel } from "./BranchToolbar.logic";
@@ -244,6 +253,7 @@ import {
 import { EnvironmentMachineIcon } from "./EnvironmentMachineIcon";
 import { Checkbox } from "./ui/checkbox";
 import { ProjectFilePicker } from "./files/ProjectFilePicker";
+import { ThreadSearchPalette } from "./ThreadSearchPalette";
 import { openLinkPullRequestDialog } from "./pullRequest/LinkPullRequestDialog";
 import { canShareWithGuestAtom } from "./chat/guestShareAvailability";
 import { openGuestShareDialog } from "./chat/guestShareDialogState";
@@ -308,7 +318,7 @@ export function CommandPalette({ children }: { children: ReactNode }) {
       <CommandDialog
         open={state.open}
         onOpenChange={(open, eventDetails) => {
-          if (!open && eventDetails.reason === "escape-key" && state.mode !== "command") {
+          if (!open && eventDetails.reason === "escape-key" && isChildSearchMode(state.mode)) {
             eventDetails.cancel();
             dispatchCommandPalette({ _tag: "BackToCommand" });
             return;
@@ -352,7 +362,9 @@ function CommandPaletteDialog(props: {
           ? "File picker"
           : props.mode === "content"
             ? "Search project contents"
-            : "Command palette"
+            : props.mode === "threads"
+              ? "Search threads"
+              : "Command palette"
       }
       className={cn("overflow-hidden", props.mode === "content" && "h-105")}
       data-command-palette="true"
@@ -376,6 +388,8 @@ function CommandPaletteDialog(props: {
         <ProjectFilePicker setOpen={props.setOpen} />
       ) : props.mode === "content" ? (
         <ProjectContentSearchDialog onOpenChange={props.setOpen} />
+      ) : props.mode === "threads" ? (
+        <ThreadSearchPalette key={props.session} setOpen={props.setOpen} />
       ) : (
         <OpenCommandPaletteDialog
           key={props.session}
@@ -456,6 +470,15 @@ function OpenCommandPaletteDialog(props: {
     reportFailure: false,
   });
   const stopThreadSession = useAtomCommand(threadEnvironment.stopSession, {
+    reportFailure: false,
+  });
+  const setThreadPriority = useAtomCommand(threadEnvironment.setPriority, {
+    reportFailure: false,
+  });
+  const setThreadEngagement = useAtomCommand(threadEnvironment.setEngagement, {
+    reportFailure: false,
+  });
+  const setThreadLinearIssue = useAtomCommand(threadEnvironment.setLinearIssue, {
     reportFailure: false,
   });
   const refreshProviders = useAtomCommand(serverEnvironment.refreshProviders, {
@@ -1423,6 +1446,113 @@ function OpenCommandPaletteDialog(props: {
         useRightPanelStore.getState().open(threadRef, "pull-requests");
       },
     });
+  }
+
+  const activeThreadCapabilities = activeThreadServerConfig?.environment.capabilities;
+  if (activeThread !== null && activeThreadCapabilities?.threadPriority === true) {
+    const { environmentId, id: threadId, priority: currentPriority } = activeThread;
+    const priorityItem = (
+      priority: ThreadPriority | null,
+      label: string,
+      icon: ReactNode,
+    ): CommandPaletteActionItem => ({
+      kind: "action",
+      value: `action:set-priority:${priority ?? "none"}`,
+      searchTerms: [label, "priority"],
+      title: label,
+      icon,
+      ...(priority === currentPriority
+        ? { titleTrailingContent: <CheckIcon className={ITEM_ICON_CLASS} /> }
+        : {}),
+      run: async () => {
+        const result = await setThreadPriority({ environmentId, input: { threadId, priority } });
+        if (result._tag === "Failure") throw squashAtomCommandFailure(result);
+      },
+    });
+    actionItems.push({
+      kind: "submenu",
+      value: "action:set-priority",
+      searchTerms: ["priority", "urgent", "high", "medium", "low"],
+      title: "Set priority...",
+      icon: <ChartNoAxesColumnIncreasingIcon className={ITEM_ICON_CLASS} />,
+      addonIcon: <ChartNoAxesColumnIncreasingIcon className={ADDON_ICON_CLASS} />,
+      groups: [
+        {
+          value: "priorities",
+          label: "Priority",
+          items: [
+            ...THREAD_PRIORITY_OPTIONS.map((option) =>
+              priorityItem(
+                option.value,
+                option.label,
+                <ThreadPriorityGlyph priority={option.value} className="size-4" />,
+              ),
+            ),
+            priorityItem(null, NO_PRIORITY_LABEL, <XIcon className={ITEM_ICON_CLASS} />),
+          ],
+        },
+      ],
+    });
+  }
+
+  if (activeThread !== null) {
+    const {
+      environmentId,
+      id: threadId,
+      engagement: currentEngagement,
+      linearIssue: currentIssue,
+    } = activeThread;
+    if (activeThreadCapabilities?.threadEngagement === true) {
+      actionItems.push({
+        kind: "submenu",
+        value: "action:set-engagement",
+        searchTerms: ["engagement", "engaged", "inbox", "queued"],
+        title: "Set engagement...",
+        icon: <InboxIcon className={ITEM_ICON_CLASS} />,
+        addonIcon: <InboxIcon className={ADDON_ICON_CLASS} />,
+        groups: [
+          {
+            value: "engagements",
+            label: "Engagement",
+            items: THREAD_ENGAGEMENT_OPTIONS.map((option): CommandPaletteActionItem => ({
+              kind: "action",
+              value: `action:set-engagement:${option.value}`,
+              searchTerms: [option.label, "engagement"],
+              title: option.label,
+              icon: <InboxIcon className={ITEM_ICON_CLASS} />,
+              ...(option.value === currentEngagement
+                ? { titleTrailingContent: <CheckIcon className={ITEM_ICON_CLASS} /> }
+                : {}),
+              run: async () => {
+                const result = await setThreadEngagement({
+                  environmentId,
+                  input: { threadId, engagement: option.value },
+                });
+                if (result._tag === "Failure") throw squashAtomCommandFailure(result);
+              },
+            })),
+          },
+        ],
+      });
+    }
+    if (activeThreadCapabilities?.threadLinearIssue === true) {
+      actionItems.push({
+        kind: "action",
+        value: "action:set-linear-issue",
+        searchTerms: ["linear", "issue", "ticket", "link"],
+        title: currentIssue ? `Linear issue ${currentIssue}...` : "Link Linear issue...",
+        icon: <LinkIcon className={ITEM_ICON_CLASS} />,
+        run: async () => {
+          const linearIssue = await requestLinearIssue(currentIssue);
+          if (linearIssue === undefined) return;
+          const result = await setThreadLinearIssue({
+            environmentId,
+            input: { threadId, linearIssue },
+          });
+          if (result._tag === "Failure") throw squashAtomCommandFailure(result);
+        },
+      });
+    }
   }
 
   if (activeThread !== null && canShareActiveThreadWithGuest) {

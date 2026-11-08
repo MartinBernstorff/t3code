@@ -133,6 +133,8 @@ async function setup() {
   async function pressOpenFavorite(mac = false) {
     const event = new KeyboardEvent("keydown", {
       key: "o",
+      code: "KeyO",
+      altKey: true,
       ctrlKey: !mac,
       metaKey: mac,
       bubbles: true,

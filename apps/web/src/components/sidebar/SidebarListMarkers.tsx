@@ -1,4 +1,5 @@
 import { CollapsibleSectionHeader } from "../ui/collapsible-section-header";
+import { useDroppable } from "@dnd-kit/core";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { type ReactNode, useLayoutEffect } from "react";
@@ -8,7 +9,7 @@ import {
   sidebarMarkerId,
   type SidebarListMarker,
 } from "../Sidebar.logic";
-import { SIDEBAR_SORTABLE_DRAG_DISABLED } from "./SidebarThreadRow";
+import { SIDEBAR_LANE_DEPTH_INSET, SIDEBAR_SORTABLE_DRAG_DISABLED } from "./SidebarThreadRow";
 
 function SortableSidebarMarker(props: {
   marker: SidebarListMarker;
@@ -143,5 +144,46 @@ export function SidebarSectionHeader(props: {
         {props.label}
       </CollapsibleSectionHeader>
     </SortableSidebarMarker>
+  );
+}
+
+/** The sidebar tree row of a Group by lane; its thread rows name it as their parent. */
+export function sidebarLaneRowId(laneKey: string) {
+  return `lane:${laneKey}`;
+}
+
+/** A Group by lane header. Dropping a thread on it sets the lane's fields; lanes do not reorder. */
+export function SidebarLaneHeader(props: {
+  laneKey: string;
+  /** The enclosing lane of a nested header, for keyboard tree navigation. */
+  parentLaneKey: string | null;
+  depth: number;
+  label: string;
+  count: number;
+  expanded: boolean;
+  /** The dragged thread is over this header and the drop would change it. */
+  isDropTarget: boolean;
+  onToggle: (laneKey: string) => void;
+}) {
+  const { setNodeRef } = useDroppable({ id: sidebarLaneRowId(props.laneKey) });
+  return (
+    <li
+      ref={setNodeRef}
+      data-thread-selection-safe
+      className={cn("relative mx-0.5 h-8 list-none", SIDEBAR_LANE_DEPTH_INSET[props.depth])}
+    >
+      <CollapsibleSectionHeader
+        data-sidebar-row={sidebarLaneRowId(props.laneKey)}
+        data-sidebar-parent={
+          props.parentLaneKey === null ? undefined : sidebarLaneRowId(props.parentLaneKey)
+        }
+        onClick={() => props.onToggle(props.laneKey)}
+        expanded={props.expanded}
+        tone={props.isDropTarget ? "accent" : "muted"}
+        accessory={<span className="font-normal tabular-nums">{props.count}</span>}
+      >
+        {props.label}
+      </CollapsibleSectionHeader>
+    </li>
   );
 }

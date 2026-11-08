@@ -45,6 +45,9 @@ import { AuthMcpClientAccess } from "./auth.ts";
 import { ChatAttachment } from "./chatAttachment.ts";
 import { ThreadGuestShare } from "./guestShare.ts";
 import { StoredThreadTags, ThreadTag } from "./threadTags.ts";
+import { ThreadPriority } from "./threadPriority.ts";
+import { ThreadEngagement } from "./threadEngagement.ts";
+import { LinearIssueId } from "./linearIssue.ts";
 import {
   OrchestrationSearchThreadsInput,
   OrchestrationSearchThreadsResult,
@@ -492,6 +495,11 @@ export const OrchestrationV2AppThread = Schema.Struct({
   activeOrderKey: Schema.optional(Schema.NullOr(TrimmedNonEmptyString)),
   /** Absent on threads written before tags existed; read as empty. */
   tags: Schema.optional(StoredThreadTags),
+  priority: Schema.optional(Schema.NullOr(ThreadPriority)),
+  engagement: Schema.optional(ThreadEngagement),
+  /** An agent declared it is waiting on others (CI, review); the next user message clears it. */
+  waitingOnOthers: Schema.optional(Schema.Boolean),
+  linearIssue: Schema.optional(Schema.NullOr(LinearIssueId)),
   lastVisitedAt: Schema.NullOr(Schema.DateTimeUtc).pipe(
     Schema.withDecodingDefault(Effect.succeed(null)),
   ),
@@ -1895,6 +1903,10 @@ export const OrchestrationV2DomainEvent = Schema.Union([
       "thread.pin-reordered",
       "thread.active-reordered",
       "thread.tags-updated",
+      "thread.priority-updated",
+      "thread.engagement-updated",
+      "thread.waiting-updated",
+      "thread.linear-issue-updated",
       "thread.visited",
       "thread.marked-unread",
       "thread.metadata-updated",
@@ -2124,6 +2136,8 @@ export const OrchestrationV2ThreadShell = Schema.Struct({
   latestUserMessageAt: Schema.NullOr(Schema.DateTimeUtc),
   /** Excludes wakes and agent messages that advance latestUserMessageAt through the user role. */
   latestUserAuthoredMessageAt: Schema.optional(Schema.NullOr(Schema.DateTimeUtc)),
+  /** User-authored messages, counted like latestUserAuthoredMessageAt. Absent from older servers. */
+  userTurnCount: Schema.optional(NonNegativeInt),
   hasActionableProposedPlan: Schema.Boolean,
   pendingBackgroundTasks: Schema.optional(Schema.Array(OrchestrationV2PendingBackgroundTask)).pipe(
     Schema.withDecodingDefault(Effect.succeed([])),
@@ -2149,6 +2163,10 @@ export const OrchestrationV2ThreadShell = Schema.Struct({
   activeOrderKey: Schema.optional(Schema.NullOr(TrimmedNonEmptyString)),
   /** Absent on threads written before tags existed; read as empty. */
   tags: Schema.optional(StoredThreadTags),
+  priority: Schema.optional(Schema.NullOr(ThreadPriority)),
+  engagement: Schema.optional(ThreadEngagement),
+  waitingOnOthers: Schema.optional(Schema.Boolean),
+  linearIssue: Schema.optional(Schema.NullOr(LinearIssueId)),
   lastVisitedAt: Schema.optional(Schema.NullOr(Schema.DateTimeUtc)),
   opens: Schema.optional(LenientThreadOpens),
   titleRegeneration: Schema.optional(
@@ -2780,6 +2798,10 @@ export const OrchestrationV2DomainEventJson = Schema.Union([
       "thread.pin-reordered",
       "thread.active-reordered",
       "thread.tags-updated",
+      "thread.priority-updated",
+      "thread.engagement-updated",
+      "thread.waiting-updated",
+      "thread.linear-issue-updated",
       "thread.visited",
       "thread.marked-unread",
       "thread.pull-request-synced",
@@ -2929,6 +2951,8 @@ export const OrchestrationV2Command = Schema.Union([
     interactionMode: ProviderInteractionMode,
     branch: Schema.NullOr(TrimmedNonEmptyString),
     worktreePath: Schema.NullOr(TrimmedNonEmptyString),
+    /** The server sets this for threads a client creates; absent means inbox. */
+    engagement: Schema.optional(ThreadEngagement),
     /** Only the server sets this; a client's thread.create never carries one. */
     linkOrigin: Schema.optional(OrchestrationV2LinkOrigin),
     /** Only the server sets this, with `linkOrigin`, for a linked environment's delegated task. */
@@ -3028,6 +3052,32 @@ export const OrchestrationV2Command = Schema.Union([
     threadId: ThreadId,
     tag: ThreadTag,
     tagged: Schema.Boolean,
+  }),
+  Schema.Struct({
+    type: Schema.Literal("thread.priority.set"),
+    commandId: CommandId,
+    threadId: ThreadId,
+    priority: Schema.NullOr(ThreadPriority),
+    /** The UI sends this so a non-null priority also engages the thread. */
+    engage: Schema.optional(Schema.Boolean),
+  }),
+  Schema.Struct({
+    type: Schema.Literal("thread.engagement.set"),
+    commandId: CommandId,
+    threadId: ThreadId,
+    engagement: ThreadEngagement,
+  }),
+  Schema.Struct({
+    type: Schema.Literal("thread.waiting.set"),
+    commandId: CommandId,
+    threadId: ThreadId,
+    waitingOnOthers: Schema.Boolean,
+  }),
+  Schema.Struct({
+    type: Schema.Literal("thread.linear-issue.set"),
+    commandId: CommandId,
+    threadId: ThreadId,
+    linearIssue: Schema.NullOr(LinearIssueId),
   }),
   Schema.Struct({
     type: Schema.Literal("thread.pin.reorder"),

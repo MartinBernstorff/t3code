@@ -42,6 +42,13 @@ import { observeIntersection } from "../lib/observeIntersection";
 import { deadlineAfter, deadlineStore } from "@t3tools/client-runtime/clock";
 import { useDeadlinePassed } from "../hooks/useDeadline";
 import { legacyProjectCwdPreferenceKey } from "../uiStateStore";
+import type {
+  ThreadAgentState,
+  ThreadGroupSection,
+  ThreadLane,
+} from "@t3tools/client-runtime/state/thread-grouping";
+import { NO_PRIORITY_LABEL, THREAD_PRIORITY_OPTIONS } from "../threadPriority";
+import { THREAD_ENGAGEMENT_OPTIONS } from "../threadEngagement";
 
 export function shouldNavigateAfterThreadPark(input: {
   readonly threadKey: string;
@@ -668,6 +675,7 @@ type ThreadStatusInput = Pick<
   lastVisitedAt?: string | null | undefined;
   pendingBackgroundTasks?: SidebarThreadSummary["pendingBackgroundTasks"] | undefined;
   blockedOnThreadWait?: boolean | undefined;
+  waitingOnOthers?: boolean | undefined;
 };
 
 /**
@@ -696,6 +704,8 @@ export function resolveThreadLastVisitedAt(
 }
 
 export function hasUnseenCompletion(thread: ThreadStatusInput): boolean {
+  // The agent said it is waiting on others, so its finished turn is not news.
+  if (thread.waitingOnOthers) return false;
   if (!thread.latestRun?.completedAt) return false;
   const completedAt = Date.parse(thread.latestRun.completedAt);
   if (Number.isNaN(completedAt)) return false;
@@ -933,6 +943,43 @@ export function sidebarFolderExpansionKeys(group: {
     ...group.memberProjects.map((member) => member.physicalProjectKey),
     ...group.memberProjects.map((member) => legacyProjectCwdPreferenceKey(member.workspaceRoot)),
   ];
+}
+
+const SIDEBAR_SECTION_LANE_LABELS: Record<ThreadGroupSection, string> = {
+  pinned: "Pinned",
+  active: "Active",
+  working: "Working",
+};
+const isThreadGroupSection = (value: string): value is ThreadGroupSection =>
+  Object.hasOwn(SIDEBAR_SECTION_LANE_LABELS, value);
+const THREAD_AGENT_STATE_OPTIONS: ReadonlyArray<{ value: ThreadAgentState; label: string }> = [
+  { value: "needsYou", label: "Needs you" },
+  { value: "working", label: "Working" },
+  { value: "waitingOnOthers", label: "Waiting on others" },
+];
+
+export function sidebarLaneLabel(
+  lane: Pick<ThreadLane<unknown>, "dimension" | "value">,
+  projects: ReadonlyArray<{ readonly projectKey: string; readonly displayName: string }>,
+): string {
+  switch (lane.dimension) {
+    case "section":
+      return isThreadGroupSection(lane.value) ? SIDEBAR_SECTION_LANE_LABELS[lane.value] : "";
+    case "project":
+      return (
+        projects.find((project) => project.projectKey === lane.value)?.displayName ??
+        "Other project"
+      );
+    case "priority":
+      return (
+        THREAD_PRIORITY_OPTIONS.find((option) => option.value === lane.value)?.label ??
+        NO_PRIORITY_LABEL
+      );
+    case "engagement":
+      return THREAD_ENGAGEMENT_OPTIONS.find((option) => option.value === lane.value)?.label ?? "";
+    case "agentState":
+      return THREAD_AGENT_STATE_OPTIONS.find((option) => option.value === lane.value)?.label ?? "";
+  }
 }
 
 /**

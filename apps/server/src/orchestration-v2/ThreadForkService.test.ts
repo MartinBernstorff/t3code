@@ -142,6 +142,9 @@ it.effect("resets a fork's pin, snooze, settle and delegation state but keeps it
       lastSnoozeWakeAt: snoozedAt,
       pinnedAt: snoozedAt,
       pinOrderKey: "a0",
+      priority: "urgent",
+      waitingOnOthers: true,
+      linearIssue: "MB-123",
       activeOrderKey: "a1",
       autoSettleDisabledAt: snoozedAt,
       delegatedFrom: {
@@ -164,6 +167,10 @@ it.effect("resets a fork's pin, snooze, settle and delegation state but keeps it
     assert.isNull(result.targetThread.lastSnoozeWakeAt);
     assert.isNull(result.targetThread.pinnedAt);
     assert.isNull(result.targetThread.pinOrderKey);
+    assert.isNull(result.targetThread.priority);
+    assert.isFalse(result.targetThread.waitingOnOthers);
+    // A fork continues the same work, so it keeps the linked issue.
+    assert.equal(result.targetThread.linearIssue, "MB-123");
     assert.isNull(result.targetThread.activeOrderKey);
     assert.isNull(result.targetThread.autoSettleDisabledAt);
     assert.isUndefined(result.targetThread.delegatedFrom);
