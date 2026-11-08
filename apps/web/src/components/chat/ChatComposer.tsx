@@ -220,7 +220,7 @@ import {
   resolveContextWindowModelDisplayName,
   shouldReserveContextWindowMeter,
 } from "./ContextWindowMeter.logic";
-import { type WeeklyUsage, WeeklyUsageMeter } from "./WeeklyUsageMeter";
+import type { WeeklyUsage } from "./ComposerUsageMeter";
 import {
   buildAttachmentVideoPreview,
   buildExpandedImagePreview,
@@ -3627,13 +3627,13 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                   >
                     {composerControls}
                   </div>
-                  {props.weeklyUsage ? <WeeklyUsageMeter usage={props.weeklyUsage} /> : null}
                   <ComposerFooterPrimaryActions
                     compact={isComposerPrimaryActionsCompact}
                     canOperateThread={canOperateThread}
                     activeContextWindow={composerVisibility.context ? activeContextWindow : null}
                     contextWindowMeterCapTokens={settings.contextWindowMeterCapTokens}
                     reserveContextWindowMeter={reserveContextWindowMeter}
+                    weeklyUsage={props.weeklyUsage}
                     activeThreadModelDisplayName={activeThreadModelDisplayName}
                     pendingAction={pendingPrimaryAction}
                     isRunning={phase === "running"}

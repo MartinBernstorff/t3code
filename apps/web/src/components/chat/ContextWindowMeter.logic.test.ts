@@ -166,8 +166,8 @@ describe("resolveContextWindowMeterScale", () => {
     ["falls back to the cap when the window is unknown", 100_000, null, 50, "neutral"],
     ["stays neutral just below 75% of the cap", 149_998, 1_000_000, 74.999, "neutral"],
     ["turns yellow at 75% of the cap", 150_000, 1_000_000, 75, "warning"],
-    ["turns red at the cap", 200_000, 1_000_000, 100, "error"],
-    ["never shows more than the cap", 600_000, 1_000_000, 100, "error"],
+    ["turns orange at the cap", 200_000, 1_000_000, 100, "critical"],
+    ["never shows more than the cap", 600_000, 1_000_000, 100, "critical"],
     ["scales colours to a window smaller than the cap", 96_000, 128_000, 75, "warning"],
   ] as const)("%s", (_name, usedTokens, maxTokens, usedPercentage, tone) => {
     expect(resolveContextWindowMeterScale({ usedTokens, maxTokens, capTokens: 200_000 })).toEqual({
