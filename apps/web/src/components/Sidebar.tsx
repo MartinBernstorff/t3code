@@ -772,9 +772,10 @@ function partitionSidebarThreads(input: SidebarThreadPartitionInput) {
   // The Waiting shelf shares the Working shelf's setting.
   const inbox = (thread: EnvironmentThreadShell, manuallyMoved = false) => {
     if (!workingShelfEnabled) return active;
-    if (manuallyMoved ? isThreadWorking(thread) : inboxObservation.isWorking(thread))
-      return working;
-    return thread.waitingOnOthers ? waiting : active;
+    if (thread.waitingOnOthers) return waiting;
+    return (manuallyMoved ? isThreadWorking(thread) : inboxObservation.isWorking(thread))
+      ? working
+      : active;
   };
   const snoozed: EnvironmentThreadShell[] = [];
   const settled: EnvironmentThreadShell[] = [];
