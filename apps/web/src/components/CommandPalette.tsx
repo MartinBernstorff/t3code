@@ -59,6 +59,7 @@ import {
   BugIcon,
   ChartNoAxesColumnIcon,
   ChartNoAxesColumnIncreasingIcon,
+  CheckCircle2Icon,
   CheckIcon,
   ChevronRightIcon,
   CornerLeftUpIcon,
@@ -126,6 +127,7 @@ import { useOrchestrationCommand } from "../state/use-orchestration-command";
 import { useAtomQueryRunner } from "../state/use-atom-query-runner";
 import { useScratchProject } from "../hooks/useScratchProject";
 import { useStartTriage } from "../hooks/useStartTriage";
+import { useThreadActions } from "../hooks/useThreadActions";
 import { pickTriageEnvironment } from "../lib/triageTarget";
 import { useNewProject } from "../hooks/useNewProject";
 import { useOrderWhileOpen } from "../hooks/useOrderWhileOpen";
@@ -262,6 +264,7 @@ import { ProjectContentSearchDialog } from "./search/ProjectContentSearchDialog"
 import { settingsForThisPlatform, SETTINGS_SECTION_LABELS } from "./settings/settingsSearch";
 import { primaryServerKeybindingsAtom } from "../state/server";
 import { resolveShortcutCommand, threadJumpIndexFromCommand } from "../keybindings";
+import { settleAndAdvance } from "../settleAndAdvance";
 import { CommandDialog, CommandDialogPopup, CommandFooterAction } from "./ui/command";
 import { Button } from "./ui/button";
 import { stackedThreadToast, toastManager } from "./ui/toast";
@@ -485,6 +488,7 @@ function OpenCommandPaletteDialog(props: {
   const refreshProviders = useAtomCommand(serverEnvironment.refreshProviders, {
     reportFailure: false,
   });
+  const { settleThread, unsettleThread } = useThreadActions();
   const { environments } = useEnvironments();
   const desktopLocalBootstraps = useDesktopLocalBootstraps();
   const primaryEnvironmentId = usePrimaryEnvironmentId();
@@ -504,6 +508,10 @@ function OpenCommandPaletteDialog(props: {
   const openPanelPullRequestUrl = useOpenPanelPullRequestUrl(referenceThreadRef);
   const activeThreadServerConfig = useServerConfigs().get(
     activeThread?.environmentId ?? ("" as EnvironmentId),
+  );
+  const canOperateActiveThread = useEnvironmentScope(
+    activeThread?.environmentId ?? null,
+    AuthOrchestrationOperateScope,
   );
   const canShareActiveThreadWithGuest = useAtomValue(
     canShareWithGuestAtom(activeThread?.environmentId ?? ("" as EnvironmentId)),
@@ -1445,6 +1453,28 @@ function OpenCommandPaletteDialog(props: {
       icon: <PullRequestGlyph.link className={ITEM_ICON_CLASS} />,
       run: async () => {
         useRightPanelStore.getState().open(threadRef, "pull-requests");
+      },
+    });
+  }
+
+  if (activeThread !== null && activeThreadServerConfig !== undefined && canOperateActiveThread) {
+    const threadRef = scopeThreadRef(activeThread.environmentId, activeThread.id);
+    const settled = activeThread.settledOverride === "settled";
+    actionItems.push({
+      kind: "action",
+      value: "action:settle-thread",
+      searchTerms: settled
+        ? ["un-settle", "unsettle", "reopen", "thread"]
+        : ["settle", "done", "finish", "thread"],
+      title: settled ? "Un-settle thread" : "Settle thread",
+      icon: <CheckCircle2Icon className={ITEM_ICON_CLASS} />,
+      shortcutCommand: "thread.settle",
+      run: async () => {
+        if (!settled && settleAndAdvance(threadRef)) return;
+        const result = await (settled ? unsettleThread(threadRef) : settleThread(threadRef));
+        if (result._tag === "Failure" && !isAtomCommandInterrupted(result)) {
+          throw squashAtomCommandFailure(result);
+        }
       },
     });
   }
@@ -2635,7 +2665,7 @@ function OpenCommandPaletteDialog(props: {
         command === "chat.newLocal" ||
         command === "chat.newWithoutProject");
     const matchingItem =
-      isJump || isNewThread
+      isJump || isNewThread || command === "thread.settle"
         ? displayedGroups
             .flatMap((group) => group.items)
             .find((item) => item.shortcutCommand === command)
