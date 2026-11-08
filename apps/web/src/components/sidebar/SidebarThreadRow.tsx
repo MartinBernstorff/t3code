@@ -39,7 +39,6 @@ import {
   CheckIcon,
   CircleAlertIcon,
   CircleCheckIcon,
-  CircleDashedIcon,
   CircleDotDashedIcon,
   ClockIcon,
   GitBranchIcon,
@@ -533,8 +532,10 @@ const dropVerbBadge: Record<SidebarDropVerb, ReactNode> = {
   ),
 };
 
+// Working is plain grey text, so it has no icon.
+type TopStatusIconKind = keyof typeof TOP_STATUS_ICONS | "working";
+
 const TOP_STATUS_ICONS = {
-  working: CircleDashedIcon,
   waiting: CircleDotDashedIcon,
   input: MessageCircleQuestionIcon,
   request: UserRoundIcon,
@@ -544,7 +545,8 @@ const TOP_STATUS_ICONS = {
   woke: AlarmClockIcon,
 } as const;
 
-function TopStatusIcon(props: { icon: keyof typeof TOP_STATUS_ICONS; className: string }) {
+function TopStatusIcon(props: { icon: TopStatusIconKind; className: string }) {
+  if (props.icon === "working") return null;
   const Icon = TOP_STATUS_ICONS[props.icon];
   return <Icon aria-hidden className={cn("shrink-0", props.className)} />;
 }
@@ -750,7 +752,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
                 ? "Goal"
                 : "Working",
           icon: "working" as const,
-          className: "text-info-foreground",
+          className: "text-muted-foreground",
         }
       : status === "waiting"
         ? {
