@@ -1,6 +1,6 @@
 ---
 name: deploy
-description: Ship the current worktree branch to this fork's main. 
+description: Ship the current worktree branch to this fork's main.
 ---
 
 # Deploy
@@ -20,7 +20,7 @@ Deploying means landing the current branch on `main` of the fork (`origin`, Mart
 
 ## 3. Pull in the root checkout
 
-1. Find the root checkout. It is the first entry of `git worktree list` (the main working tree) 
-2. Check its state with `git -C <root> status -sb` 
+1. Find the root checkout. It is the first entry of `git worktree list` (the main working tree)
+2. Check its state with `git -C <root> status -sb`
 3. Pull
 4. Report the merged PR URL and the root checkout's new `HEAD`.
