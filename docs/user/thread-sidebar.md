@@ -69,7 +69,13 @@ To list active threads by priority, set **Settings > General > Thread order** to
 priority. Dragging still moves threads between sections, but not within the active list.
 
 **Activity** instead lists the threads you have sent the most messages to first,
-then the ones you messaged most recently.
+then the ones you messaged most recently. **Frecency** weighs both: a thread you
+messaged a few times today ranks above one you messaged many times last week.
+
+When you group threads into lanes, each lane can have its own order, listed under
+**Thread order**. For example, sort Engaged by Frecency and Inbox by Priority. Lanes
+without their own order use the default. With nested lanes, the innermost lane with
+an order wins.
 
 ## Set a thread's engagement
 

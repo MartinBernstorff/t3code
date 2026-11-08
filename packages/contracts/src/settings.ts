@@ -87,9 +87,12 @@ const DEFAULT_SIDEBAR_ROW_GLYPHS: ReadonlyArray<SidebarRowGlyphKind> = [
 ];
 
 // Order of the sidebar's Active list. "manual" keeps drag order and the Working shelf's returns.
-export const SidebarThreadSort = Schema.Literals(["manual", "priority", "activity"]);
+export const SidebarThreadSort = Schema.Literals(["manual", "priority", "activity", "frecency"]);
 export type SidebarThreadSort = typeof SidebarThreadSort.Type;
 const DEFAULT_SIDEBAR_THREAD_SORT: SidebarThreadSort = "manual";
+/** Thread order per Group by lane, keyed by lane segment (`${dimension}:${value}`). */
+export const SidebarThreadSortOverrides = Schema.Record(TrimmedNonEmptyString, SidebarThreadSort);
+export type SidebarThreadSortOverrides = typeof SidebarThreadSortOverrides.Type;
 
 // "section" is the pinned/active/working split; Snoozed and Settled always stay as bottom shelves.
 export const SidebarGroupBy = Schema.Literals([
@@ -627,6 +630,9 @@ export const ClientSettingsSchema = Schema.Struct({
   ),
   sidebarThreadSort: SidebarThreadSort.pipe(
     Schema.withDecodingDefault(Effect.succeed(DEFAULT_SIDEBAR_THREAD_SORT)),
+  ),
+  sidebarThreadSortOverrides: SidebarThreadSortOverrides.pipe(
+    Schema.withDecodingDefault(Effect.succeed({})),
   ),
   sidebarGroupBy: SidebarGroupBySetting.pipe(
     Schema.withDecodingDefault(Effect.succeed(DEFAULT_SIDEBAR_GROUP_BY)),
@@ -2023,6 +2029,7 @@ export const ClientSettingsPatch = Schema.Struct({
   sidebarThreadSortOrder: Schema.optionalKey(SidebarThreadSortOrder),
   sidebarRowGlyphs: Schema.optionalKey(SidebarRowGlyphKinds),
   sidebarThreadSort: Schema.optionalKey(SidebarThreadSort),
+  sidebarThreadSortOverrides: Schema.optionalKey(SidebarThreadSortOverrides),
   sidebarGroupBy: Schema.optionalKey(SidebarGroupByLevels),
   sidebarSectionCountStyle: Schema.optionalKey(SidebarSectionCountStyle),
   sidebarTokenColor: Schema.optionalKey(SidebarTokenColor),

@@ -135,6 +135,17 @@ const THREAD_GROUP_DIMENSIONS: Record<ThreadGroupDimension, ThreadGroupDimension
   },
 };
 
+/** The lanes a level lists, in display order, for naming lanes outside the sidebar. */
+export function threadGroupLaneValues(
+  dimension: ThreadGroupDimension,
+  projectKeys: readonly string[],
+): readonly string[] {
+  return THREAD_GROUP_DIMENSIONS[dimension].values({
+    projects: projectKeys.map((key) => ({ key, memberProjectKeys: [] })),
+    sectionOf: () => "active",
+  });
+}
+
 /**
  * Sets the Group by level at `index`, or clears it and the levels below with `null`.
  * Lower levels that now repeat a level above are dropped.
@@ -222,7 +233,10 @@ export function threadLaneRows<T extends ThreadGroupInput>(
     readonly keys: ReadonlySet<string>;
     readonly keepWhenCollapsed: (thread: T) => boolean;
   },
-  options: ThreadLaneOptions = {},
+  options: ThreadLaneOptions & {
+    /** Orders the threads a lane lists; lanes otherwise keep input order. */
+    readonly orderLaneThreads?: (threads: readonly T[], lane: ThreadLane<T>) => readonly T[];
+  } = {},
 ): ThreadLaneRow<T>[] {
   const rows: ThreadLaneRow<T>[] = [];
   const visit = (
@@ -248,7 +262,8 @@ export function threadLaneRows<T extends ThreadGroupInput>(
         visit(lane.threads, depth + 1, nestedInset, lane);
         continue;
       }
-      for (const thread of lane.threads) {
+      const listed = options.orderLaneThreads?.(lane.threads, lane) ?? lane.threads;
+      for (const thread of listed) {
         if (isCollapsed && !collapsed.keepWhenCollapsed(thread)) continue;
         rows.push({ kind: "thread", thread, depth, inset, laneKey: lane.key });
       }

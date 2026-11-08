@@ -42,7 +42,11 @@ import {
   createInboxReturnTracker,
   isThreadWorking,
 } from "@t3tools/client-runtime/state/thread-inbox";
-import { sortSettledThreads, sortSidebarThreads } from "@t3tools/client-runtime/state/thread-sort";
+import {
+  resolveSidebarLaneSort,
+  sortSettledThreads,
+  sortSidebarThreads,
+} from "@t3tools/client-runtime/state/thread-sort";
 import {
   nextShownOrder,
   threadSearchMatchKey,
@@ -488,12 +492,15 @@ function useSidebarThreads(input: {
   // Folders already separate the work, so boring mode has no Working shelf.
   const workingShelfEnabled =
     useClientSettings((s) => s.sidebarWorkingShelfEnabled) && folderGroups === null;
-  const threadSort = useClientSettings((s) => s.sidebarThreadSort);
+  const defaultThreadSort = useClientSettings((s) => s.sidebarThreadSort);
+  const threadSortOverrides = useClientSettings((s) => s.sidebarThreadSortOverrides);
   const groupBy = useClientSettings((s) => s.sidebarGroupBy);
   // Boring mode keeps its project folders; Group by applies to the standard sidebar.
   // Section alone keeps the standard sidebar, with its drag targets and Working shelf.
   const laneLevels =
     folderGroups === null && !(groupBy.length === 1 && groupBy[0] === "section") ? groupBy : null;
+  // Lanes sort themselves (see `orderLaneThreads`), so they start from the manual order.
+  const threadSort: SidebarThreadSort = laneLevels !== null ? "manual" : defaultThreadSort;
   const [collapsedLaneKeys, setCollapsedLaneKeys] = useLocalStorage(
     COLLAPSED_LANES_KEY,
     EMPTY_LANE_KEYS,
@@ -634,7 +641,17 @@ function useSidebarThreads(input: {
         // A collapsed lane still shows the open thread.
         keepWhenCollapsed: (thread) => threadShellKey(thread) === routeRowThreadKey,
       },
-      { showEmptyDropTargets: dragging },
+      {
+        showEmptyDropTargets: dragging,
+        orderLaneThreads: (laneThreads, lane) => {
+          const sort = resolveSidebarLaneSort(lane.path, defaultThreadSort, threadSortOverrides);
+          if (sort === "manual") return laneThreads;
+          // Pinned threads keep their drag order at the top of the lane.
+          const pinned = laneThreads.filter((thread) => thread.pinnedAt != null);
+          const unpinned = laneThreads.filter((thread) => thread.pinnedAt == null);
+          return [...pinned, ...sortSidebarThreads(unpinned, sort)];
+        },
+      },
     ).map((row) =>
       row.kind === "lane" ? { ...row, label: sidebarLaneLabel(row.lane, laneProjects) } : row,
     );

@@ -3,6 +3,7 @@ import type {
   SidebarProjectSortOrder,
   SidebarThreadSort,
   SidebarThreadSortOrder,
+  SidebarThreadSortOverrides,
 } from "@t3tools/contracts/settings";
 import type { EnvironmentThreadShell } from "./models.ts";
 
@@ -177,6 +178,16 @@ function latestUserTurnMs(thread: SidebarThreadSortInput): number {
   return toSortableTimestamp(at ?? undefined) ?? 0;
 }
 
+const FRECENCY_HALF_LIFE_MS = 24 * 60 * 60 * 1000;
+
+// Turn count decayed by a one-day half-life since the latest turn, in log2 form. Every
+// thread decays from the same now, so the order never changes as time passes.
+function frecencyScore(thread: SidebarThreadSortInput): number {
+  return (
+    Math.log2(1 + (thread.userTurnCount ?? 0)) + latestUserTurnMs(thread) / FRECENCY_HALF_LIFE_MS
+  );
+}
+
 const compareTitle: ThreadComparator = (left, right) => left.title.localeCompare(right.title);
 
 /** One entry per non-manual sidebar sort; each ends in a title tiebreak. */
@@ -189,7 +200,22 @@ const SIDEBAR_THREAD_COMPARATORS: Record<Exclude<SidebarThreadSort, "manual">, T
     (right.userTurnCount ?? 0) - (left.userTurnCount ?? 0) ||
     latestUserTurnMs(right) - latestUserTurnMs(left) ||
     compareTitle(left, right),
+  frecency: (left, right) =>
+    frecencyScore(right) - frecencyScore(left) || compareTitle(left, right),
 };
+
+/** The innermost lane segment with an override decides; otherwise the default applies. */
+export function resolveSidebarLaneSort(
+  path: readonly string[],
+  defaultSort: SidebarThreadSort,
+  overrides: SidebarThreadSortOverrides,
+): SidebarThreadSort {
+  for (let index = path.length - 1; index >= 0; index -= 1) {
+    const sort = overrides[path[index]!];
+    if (sort !== undefined) return sort;
+  }
+  return defaultSort;
+}
 
 export function sortSidebarThreads<T extends SidebarThreadSortInput>(
   threads: readonly T[],

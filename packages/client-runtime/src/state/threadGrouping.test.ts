@@ -218,6 +218,34 @@ describe("threadLaneRows", () => {
     ).toEqual(["high", "  pinned", "  - a", "  active", "  - b", "low", "  working", "  - c"]);
   });
 
+  it("orders each listed lane by its own path", () => {
+    const rows = threadLaneRows(
+      [thread("x", { priority: "high" }), thread("y", { priority: "high" }), ...threads],
+      ["section", "priority"],
+      NO_PROJECTS,
+      expanded,
+      {
+        orderLaneThreads: (laneThreads, lane) =>
+          lane.key === threadLaneKey(["section:active", "priority:high"])
+            ? laneThreads.toReversed()
+            : laneThreads,
+      },
+    );
+    expect(summarizeRows(rows)).toEqual([
+      "pinned",
+      "  high",
+      "  - a",
+      "active",
+      "  high",
+      "  - b",
+      "  - y",
+      "  - x",
+      "working",
+      "  low",
+      "  - c",
+    ]);
+  });
+
   it("insets nested lanes only below levels that inset", () => {
     const insets = (levels: Parameters<typeof threadLaneRows>[1]) =>
       threadLaneRows(threads, levels, NO_PROJECTS, expanded).map((row) => row.inset);
