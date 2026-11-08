@@ -1,9 +1,11 @@
-import { ProviderInstanceId } from "@t3tools/contracts";
+import { ProviderInstanceId, RuntimeRequestId } from "@t3tools/contracts";
+import * as DateTime from "effect/DateTime";
 import { describe, expect, it } from "vite-plus/test";
 
 import {
   groupThreadsBy,
   threadAgentState,
+  threadAgentStateSince,
   type ThreadGroupInput,
   type ThreadGroupSection,
   threadLaneDropChanges,
@@ -182,6 +184,48 @@ describe("threadAgentState", () => {
     ],
   ] as const)("%s", (_name, overrides, expected) => {
     expect(threadAgentState(thread("a", overrides))).toBe(expected);
+  });
+});
+
+describe("threadAgentStateSince", () => {
+  const run = (completedAt: string | null) => ({
+    runId: "run-1" as never,
+    status: completedAt === null ? ("running" as const) : ("completed" as const),
+    requestedAt: "2026-06-01T00:00:00.000Z",
+    startedAt: "2026-06-01T00:01:00.000Z",
+    completedAt,
+    assistantMessageId: null,
+  });
+  const request = {
+    id: RuntimeRequestId.make("request-1"),
+    kind: "command" as const,
+    createdAt: DateTime.makeUnsafe("2026-06-01T00:05:00.000Z"),
+  };
+
+  it.each([
+    [
+      "working counts from the run start",
+      { latestRun: run(null), runtime: { ...runtime("running"), activeRunId: "run-1" as never } },
+      "2026-06-01T00:01:00.000Z",
+    ],
+    [
+      "a request counts from when it was raised",
+      {
+        latestRun: run(null),
+        runtime: { ...runtime("running"), activeRunId: "run-1" as never },
+        hasPendingApprovals: true,
+        source: { pendingRuntimeRequest: request },
+      },
+      "2026-06-01T00:05:00.000Z",
+    ],
+    [
+      "waiting on others counts from the end of the turn",
+      { latestRun: run("2026-06-01T00:09:00.000Z"), waitingOnOthers: true },
+      "2026-06-01T00:09:00.000Z",
+    ],
+    ["a thread that never ran has no start", {}, null],
+  ] as const)("%s", (_name, overrides, expected) => {
+    expect(threadAgentStateSince({ ...thread("a"), ...overrides })).toBe(expected);
   });
 });
 
