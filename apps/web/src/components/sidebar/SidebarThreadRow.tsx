@@ -501,6 +501,63 @@ export function SortableThreadRow(
   // Keyed by variant so a card/slim switch remounts the row.
   return <SidebarThreadRow key={rowProps.variant} {...rowProps} thread={thread} sortable={bag} />;
 }
+const noop = () => {};
+
+/** The sidebar's thread card, drawn read-only for the thread picker. */
+export function SidebarThreadCardPreview(
+  props: Pick<
+    SidebarThreadRowProps,
+    | "thread"
+    | "isActive"
+    | "isRouteThread"
+    | "wokeAt"
+    | "currentEnvironmentId"
+    | "environmentLabel"
+    | "environmentMachine"
+    | "scratchMachineLabel"
+    | "project"
+    | "projectDisplayName"
+    | "providerEntryByInstanceId"
+    | "timestampFormat"
+    | "visibleItems"
+  >,
+) {
+  return (
+    <SidebarThreadRow
+      {...props}
+      preview
+      variant="card"
+      variantAction="settle"
+      settlementSupported={false}
+      snoozeSupported={false}
+      pinningSupported={false}
+      isPinned={props.thread.pinnedAt != null}
+      dropVerb={null}
+      dragOverPinned={false}
+      sweepAction={null}
+      snoozeWakeLabelText={null}
+      openPullRequestsInRightPanel={false}
+      jumpLabel={null}
+      onThreadClick={noop}
+      onThreadActivate={noop}
+      onStartRename={noop}
+      onRenameTitleChange={noop}
+      onCommitRename={noop}
+      onCancelRename={noop}
+      isRenaming={false}
+      renamingTitle=""
+      onContextMenu={noop}
+      onSettle={noop}
+      onActionSweepStart={noop}
+      onUnsettle={noop}
+      onSnooze={noop}
+      onUnsnooze={noop}
+      onUnpin={noop}
+      onAcknowledgeWoke={noop}
+    />
+  );
+}
+
 export type SidebarSweepAction = "settle" | "unsettle" | "unsnooze";
 const dropVerbBadge: Record<SidebarDropVerb, ReactNode> = {
   pin: (
@@ -623,6 +680,8 @@ type SidebarThreadRowProps = {
   onUnpin: (threadRef: ScopedThreadRef) => void;
   onAcknowledgeWoke: (threadRef: ScopedThreadRef, visitedAt: string) => void;
   onFileDropThreads?: ((threadRef: ScopedThreadRef, files: File[]) => void) | undefined;
+  /** A static copy of the card, for the thread picker: no controls, tooltip, or focus. */
+  preview?: boolean;
 };
 
 // Mounted only while renaming, so each rename starts uncommitted.
@@ -1474,9 +1533,10 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
     );
   }
 
+  const CardRoot = props.preview ? "div" : "li";
   return (
-    <li
-      data-thread-item={threadKey}
+    <CardRoot
+      data-thread-item={props.preview ? undefined : threadKey}
       {...sortableRootProps}
       {...(fileDropHandlers ?? {})}
       className={cn(
@@ -1490,29 +1550,37 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
         sortable?.isDragging && "relative z-20",
       )}
     >
-      <Tooltip disabled={snoozeMenuOpen || sortable?.isDragging}>
+      <Tooltip disabled={props.preview || snoozeMenuOpen || sortable?.isDragging}>
         <TooltipTrigger
           render={
-            <div
-              ref={rowRef}
-              role="button"
-              tabIndex={0}
-              data-sidebar-row={threadKey}
-              data-sidebar-parent={props.navigationParent}
-              aria-label={accessibility.label}
-              aria-current={accessibility.current}
-              data-testid="sidebar-row-card"
-              aria-busy={isRegeneratingTitle || undefined}
-              className={rowSurfaceClassName}
-              onPointerEnter={engageControls}
-              onPointerLeave={releaseOnPointerLeave}
-              onFocus={engageControls}
-              onBlur={releaseOnBlur}
-              onClick={handleClick}
-              onDoubleClick={handleDoubleClick}
-              onKeyDown={handleKeyDown}
-              onContextMenu={handleContextMenu}
-            />
+            props.preview ? (
+              <div
+                ref={rowRef}
+                aria-hidden
+                className={cn(rowSurfaceClassName, "pointer-events-none")}
+              />
+            ) : (
+              <div
+                ref={rowRef}
+                role="button"
+                tabIndex={0}
+                data-sidebar-row={threadKey}
+                data-sidebar-parent={props.navigationParent}
+                aria-label={accessibility.label}
+                aria-current={accessibility.current}
+                data-testid="sidebar-row-card"
+                aria-busy={isRegeneratingTitle || undefined}
+                className={rowSurfaceClassName}
+                onPointerEnter={engageControls}
+                onPointerLeave={releaseOnPointerLeave}
+                onFocus={engageControls}
+                onBlur={releaseOnBlur}
+                onClick={handleClick}
+                onDoubleClick={handleDoubleClick}
+                onKeyDown={handleKeyDown}
+                onContextMenu={handleContextMenu}
+              />
+            )
           }
         >
           {accessibleTitle}
@@ -1602,7 +1670,8 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
                       <RelativeTimeLabel timestamp={resolveThreadActivityTimestamp(thread)} />
                     ) : null}
                   </span>
-                  {props.settlementSupported || showSnoozeButton || hasUnsentDraft || openCwd ? (
+                  {!props.preview &&
+                  (props.settlementSupported || showSnoozeButton || hasUnsentDraft || openCwd) ? (
                     <span
                       className={cn(
                         // Mouse clicks leave Settle focused; focus-within would pin controls over
@@ -1688,7 +1757,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
         </TooltipTrigger>
         {detailsTooltip}
       </Tooltip>
-    </li>
+    </CardRoot>
   );
 });
 

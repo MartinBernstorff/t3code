@@ -190,15 +190,20 @@ function CommandCollection({ ...props }: React.ComponentProps<typeof Autocomplet
 function CommandItem({
   className,
   active,
+  variant = "default",
   ...props
-}: React.ComponentProps<typeof AutocompleteItem> & { active?: boolean }) {
+}: React.ComponentProps<typeof AutocompleteItem> & {
+  active?: boolean;
+  /** "bare" rows draw their own highlight. */
+  variant?: "default" | "bare";
+}) {
   return (
     <AutocompleteItem
       className={cn(
         "py-1.5 data-selected:bg-foreground/[0.06] data-highlighted:bg-foreground/[0.09] data-highlighted:text-foreground [&[data-highlighted][data-selected]]:bg-foreground/[0.09] [&[data-highlighted][data-selected]]:text-foreground",
         active !== undefined &&
           "cursor-pointer hover:bg-transparent hover:text-inherit data-highlighted:bg-transparent data-highlighted:text-inherit data-selected:bg-transparent data-selected:text-inherit [&[data-highlighted][data-selected]]:bg-transparent [&[data-highlighted][data-selected]]:text-inherit",
-        active && "bg-accent! text-accent-foreground!",
+        active && variant === "default" && "bg-accent! text-accent-foreground!",
         className,
       )}
       data-active={active || undefined}

@@ -1,16 +1,33 @@
 import { useAtomValue } from "@effect/atom-react";
+import { scopedThreadKey, scopeThreadRef } from "@t3tools/client-runtime/environment";
+import { isScratchProject } from "@t3tools/client-runtime/state/projects";
+import { threadWokeAt } from "@t3tools/client-runtime/state/thread-settled";
 import { useState } from "react";
 
 import { useSidebarProjectGroups } from "../hooks/useSidebarProjectGroups";
 import { useBoringSidebarEnabled, useClientSettings } from "../hooks/useSettings";
 import { useThreadRouteRef } from "../hooks/useThreadRouteTarget";
-import { useVisibleThreadShells } from "../state/entities";
+import { useServerConfigs, useVisibleThreadShells } from "../state/entities";
+import { projectGroupsSpanEnvironments } from "../sidebarProjectGrouping";
+import { cn } from "~/lib/utils";
+import {
+  useEnvironmentIdentities,
+  useEnvironmentMachines,
+  usePrimaryEnvironmentId,
+} from "../state/environments";
 import { primaryServerKeybindingsAtom } from "../state/server";
 import { CommandPaletteContent } from "./CommandPaletteContent";
 import { useProjectLookups } from "./CommandPaletteLookups";
 import { CommandPaletteResults } from "./CommandPaletteResults";
 import { useCommandPaletteThreadItems } from "./CommandPaletteThreadItems";
 import { sidebarInboxReturns } from "./sidebar/inboxReturns";
+import { sidebarTokenClassName } from "./sidebar/SidebarCountTokens";
+import {
+  EMPTY_PROVIDER_ENTRIES,
+  sidebarProviderEntriesAtom,
+} from "./sidebar/sidebarProviderEntries";
+import { SidebarThreadCardPreview } from "./sidebar/SidebarThreadRow";
+import { resolveSidebarThreadRowVisibility } from "./sidebar/sidebarThreadRowItems";
 import { searchThreadsForPalette } from "./ThreadSearchPalette.logic";
 
 export function ThreadSearchPalette(props: { readonly setOpen: (open: boolean) => void }) {
@@ -28,14 +45,37 @@ export function ThreadSearchPalette(props: { readonly setOpen: (open: boolean) =
   const projectGroups = useSidebarProjectGroups();
   const { projectByKey } = useProjectLookups();
   const routeThreadRef = useThreadRouteRef();
+  const tokenColor = useClientSettings((settings) => settings.sidebarTokenColor);
+  const timestampFormat = useClientSettings((settings) => settings.timestampFormat);
+  const visibleItems = useClientSettings(resolveSidebarThreadRowVisibility);
+  const providerEntriesByEnvironment = useAtomValue(sidebarProviderEntriesAtom);
+  const environmentMachineById = useEnvironmentMachines();
+  const primaryEnvironmentId = usePrimaryEnvironmentId();
+  const environmentLabelById = new Map(
+    useEnvironmentIdentities().map((environment) => [environment.environmentId, environment.label]),
+  );
+  const projectDisplayNameByKey = new Map(
+    projectGroups.flatMap((group) =>
+      group.memberProjects.map((project) => [
+        `${project.environmentId}:${project.id}`,
+        group.displayName,
+      ]),
+    ),
+  );
+  const serverConfigs = useServerConfigs();
+  const showProjectEnvironments = projectGroupsSpanEnvironments(projectGroups);
+  const routeThreadKey = routeThreadRef ? scopedThreadKey(routeThreadRef) : null;
   const { threadItems } = useCommandPaletteThreadItems({
     activeThread: routeThreadRef
-      ? { environmentId: routeThreadRef.environmentId, id: routeThreadRef.threadId }
+      ? {
+          environmentId: routeThreadRef.environmentId,
+          id: routeThreadRef.threadId,
+        }
       : null,
     threadSearchQuery: "",
   });
   const itemByValue = new Map(threadItems.map((item) => [item.value, item]));
-  const groups = searchThreadsForPalette({
+  const threadGroups = searchThreadsForPalette({
     threads,
     query,
     projectTitleOf: (thread) =>
@@ -51,13 +91,64 @@ export function ThreadSearchPalette(props: { readonly setOpen: (open: boolean) =
       inbox: sidebarInboxReturns,
     },
   }).flatMap((group) => {
-    const items = group.threads.flatMap(
-      (thread) => itemByValue.get(`thread:${thread.environmentId}:${thread.id}`) ?? [],
-    );
-    return items.length === 0 ? [] : [{ value: group.key, label: group.label, items }];
+    const rows = group.threads.flatMap((thread) => {
+      const item = itemByValue.get(`thread:${thread.environmentId}:${thread.id}`);
+      return item ? [{ thread, item }] : [];
+    });
+    return rows.length === 0 ? [] : [{ value: group.key, label: group.label, rows }];
   });
   // Typing clears our highlight while Base UI keeps the first row highlighted, and Enter opens it.
-  const displayedHighlight = highlightedItemValue ?? groups[0]?.items[0]?.value ?? null;
+  const displayedHighlight = highlightedItemValue ?? threadGroups[0]?.rows[0]?.item.value ?? null;
+  const groups = threadGroups.map((group) => ({
+    value: group.value,
+    label: group.label,
+    items: group.rows.map(({ thread, item }) => {
+      const projectKey = `${thread.environmentId}:${thread.projectId}`;
+      const project = projectByKey.get(projectKey) ?? null;
+      const environmentLabel = environmentLabelById.get(thread.environmentId) ?? null;
+      // The sidebar shows a scratch thread's machine where its branch would go.
+      const scratchMachineLabel =
+        showProjectEnvironments &&
+        project !== null &&
+        isScratchProject(project, serverConfigs.get(thread.environmentId)?.scratchWorkspaceRoot)
+          ? environmentLabel
+          : null;
+      return {
+        ...item,
+        icon: (
+          <span
+            aria-hidden
+            className={cn(
+              "my-1.5 w-1 shrink-0 self-stretch rounded-full",
+              sidebarTokenClassName(thread, tokenColor),
+            )}
+          />
+        ),
+        // The highlighted row takes the sidebar's active card look.
+        content: (
+          <SidebarThreadCardPreview
+            thread={thread}
+            isActive={item.value === displayedHighlight}
+            isRouteThread={
+              scopedThreadKey(scopeThreadRef(thread.environmentId, thread.id)) === routeThreadKey
+            }
+            wokeAt={threadWokeAt(thread, { now })}
+            currentEnvironmentId={primaryEnvironmentId}
+            environmentLabel={environmentLabel}
+            environmentMachine={environmentMachineById.get(thread.environmentId) ?? "server"}
+            scratchMachineLabel={scratchMachineLabel}
+            project={project}
+            projectDisplayName={projectDisplayNameByKey.get(projectKey) ?? null}
+            providerEntryByInstanceId={
+              providerEntriesByEnvironment.get(thread.environmentId) ?? EMPTY_PROVIDER_ENTRIES
+            }
+            timestampFormat={timestampFormat}
+            visibleItems={visibleItems}
+          />
+        ),
+      };
+    }),
+  }));
 
   return (
     <CommandPaletteContent

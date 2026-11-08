@@ -243,9 +243,17 @@ function CommandPaletteResultRow(props: {
       onClick={() => {
         props.onExecuteItem(props.item);
       }}
+      variant={props.item.content ? "bare" : "default"}
+      className={props.item.content ? "items-stretch" : undefined}
     >
-      <CommandPaletteTitleIcon>{props.item.icon}</CommandPaletteTitleIcon>
-      {props.item.description || props.item.threadContentMatch ? (
+      {props.item.content ? (
+        props.item.icon
+      ) : (
+        <CommandPaletteTitleIcon>{props.item.icon}</CommandPaletteTitleIcon>
+      )}
+      {props.item.content ? (
+        <span className="min-w-0 flex-1">{props.item.content}</span>
+      ) : props.item.description || props.item.threadContentMatch ? (
         <span className="flex min-w-0 flex-1 flex-col">
           <span className="flex min-w-0 items-center gap-1.5 text-sm text-foreground">
             {props.item.titleLeadingContent}
@@ -268,7 +276,7 @@ function CommandPaletteResultRow(props: {
           <CommandPaletteTitle item={props.item} />
         </span>
       )}
-      {props.item.titleTrailingContent}
+      {props.item.content ? null : props.item.titleTrailingContent}
       {props.item.kind === "action" && props.item.pin ? (
         <ProjectPinButton
           name={props.item.pin.name}
@@ -277,7 +285,7 @@ function CommandPaletteResultRow(props: {
           shortcutLabel={shortcutLabelForCommand(props.keybindings, "thread.pin")}
         />
       ) : null}
-      {props.item.timestamp ? (
+      {props.item.timestamp && !props.item.content ? (
         <span className="min-w-12 shrink-0 text-right text-xs tabular-nums text-muted-foreground/70">
           {props.item.timestamp}
         </span>
