@@ -20,6 +20,7 @@ import {
   type EnvironmentId,
   type ScopedThreadRef,
   type ThreadId,
+  type ThreadPriority,
   ProviderInteractionMode,
   RuntimeMode,
 } from "@t3tools/contracts";
@@ -177,7 +178,7 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
   } = input;
   const navigate = useNavigate();
   const router = useRouter();
-  const { settleThread, pinThread, confirmAndUnpinThread } = useThreadActions();
+  const { settleThread, pinThread, confirmAndUnpinThread, setThreadPriority } = useThreadActions();
   const canWriteSourceControl = useEnvironmentScope(environmentId, AuthSourceControlWriteScope);
   const switchGitRef = useAtomCommand(vcsEnvironment.switchRef, { reportFailure: false });
   const updateThreadMetadata = useOrchestrationCommand(threadEnvironment.updateMetadata, {
@@ -652,6 +653,14 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
         }),
       );
     };
+  const setActiveThreadPriority = (priority: ThreadPriority | null) => {
+    if (!readEnvironmentScope(environmentId, AuthOrchestrationOperateScope)) return false;
+    if (serverConfig?.environment.capabilities.threadPriority !== true) return false;
+    if (!activeThreadRef) return;
+    void setThreadPriority(activeThreadRef, priority).then(
+      toastThreadActionFailure("Failed to set priority"),
+    );
+  };
   const shortcuts = {
     "thread.settle": () => {
       if (!readEnvironmentScope(environmentId, AuthOrchestrationOperateScope)) return false;
@@ -681,6 +690,11 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
         ),
       );
     },
+    "thread.priority.urgent": () => setActiveThreadPriority("urgent"),
+    "thread.priority.high": () => setActiveThreadPriority("high"),
+    "thread.priority.medium": () => setActiveThreadPriority("medium"),
+    "thread.priority.low": () => setActiveThreadPriority("low"),
+    "thread.priority.none": () => setActiveThreadPriority(null),
   } satisfies ChatShortcutCommands;
   return {
     shortcuts,

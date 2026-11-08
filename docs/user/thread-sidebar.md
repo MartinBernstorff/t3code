@@ -61,8 +61,9 @@ and worktree while you stay in the new thread composer. This requires a Git proj
 ## Set a thread's priority
 
 Set **Priority** from a thread's menu, or run **Set priority...** from the command
-palette for the open thread. The sidebar shows the priority as an icon before the
-thread title. Agents can set it too.
+palette for the open thread. In the open thread, `mod+alt+1` through `mod+alt+4` set
+urgent through low, and `mod+alt+0` clears the priority. The sidebar shows the priority
+as an icon before the thread title. Agents can set it too.
 
 To list active threads by priority, set **Settings > General > Thread order** to
 **Priority**: urgent first, threads without a priority last, oldest first within a
