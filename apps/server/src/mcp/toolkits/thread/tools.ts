@@ -31,6 +31,7 @@ import * as ThreadSearch from "../../../orchestration-v2/ThreadSearch.ts";
 import * as ScheduledTaskService from "../../../scheduledTasks/ScheduledTaskService.ts";
 import * as ThreadManagementService from "../../../orchestration-v2/ThreadManagementService.ts";
 import * as McpInvocationContext from "../../McpInvocationContext.ts";
+import * as WorktreeMcpService from "../../WorktreeMcpService.ts";
 
 const ThreadOrganizeTool = Tool.make("t3_thread_organize", {
   description:
@@ -59,8 +60,20 @@ const ThreadOrganizeTool = Tool.make("t3_thread_organize", {
         description: "Linear issue you work on, e.g. MB-123.",
       }),
     ),
+    removeWorktree: Schema.optional(
+      Schema.Boolean.annotate({
+        description:
+          "With `archive`, also delete the thread's git worktree. Fails, changing nothing, while it runs, has local changes, or another active thread uses it.",
+      }),
+    ),
   }),
   success: Schema.Union([
+    // First, so the encoder keeps its extra fields.
+    Schema.Struct({
+      sequence: NonNegativeInt,
+      worktreePath: Schema.String,
+      worktreeRemoved: Schema.Boolean,
+    }),
     OrchestrationV2DispatchCommandResult,
     Schema.Struct({ settlesWhenTurnEnds: Schema.Literal(true) }),
   ]),
@@ -70,6 +83,7 @@ const ThreadOrganizeTool = Tool.make("t3_thread_organize", {
     McpInvocationContext.McpInvocationContext,
     ThreadManagementService.ThreadManagementService,
     SecureRandom.SecureRandom,
+    WorktreeMcpService.WorktreeMcpService,
   ],
 })
   .annotate(Tool.Title, "Organize a thread")

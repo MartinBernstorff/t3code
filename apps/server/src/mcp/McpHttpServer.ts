@@ -1168,7 +1168,7 @@ export const layerThreadToolkit = toolkitRegistration(ThreadToolkit, ThreadHandl
 const layerWorktreeToolkitRegistration = toolkitRegistration(
   WorktreeToolkit,
   WorktreeHandlers.layer,
-).pipe(Layer.provide(WorktreeMcpService.layer));
+);
 
 const layerPreviewControlsRegistration = toolkitRegistration(
   PreviewControlsToolkit,
@@ -1249,6 +1249,6 @@ export const layerTools = Layer.mergeAll(
   layerPullRequestsToolkit,
   layerDeviceToolkit,
   layerHtmlToolkit,
-);
+).pipe(Layer.provide(WorktreeMcpService.layer));
 
 export const layer = layerMcpTransport(layerTools);

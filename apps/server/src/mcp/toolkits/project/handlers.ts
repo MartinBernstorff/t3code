@@ -263,6 +263,14 @@ export const layer = McpToolAccess.toLayer(ProjectToolkit, {
                 message: error.message,
               });
             }
+            if (error._tag === "ThreadLaunchError" && error.operation === "checkout-pull-request") {
+              const cause =
+                error.cause instanceof Error ? error.cause.message : String(error.cause);
+              return new OrchestratorMcpFailure({
+                code: "invalid_request",
+                message: `${cause} No thread was created.`,
+              });
+            }
             // The administrator's ceiling refuses the mode; say so rather than "unavailable".
             if (error._tag === "ThreadLaunchError" && isAboveCeilingError(error.cause)) {
               return new OrchestratorMcpFailure({
@@ -282,6 +290,8 @@ export const layer = McpToolAccess.toLayer(ProjectToolkit, {
           modelSelection: thread.modelSelection,
           runId: run?.id ?? null,
           status: run?.status ?? null,
+          worktreePath: thread.worktreePath,
+          branch: thread.branch,
         };
       }),
     // The launched thread carries the caller's link, if it has one.

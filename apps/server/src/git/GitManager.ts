@@ -3090,6 +3090,7 @@ export const make = Effect.gen(function* () {
         branch: worktree.worktree.refName,
         worktreePath: worktree.worktree.path,
         isOnPullRequestHead: true,
+        createdWorktree: true,
       };
     }).pipe(Effect.ensuring(invalidateStatus(input.cwd)));
   }, asUserAction);

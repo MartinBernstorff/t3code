@@ -167,6 +167,8 @@ const ThreadLaunchResult = Schema.Struct({
   threadId: ThreadId,
   projectId: ProjectId,
   runId: Schema.NullOr(RunId),
+  worktreePath: Schema.optional(Schema.NullOr(Schema.String)),
+  branch: Schema.optional(Schema.NullOr(Schema.String)),
 });
 
 const toolFailureDetail = (result: typeof ToolResult.Type) => {
@@ -531,18 +533,24 @@ export const titleFromMessage = (message: string) => {
 const launchWorkspaceStrategy = (input: {
   readonly worktree: Option.Option<string>;
   readonly branch: Option.Option<string>;
+  readonly pr: Option.Option<string>;
 }) =>
   Option.match(input.worktree, {
     onNone: () =>
       Option.isSome(input.branch)
         ? Effect.fail(new ThreadUsageError({ detail: "--branch needs --worktree <base-ref>." }))
-        : Effect.void,
+        : Option.match(input.pr, {
+            onNone: () => Effect.void,
+            onSome: (reference) => Effect.succeed({ type: "pull_request" as const, reference }),
+          }),
     onSome: (baseRef) =>
-      Effect.succeed({
-        type: "worktree" as const,
-        baseRef,
-        ...Option.match(input.branch, { onNone: () => ({}), onSome: (branch) => ({ branch }) }),
-      }),
+      Option.isSome(input.pr)
+        ? Effect.fail(new ThreadUsageError({ detail: "--pr and --worktree are exclusive." }))
+        : Effect.succeed({
+            type: "worktree" as const,
+            baseRef,
+            ...Option.match(input.branch, { onNone: () => ({}), onSome: (branch) => ({ branch }) }),
+          }),
   });
 
 const jsonFlag = Flag.Boolean("json").pipe(
@@ -629,6 +637,12 @@ const threadStartCommand = Command.make("start", {
   ),
   branch: Flag.String("branch").pipe(
     Flag.withDescription("Branch name for the new worktree."),
+    Flag.optional,
+  ),
+  pr: Flag.String("pr").pipe(
+    Flag.withDescription(
+      "Run in a worktree checked out at this pull request's branch. Takes its number, URL, or branch.",
+    ),
     Flag.optional,
   ),
   wait: waitFlag,
@@ -815,13 +829,17 @@ const decodeLinearFlag = (value: string) =>
         ),
       );
 
-/** Omitted flags leave a field unchanged. `--snooze` uses the organize `snooze`/`unsnooze` actions. */
+/**
+ * Omitted flags leave a field unchanged. `--snooze` uses the organize `snooze`/`unsnooze` actions;
+ * `--title` uses `t3_thread_update`'s `rename`.
+ */
 const threadSetCommand = Command.make("set", {
   ...projectLocationFlags,
   thread: Argument.String("thread").pipe(
     Argument.withDescription("Thread id. Defaults to the agent's own thread when run by an agent."),
     Argument.optional,
   ),
+  title: Flag.String("title").pipe(Flag.withDescription("Thread title."), Flag.optional),
   priority: Flag.ChoiceWithValue("priority", [
     ["urgent", "urgent"],
     ["high", "high"],
@@ -852,7 +870,7 @@ const threadSetCommand = Command.make("set", {
   ),
   json: jsonFlag,
 }).pipe(
-  Command.withDescription("Change a thread's fields, such as its priority or snooze."),
+  Command.withDescription("Change a thread's fields, such as its title, priority, or snooze."),
   Command.withHandler((flags) =>
     Effect.gen(function* () {
       // Agents launch with T3CODE_THREAD_ID set to their thread (PortScanner.AGENT_THREAD_ENV).
@@ -862,6 +880,11 @@ const threadSetCommand = Command.make("set", {
         return yield* new ThreadUsageError({ detail: "Pass a thread id." });
       }
       const threadId = yield* decodeThreadId(thread.value);
+      const title = Option.isSome(flags.title)
+        ? yield* decodeTitle(flags.title.value).pipe(
+            Effect.mapError(() => new ThreadUsageError({ detail: "The title is empty." })),
+          )
+        : undefined;
       const linearIssue = Option.isSome(flags.linear)
         ? yield* decodeLinearFlag(flags.linear.value)
         : undefined;
@@ -890,15 +913,22 @@ const threadSetCommand = Command.make("set", {
           detail: `Invalid --snooze "${snooze.value.value}". Use a duration such as 2h, an ISO time, or none.`,
         });
       }
-      if (Object.keys(fields).length === 0 && Option.isNone(snooze)) {
+      if (Object.keys(fields).length === 0 && Option.isNone(snooze) && title === undefined) {
         return yield* new ThreadUsageError({
-          detail: "Pass a field to set, such as --priority or --snooze.",
+          detail: "Pass a field to set, such as --title, --priority, or --snooze.",
         });
       }
       yield* withThreadTools(
         flags,
         Effect.fn("cli.thread.set")(function* (tools) {
           let result: typeof ThreadSetResult.Type | undefined;
+          if (title !== undefined) {
+            result = yield* tools.call(
+              "t3_thread_update",
+              { threadId, action: "rename", title },
+              ThreadSetResult,
+            );
+          }
           if (Object.keys(fields).length > 0) {
             result = yield* tools.call(
               "t3_thread_organize",
@@ -923,13 +953,89 @@ const threadSetCommand = Command.make("set", {
   ),
 );
 
+const ThreadArchiveResult = Schema.Struct({
+  sequence: Schema.Number,
+  worktreePath: Schema.optional(Schema.String),
+  worktreeRemoved: Schema.optional(Schema.Boolean),
+});
+
+const threadArchiveCommand = Command.make("archive", {
+  ...projectLocationFlags,
+  thread: threadArgument,
+  removeWorktree: Flag.Boolean("remove-worktree").pipe(
+    Flag.withDescription(
+      "Also delete the thread's git worktree, keeping its branch. Fails, changing nothing, while the thread runs, if it has local changes, or if another active thread uses it.",
+    ),
+    Flag.withDefault(false),
+  ),
+  json: jsonFlag,
+}).pipe(
+  Command.withDescription("Archive a thread, and optionally delete its worktree."),
+  Command.withHandler((flags) =>
+    Effect.gen(function* () {
+      const threadId = yield* decodeThreadId(flags.thread);
+      yield* withThreadTools(
+        flags,
+        Effect.fn("cli.thread.archive")(function* (tools) {
+          const result = yield* tools.call(
+            "t3_thread_organize",
+            {
+              threadId,
+              action: "archive",
+              ...(flags.removeWorktree ? { removeWorktree: true } : {}),
+            },
+            ThreadArchiveResult,
+          );
+          if (flags.json) return yield* printJson(result);
+          yield* Console.log(
+            result.worktreePath === undefined
+              ? "Archived."
+              : result.worktreeRemoved === true
+                ? `Archived. Removed ${result.worktreePath}.`
+                : `Archived. ${result.worktreePath} was already gone.`,
+          );
+        }),
+      );
+    }).pipe(reportThreadErrors),
+  ),
+);
+
+const threadUnarchiveCommand = Command.make("unarchive", {
+  ...projectLocationFlags,
+  thread: threadArgument,
+  json: jsonFlag,
+}).pipe(
+  Command.withDescription("Restore an archived thread."),
+  Command.withHandler((flags) =>
+    Effect.gen(function* () {
+      const threadId = yield* decodeThreadId(flags.thread);
+      yield* withThreadTools(
+        flags,
+        Effect.fn("cli.thread.unarchive")(function* (tools) {
+          const result = yield* tools.call(
+            "t3_thread_organize",
+            { threadId, action: "unarchive" },
+            ThreadSetResult,
+          );
+          if (flags.json) return yield* printJson(result);
+          yield* Console.log("Unarchived.");
+        }),
+      );
+    }).pipe(reportThreadErrors),
+  ),
+);
+
 export const threadCommand = Command.make("thread").pipe(
-  Command.withDescription("Start, message, read, and organize threads on the running server."),
+  Command.withDescription(
+    "Start, message, read, organize, and archive threads on the running server.",
+  ),
   Command.withSubcommands([
     threadListCommand,
     threadStartCommand,
     threadSendCommand,
     threadShowCommand,
     threadSetCommand,
+    threadArchiveCommand,
+    threadUnarchiveCommand,
   ]),
 );

@@ -135,7 +135,102 @@ it.effect(
     ),
 );
 
-it.effect("set sends each flag as a t3_thread_organize set field", () =>
+it.effect("list --json keeps each thread's worktree path, Linear issue and priority", () =>
+  Effect.gen(function* () {
+    const fs = yield* FileSystem.FileSystem;
+    const path = yield* Path.Path;
+    const baseDir = yield* fs.makeTempDirectoryScoped({ prefix: "t3-thread-list-" });
+    yield* persistServerRuntimeState({
+      path: path.join(baseDir, "userdata", "server-runtime.json"),
+      state: yield* makePersistedServerRuntimeState({
+        config: { host: "127.0.0.1", devUrl: undefined },
+        port: 3_773,
+      }),
+    });
+    const projectId = ProjectId.make("project-1");
+    const thread = {
+      threadId,
+      projectId,
+      title: "MB-12 thread",
+      createdBy: "user",
+      creationSource: "web",
+      status: "idle",
+      latestRunId: null,
+      providerInstanceId: "codex",
+      model: "gpt-5",
+      runtimeMode: "full-access",
+      interactionMode: "default",
+      linkedPullRequest: null,
+      worktreePath: "/repo/.t3/worktrees/mb-12",
+      settled: false,
+      settledAt: null,
+      snoozed: false,
+      snoozedUntil: null,
+      priority: "high",
+      linearIssue: "MB-12",
+      parentThreadId: null,
+      relationshipToParent: null,
+      itemCount: 0,
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    };
+    using _session = vi.spyOn(McpBridge, "mcpToolSession").mockReturnValue(
+      Effect.succeed({
+        call: (tool) => {
+          switch (tool) {
+            case "t3_project_list":
+              return Effect.succeed({
+                structuredContent: {
+                  projects: [{ id: projectId, title: "Repo", workspaceRoot: "/repo" }],
+                  nextCursor: null,
+                },
+              });
+            case "t3_thread_list":
+              return Effect.succeed({
+                structuredContent: {
+                  projectId,
+                  currentThreadId: null,
+                  threads: [thread],
+                  nextCursor: null,
+                  total: 1,
+                },
+              });
+            default:
+              return Effect.die(`unexpected ${tool} call`);
+          }
+        },
+      }),
+    );
+
+    yield* Command.runWith(threadCommand, { version: "0.0.0" })([
+      "list",
+      "--project",
+      projectId,
+      "--json",
+      "--base-dir",
+      baseDir,
+    ]);
+
+    const [listed] = JSON.parse(String((yield* TestConsole.logLines).at(-1)));
+    assert.deepInclude(listed, {
+      worktreePath: "/repo/.t3/worktrees/mb-12",
+      linearIssue: "MB-12",
+      priority: "high",
+    });
+  }).pipe(
+    Effect.scoped,
+    Effect.provide(
+      Layer.mergeAll(
+        NodeServices.layer,
+        NodeCrypto.layer,
+        NetService.layer,
+        ConfigProvider.layer(ConfigProvider.fromEnv({ env: { T3CODE_PORT: "3773" } })),
+      ),
+    ),
+  ),
+);
+
+it.effect("set sends each flag to its MCP tool", () =>
   Effect.gen(function* () {
     const fs = yield* FileSystem.FileSystem;
     const path = yield* Path.Path;
@@ -173,6 +268,8 @@ it.effect("set sends each flag as a t3_thread_organize set field", () =>
     yield* run(threadId, "--linear", "mb-123", "--priority", "low");
     yield* run(threadId, "--linear", "none");
     const badLinear = yield* Effect.flip(run(threadId, "--linear", "MB123"));
+    yield* run(threadId, "--title", "  Renamed  ", "--priority", "high");
+    const blankTitle = yield* Effect.flip(run(threadId, "--title", "  "));
 
     assert.deepStrictEqual(calls, [
       { tool: "t3_thread_organize", args: { threadId, action: "set", priority: "urgent" } },
@@ -195,10 +292,13 @@ it.effect("set sends each flag as a t3_thread_organize set field", () =>
         args: { threadId, action: "set", priority: "low", linearIssue: "MB-123" },
       },
       { tool: "t3_thread_organize", args: { threadId, action: "set", linearIssue: null } },
+      { tool: "t3_thread_update", args: { threadId, action: "rename", title: "Renamed" } },
+      { tool: "t3_thread_organize", args: { threadId, action: "set", priority: "high" } },
     ]);
     assert.strictEqual(empty._tag, "ThreadUsageError");
     assert.strictEqual(badSnooze._tag, "ThreadUsageError");
     assert.strictEqual(badLinear._tag, "ThreadUsageError");
+    assert.strictEqual(blankTitle._tag, "ThreadUsageError");
   }).pipe(
     Effect.scoped,
     Effect.provide(

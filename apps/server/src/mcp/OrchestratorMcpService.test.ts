@@ -3517,6 +3517,7 @@ describe("OrchestratorMcpService thread list", () => {
       engagement: "queued" as const,
       waitingOnOthers: true,
       linearIssue: "MB-7",
+      worktreePath: "/repo/.t3/worktrees/mb-7",
     },
     shell("thread:a-awake", "project:a", false),
     shell("thread:b-snoozed", "project:b", true),
@@ -3568,8 +3569,10 @@ describe("OrchestratorMcpService thread list", () => {
         engagement: "queued",
         waitingOnOthers: true,
         linearIssue: "MB-7",
+        worktreePath: "/repo/.t3/worktrees/mb-7",
       });
       assert.notProperty(listed.threads[1], "priority");
+      assert.notProperty(listed.threads[1], "worktreePath");
     }).pipe(Effect.provide(service)),
   );
 });
