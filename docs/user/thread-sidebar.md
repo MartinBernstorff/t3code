@@ -235,12 +235,16 @@ to see how much work is in flight while you open threads from the thread picker 
 **Section counts** set to tokens, hover them to list the threads. Empty sections are hidden, Settled is left out, and the
 counts cover every project. Each device keeps its own choice.
 
+The thread picker lists threads under the same sections and lanes, in the same order, across
+every project. Nested lanes share one header, such as **Needs you › t3code**. Settled threads are
+not listed.
+
 ### Choose what each thread shows
 
 On web and desktop, open **Settings → Appearance → Sidebar thread rows** to hide parts of each
 thread in the sidebar, such as the project icon, branch, pull request, or provider icon. The
-title and status always show, and the hover card keeps every detail. Each device keeps its own
-choice.
+title and status always show, and the hover card keeps every detail. The command palette and
+thread picker hide the same parts. Each device keeps its own choice.
 
 ## Settle finished work
 

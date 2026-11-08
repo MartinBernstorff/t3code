@@ -1,6 +1,9 @@
 import type { EnvironmentServerConfig } from "@t3tools/client-runtime/connection";
 import { scopeThreadRef, scopedThreadKey } from "@t3tools/client-runtime/environment";
-import { resolveThreadWorkingStartedAt } from "@t3tools/client-runtime/state/models";
+import {
+  resolveThreadWorkingStartedAt,
+  type EnvironmentThreadShell,
+} from "@t3tools/client-runtime/state/models";
 import { isShownUnderParent } from "@t3tools/client-runtime/state/threads";
 import { backgroundWorkHoldsCompletion } from "@t3tools/shared/orchestrationV2PendingBackgroundWork";
 import { threadPullRequestSearchTerms } from "@t3tools/shared/threadPullRequests";
@@ -22,7 +25,12 @@ import {
   type EnvironmentId,
   type ThreadId,
 } from "@t3tools/contracts";
-import type { SidebarProjectSortOrder, SidebarThreadSortOrder } from "@t3tools/contracts/settings";
+import type {
+  SidebarProjectSortOrder,
+  SidebarThreadSort,
+  SidebarThreadSortOrder,
+  SidebarThreadSortOverrides,
+} from "@t3tools/contracts/settings";
 import type { AsyncResult } from "effect/reactivity";
 import {
   effectiveSnoozed,
@@ -31,6 +39,9 @@ import {
 import {
   getThreadSortTimestamp,
   planPinnedReorder,
+  resolveSidebarLaneSort,
+  sortActiveThreadsByOrderKey,
+  sortSidebarThreads,
   sortThreads,
   toSortableTimestamp,
   type ThreadSortInput,
@@ -40,6 +51,10 @@ import { normalizeSearchText } from "../lib/utils";
 import { isLatestRunSettled } from "../session-logic";
 import { observeIntersection } from "../lib/observeIntersection";
 import { deadlineAfter, deadlineStore } from "@t3tools/client-runtime/clock";
+import {
+  sortInboxThreadsByReturn,
+  sortWorkingThreadsBySend,
+} from "@t3tools/client-runtime/state/thread-inbox";
 import { useDeadlinePassed } from "../hooks/useDeadline";
 import { legacyProjectCwdPreferenceKey } from "../uiStateStore";
 import type {
@@ -180,7 +195,7 @@ export const animateSidebarLayoutChanges: AnimateLayoutChanges = (args) =>
 
 export type SidebarSection = "pinned" | "active" | "working" | "waiting" | "snoozed" | "settled";
 
-export function resolveSidebarThreadSection(input: {
+function resolveSidebarThreadSection(input: {
   readonly snoozed: boolean;
   readonly settled: boolean;
   readonly pinned: boolean;
@@ -189,6 +204,77 @@ export function resolveSidebarThreadSection(input: {
   if (input.settled) return "settled";
   if (input.pinned) return "pinned";
   return "active";
+}
+
+/** How the Working shelf reads a thread: the inbox tracker holds a just-finished thread briefly. */
+export interface SidebarInboxReader {
+  readonly isWorking: (thread: EnvironmentThreadShell) => boolean;
+  readonly returnedAt: (thread: EnvironmentThreadShell) => number | undefined;
+}
+
+/** A thread's section, including the Working and Waiting shelves, before any drop applies. */
+export function resolveSidebarThreadShelf(
+  thread: EnvironmentThreadShell,
+  input: {
+    readonly now: string;
+    /** Snooze and settle only apply once the thread's server config has loaded. */
+    readonly configLoaded: boolean;
+    readonly workingShelfEnabled: boolean;
+    /** Group by lanes: running pinned threads join the Working shelf instead of a lane. */
+    readonly pinnedJoinWorking: boolean;
+    readonly inbox: SidebarInboxReader;
+  },
+): SidebarSection {
+  const section = resolveSidebarThreadSection({
+    snoozed: input.configLoaded && effectiveSnoozed(thread, { now: input.now }),
+    settled: input.configLoaded && thread.settledOverride === "settled",
+    pinned: thread.pinnedAt != null,
+  });
+  if (section === "snoozed" || section === "settled") return section;
+  // The Waiting shelf shares the Working shelf's setting.
+  const shelf = !input.workingShelfEnabled
+    ? "active"
+    : thread.waitingOnOthers
+      ? "waiting"
+      : input.inbox.isWorking(thread)
+        ? "working"
+        : "active";
+  if (section === "pinned") return input.pinnedJoinWorking && shelf === "working" ? shelf : section;
+  return shelf;
+}
+
+export function sortSidebarActiveThreads(
+  threads: readonly EnvironmentThreadShell[],
+  input: {
+    readonly threadSort: SidebarThreadSort;
+    /** Boring mode: folders list active threads by the user's latest message. */
+    readonly sortActiveBySend: boolean;
+    readonly workingShelfEnabled: boolean;
+    readonly returnedAt: SidebarInboxReader["returnedAt"];
+  },
+): EnvironmentThreadShell[] {
+  if (input.threadSort !== "manual") return sortSidebarThreads(threads, input.threadSort);
+  if (input.sortActiveBySend) return sortWorkingThreadsBySend(threads);
+  if (input.workingShelfEnabled) return sortInboxThreadsByReturn(threads, input.returnedAt);
+  return sortActiveThreadsByOrderKey(threads);
+}
+
+/** Orders a Group by lane's threads by its Thread order, starting from the manual order. */
+export function orderSidebarLaneThreads(
+  defaultSort: SidebarThreadSort,
+  overrides: SidebarThreadSortOverrides,
+) {
+  return <T extends EnvironmentThreadShell>(
+    laneThreads: readonly T[],
+    lane: Pick<ThreadLane<T>, "path">,
+  ): readonly T[] => {
+    const sort = resolveSidebarLaneSort(lane.path, defaultSort, overrides);
+    if (sort === "manual") return laneThreads;
+    // Pinned threads keep their drag order at the top of the lane.
+    const pinned = laneThreads.filter((thread) => thread.pinnedAt != null);
+    const unpinned = laneThreads.filter((thread) => thread.pinnedAt == null);
+    return [...pinned, ...sortSidebarThreads(unpinned, sort)];
+  };
 }
 
 const SIDEBAR_MARKER_PREFIX = "sidebar-marker-";
@@ -1062,7 +1148,6 @@ export function firstValidTimestampMs(
   return 0;
 }
 
-export { sortActiveThreadsByOrderKey as sortThreadsForSidebar } from "@t3tools/client-runtime/state/thread-sort";
 export {
   sortInboxThreadsByReturn,
   sortWorkingThreadsBySend,

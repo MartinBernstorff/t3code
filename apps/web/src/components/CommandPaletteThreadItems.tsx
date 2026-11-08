@@ -23,6 +23,7 @@ import {
   deriveProviderInstanceEntries,
   type ProviderInstanceEntry,
 } from "../providerInstances";
+import { useClientSettings } from "../hooks/useSettings";
 import { useVisibleThreadShells } from "../state/entities";
 import {
   useEnvironmentProviders,
@@ -37,6 +38,7 @@ import { buildThreadRouteParams } from "../threadRoutes";
 import { formatRelativeTimeLabel } from "../timestampFormat";
 import { buildThreadActionItems, ITEM_ICON_CLASS } from "./CommandPalette.logic";
 import { useEnvironmentLookups, useProjectLookups } from "./CommandPaletteLookups";
+import { resolveSidebarThreadRowVisibility } from "./sidebar/sidebarThreadRowItems";
 import { ThreadCommandSubtitle } from "./ThreadCommandSubtitle";
 import {
   ThreadRowLeadingStatus,
@@ -105,11 +107,13 @@ export function useCommandPaletteThreadItems(input: {
   const messageSearch = useConnectedThreadSearch(threadSearchQuery);
   const { projectByKey } = useProjectLookups();
   const visitThread = useAtomCommand(threadEnvironment.visit, { reportFailure: false });
+  // Rows show the parts the sidebar's thread rows show.
+  const show = useClientSettings(resolveSidebarThreadRowVisibility);
   // Ranking is relative to when the palette opened, so rows do not reorder as time passes.
   const [now] = useState(() => Date.now());
 
   const { environments } = useEnvironments();
-  const threadItems = buildThreadActionItems({
+  const builtThreadItems = buildThreadActionItems({
     threads,
     ...(environments.length > 1
       ? {
@@ -120,7 +124,9 @@ export function useCommandPaletteThreadItems(input: {
     ...(activeThread ? { activeThread } : {}),
     projectByKey,
     icon: <MessageSquareIcon className={ITEM_ICON_CLASS} />,
-    renderLeadingContent: (thread) => <ThreadRowLeadingStatus thread={thread} />,
+    renderLeadingContent: (thread) => (
+      <ThreadRowLeadingStatus thread={thread} showPullRequest={show.pullRequest} />
+    ),
     renderTrailingContent: (thread) => (
       <>
         <ThreadSearchPullRequestNumber
@@ -128,7 +134,11 @@ export function useCommandPaletteThreadItems(input: {
           query={threadSearchQuery}
           settled={thread.settledOverride === "settled"}
         />
-        <ThreadRowTrailingStatus thread={thread} />
+        <ThreadRowTrailingStatus
+          thread={thread}
+          showTerminals={show.terminals}
+          showMachine={show.machine}
+        />
       </>
     ),
     renderDescription: (thread, { projectTitle }) => {
@@ -139,17 +149,23 @@ export function useCommandPaletteThreadItems(input: {
         null;
       return (
         <ThreadCommandSubtitle
-          project={projectByKey.get(`${thread.environmentId}:${thread.projectId}`) ?? null}
-          projectTitle={projectTitle ?? null}
-          environmentLabel={
-            projectEnvironmentLocationById.get(thread.environmentId)?.label ?? "Remote"
+          project={
+            show.projectIcon
+              ? (projectByKey.get(`${thread.environmentId}:${thread.projectId}`) ?? null)
+              : null
           }
-          branch={thread.branch}
+          projectTitle={show.projectName ? (projectTitle ?? null) : null}
+          environmentLabel={
+            show.machine
+              ? (projectEnvironmentLocationById.get(thread.environmentId)?.label ?? "Remote")
+              : null
+          }
+          branch={show.branch ? thread.branch : null}
           worktreePath={thread.worktreePath}
           isCurrent={
             thread.id === activeThread?.id && thread.environmentId === activeThread.environmentId
           }
-          driverKind={providerEntry?.driverKind ?? null}
+          driverKind={show.provider ? (providerEntry?.driverKind ?? null) : null}
           providerDisplayName={
             thread.runtime?.providerName ?? providerEntry?.displayName ?? modelInstanceId
           }
@@ -189,6 +205,9 @@ export function useCommandPaletteThreadItems(input: {
       });
     },
   });
+  const threadItems = show.time
+    ? builtThreadItems
+    : builtThreadItems.map(({ timestamp: _timestamp, ...item }) => item);
 
   const itemByValue = new Map(threadItems.map((item) => [item.value, item]));
   const itemForMatch = (match: EnvironmentThreadSearchMatch) =>

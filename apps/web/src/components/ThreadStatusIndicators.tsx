@@ -656,8 +656,16 @@ function ThreadStatusLabel({
   );
 }
 
-export function ThreadRowLeadingStatus({ thread }: { thread: SidebarThreadSummary }) {
-  const { leaseLiveStatus, rowRef } = useSidebarRowSubscriptionLease(false);
+export function ThreadRowLeadingStatus({
+  thread,
+  showPullRequest = true,
+}: {
+  thread: SidebarThreadSummary;
+  showPullRequest?: boolean;
+}) {
+  const { leaseLiveStatus: leased, rowRef } = useSidebarRowSubscriptionLease(false);
+  // The lease only feeds pull request lookups, so a hidden pull request skips them.
+  const leaseLiveStatus = leased && showPullRequest;
   // A new ref callback would detach and reattach the row, and each reattach sets lease state.
   const statusRef = useStableCallback((node: HTMLSpanElement | null) =>
     rowRef(node?.parentElement ?? null),
@@ -712,7 +720,7 @@ export function ThreadRowLeadingStatus({ thread }: { thread: SidebarThreadSummar
 
   const supportsMultiplePullRequests = useSupportsMultiplePullRequests(thread.environmentId);
   const pendingLink =
-    pr === null && supportsMultiplePullRequests
+    showPullRequest && pr === null && supportsMultiplePullRequests
       ? resolveThreadCurrentPullRequestLink(thread.pullRequests)
       : null;
 
@@ -720,10 +728,12 @@ export function ThreadRowLeadingStatus({ thread }: { thread: SidebarThreadSummar
     <span
       ref={statusRef}
       className={
-        prStatus || threadStatus ? "inline-flex shrink-0 items-center gap-1.5" : "contents"
+        (showPullRequest && prStatus) || threadStatus
+          ? "inline-flex shrink-0 items-center gap-1.5"
+          : "contents"
       }
     >
-      {prStatus && pr ? (
+      {showPullRequest && prStatus && pr ? (
         <Tooltip>
           <TooltipTrigger
             render={
@@ -751,18 +761,26 @@ export function ThreadRowLeadingStatus({ thread }: { thread: SidebarThreadSummar
   );
 }
 
-export function ThreadRowTrailingStatus({ thread }: { thread: SidebarThreadSummary }) {
+export function ThreadRowTrailingStatus({
+  thread,
+  showTerminals = true,
+  showMachine = true,
+}: {
+  thread: SidebarThreadSummary;
+  showTerminals?: boolean;
+  showMachine?: boolean;
+}) {
   const runningTerminalIds = useThreadRunningTerminalIds({
     environmentId: thread.environmentId,
     threadId: thread.id,
   });
   const environment = useEnvironment(thread.environmentId);
   const primaryEnvironmentId = usePrimaryEnvironmentId();
-  const isRemoteThread = thread.environmentId !== primaryEnvironmentId;
+  const isRemoteThread = showMachine && thread.environmentId !== primaryEnvironmentId;
   const remoteEnvLabel = environment?.label ?? null;
   const threadEnvironmentLabel = isRemoteThread ? (remoteEnvLabel ?? "Remote") : null;
   const remoteMachine = resolveEnvironmentMachineKind(environment?.serverConfig ?? null);
-  const terminalStatus = terminalStatusFromRunningIds(runningTerminalIds);
+  const terminalStatus = showTerminals ? terminalStatusFromRunningIds(runningTerminalIds) : null;
 
   if (!terminalStatus && !isRemoteThread) {
     return null;
