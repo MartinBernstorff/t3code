@@ -10,6 +10,7 @@ export interface SidebarMinimalSection {
   readonly label: string;
   readonly threads: ComponentProps<typeof SidebarSectionCount>["threads"];
   readonly depth: number;
+  readonly hideCount?: boolean;
 }
 
 /** The minimal sidebar: one header and count per section or lane, without thread rows. */
@@ -26,7 +27,7 @@ export function SidebarMinimalSections(props: { sections: readonly SidebarMinima
             )}
           >
             <span className="min-w-0 flex-1 truncate">{section.label}</span>
-            <SidebarSectionCount threads={section.threads} />
+            {section.hideCount ? null : <SidebarSectionCount threads={section.threads} />}
           </li>
         ))}
       </ul>

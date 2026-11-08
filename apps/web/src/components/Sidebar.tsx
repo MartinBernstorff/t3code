@@ -3345,7 +3345,13 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     ...nonEmptySections([
       { key: "working", label: "Working", threads: workingThreads, depth: 0 },
       { key: "waiting", label: "Waiting on others", threads: waitingThreads, depth: 0 },
-      { key: "snoozed", label: "Snoozed", threads: snoozedThreads, depth: 0 },
+      {
+        key: "snoozed",
+        label: "Snoozed",
+        threads: snoozedThreads,
+        depth: 0,
+        hideCount: true,
+      },
     ]),
   ];
 
