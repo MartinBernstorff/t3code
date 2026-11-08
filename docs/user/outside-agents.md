@@ -103,24 +103,32 @@ id=$(t3 thread start . "Find why the tests are slow")
 t3 thread send "$id" "Now fix it" --wait
 t3 thread show "$id"
 t3 thread list
+t3 thread set "$id" --title "Speed up the tests"
 t3 thread set "$id" --priority urgent
 t3 thread set "$id" --engagement queued
 t3 thread set "$id" --waiting on
 t3 thread set "$id" --snooze 2h
 t3 thread set "$id" --linear MB-123
+t3 thread archive "$id" --remove-worktree
+t3 thread unarchive "$id"
 ```
 
 `.` means the project that contains the current folder; a project id also
 works. A new thread uses the project's default model and permission mode, and
-runs in the project folder unless you pass `--worktree <base-branch>`. `send`
+runs in the project folder unless you pass `--worktree <base-branch>`, or
+`--pr <number|url|branch>` to work in a worktree on that pull request's branch. `send`
 never interrupts: a busy thread gets the message as its next turn. Pass `-` as
-the message to read it from stdin. `set` changes a thread's priority (`urgent`,
+the message to read it from stdin. `set` changes a thread's title, priority (`urgent`,
 `high`, `medium`, `low`, or `none` to clear it), engagement (`engaged`, `inbox`,
 or `queued`), whether it is waiting on others (`--waiting on|off`), and snooze (`--snooze` takes a duration such as
 `30m`, `2h`, `3d`, or `1w`, an ISO time, or `none` to wake the thread). Run by
 an agent, `set` defaults to the agent's own thread.
 `--linear` links a Linear issue id, and `--linear none` unlinks it. `show` prints the fields that
-are set.
+are set. `archive --remove-worktree` also deletes the thread's worktree and
+keeps its branch; it changes nothing while the thread runs, if the worktree has
+local changes, or if another active thread uses it. A thread unarchived after
+that still points at the deleted folder: recreate it with
+`git worktree add <path> <branch>` before sending it work.
 
 `--wait` prints the agent's reply. It exits 1 when the run fails or stops, and
 2 when the agent waits for an answer you give in the app. Add `--json` for a

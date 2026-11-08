@@ -11,6 +11,7 @@ import {
   type RuntimeMode,
   type OrchestrationV2ThreadShell,
   ThreadId,
+  GitManagerError,
 } from "@t3tools/contracts";
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
 import * as NodeServices from "@effect/platform-node/NodeServices";
@@ -114,6 +115,22 @@ const clientLaunchHarness = (input: {
       checkWorktreeBase: input.checkWorktreeBase ?? (() => Effect.void),
       launch: (launch) => {
         input.launched.push(launch);
+        const pullRequest =
+          launch.workspaceStrategy.type === "pull_request" ? launch.workspaceStrategy : null;
+        if (pullRequest?.reference === "404") {
+          return Effect.fail(
+            new ThreadLaunch.ThreadLaunchError({
+              operation: "checkout-pull-request",
+              commandId: launch.commandId,
+              projectId: launch.projectId,
+              cause: new GitManagerError({
+                operation: "preparePullRequestThread",
+                cwd: "/projects/client-target",
+                detail: "Pull request not found.",
+              }),
+            }),
+          );
+        }
         if (input.refusedByCeiling) {
           return Effect.fail(
             new ThreadLaunch.ThreadLaunchError({
@@ -139,6 +156,9 @@ const clientLaunchHarness = (input: {
               projectId: launch.projectId,
               title: launch.title,
               modelSelection: launch.modelSelection,
+              ...(pullRequest === null
+                ? {}
+                : { worktreePath: "/projects/client-target-feature", branch: "feature" }),
             },
             runs: [],
           },
@@ -483,6 +503,40 @@ it.effect("a launch binds only an existing checkout that is one of the project's
       code: "invalid_request",
     });
   }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
+);
+
+it.effect("a launch on a pull request returns its worktree, or creates nothing", () =>
+  Effect.gen(function* () {
+    const launched: Array<ThreadLaunch.ThreadLaunchInput> = [];
+    const { projectId, dependencies } = clientLaunchHarness({
+      runtimeModeCeiling: "auto",
+      launched,
+    });
+    const toolkit = yield* ProjectToolkit.pipe(
+      Effect.provide(
+        McpToolAccess.HandlersLayer.layer(ProjectHandlers.layer).pipe(Layer.provide(dependencies)),
+      ),
+    );
+    const launchOn = (reference: string) =>
+      toolkit
+        .handle("t3_thread_launch", {
+          title: "Review",
+          projectId,
+          workspaceStrategy: { type: "pull_request", reference },
+        })
+        .pipe(Stream.unwrap, Stream.runCollect, Effect.provide(dependencies));
+
+    expect((yield* launchOn("42")).at(-1)?.result).toMatchObject({
+      projectId,
+      worktreePath: "/projects/client-target-feature",
+      branch: "feature",
+    });
+    expect(launched[0]?.workspaceStrategy).toEqual({ type: "pull_request", reference: "42" });
+    expect((yield* launchOn("404")).at(-1)?.result).toMatchObject({
+      code: "invalid_request",
+      message: expect.stringContaining("No thread was created."),
+    });
+  }),
 );
 
 it.effect("a launch into a new worktree creates nothing when its base ref has no commit", () =>

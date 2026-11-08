@@ -12,6 +12,7 @@ import { modelSelectionCommandType } from "@t3tools/shared/model";
 
 import * as McpInvocationContext from "../../McpInvocationContext.ts";
 import * as McpToolAccess from "../../McpToolAccess.ts";
+import * as WorktreeMcpService from "../../WorktreeMcpService.ts";
 import {
   dispatchFailure,
   newCommandId,
@@ -335,6 +336,34 @@ export const layer = McpToolAccess.toLayer(ThreadToolkit, {
   t3_thread_organize: writesThread((input) =>
     Effect.gen(function* () {
       const { threads, projection, caller } = yield* readThread(input.threadId);
+      if (input.removeWorktree === true) {
+        if (input.action !== "archive") {
+          return yield* new OrchestratorMcpFailure({
+            code: "invalid_request",
+            message: "removeWorktree goes with the archive action.",
+          });
+        }
+        const worktrees = yield* WorktreeMcpService.WorktreeMcpService;
+        return yield* worktrees
+          .archiveAndRemoveWorktree(
+            yield* McpInvocationContext.McpInvocationContext,
+            projection.thread.id,
+          )
+          .pipe(
+            Effect.mapError(
+              (error) =>
+                new OrchestratorMcpFailure({
+                  code:
+                    error.code === "capability_denied" ||
+                    error.code === "thread_not_found" ||
+                    error.code === "invalid_request"
+                      ? error.code
+                      : "orchestration_error",
+                  message: error.message,
+                }),
+            ),
+          );
+      }
       const common = { commandId: yield* newCommandId(), threadId: projection.thread.id };
       if (input.action === "settle") {
         return yield* threads
