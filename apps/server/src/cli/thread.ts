@@ -964,7 +964,7 @@ const threadArchiveCommand = Command.make("archive", {
   thread: threadArgument,
   removeWorktree: Flag.Boolean("remove-worktree").pipe(
     Flag.withDescription(
-      "Also delete the thread's git worktree. Fails, changing nothing, if it has local changes or another active thread uses it.",
+      "Also delete the thread's git worktree, keeping its branch. Fails, changing nothing, while the thread runs, if it has local changes, or if another active thread uses it.",
     ),
     Flag.withDefault(false),
   ),
@@ -1000,6 +1000,31 @@ const threadArchiveCommand = Command.make("archive", {
   ),
 );
 
+const threadUnarchiveCommand = Command.make("unarchive", {
+  ...projectLocationFlags,
+  thread: threadArgument,
+  json: jsonFlag,
+}).pipe(
+  Command.withDescription("Restore an archived thread."),
+  Command.withHandler((flags) =>
+    Effect.gen(function* () {
+      const threadId = yield* decodeThreadId(flags.thread);
+      yield* withThreadTools(
+        flags,
+        Effect.fn("cli.thread.unarchive")(function* (tools) {
+          const result = yield* tools.call(
+            "t3_thread_organize",
+            { threadId, action: "unarchive" },
+            ThreadSetResult,
+          );
+          if (flags.json) return yield* printJson(result);
+          yield* Console.log("Unarchived.");
+        }),
+      );
+    }).pipe(reportThreadErrors),
+  ),
+);
+
 export const threadCommand = Command.make("thread").pipe(
   Command.withDescription(
     "Start, message, read, organize, and archive threads on the running server.",
@@ -1011,5 +1036,6 @@ export const threadCommand = Command.make("thread").pipe(
     threadShowCommand,
     threadSetCommand,
     threadArchiveCommand,
+    threadUnarchiveCommand,
   ]),
 );

@@ -69,6 +69,11 @@ export type ThreadLaunchWorkspaceStrategy =
       readonly startFromOrigin?: boolean | undefined;
     };
 
+/** A pull request resolves to its worktree before the thread exists, so the launch returns its path. */
+export type ThreadLaunchRequestWorkspaceStrategy =
+  | ThreadLaunchWorkspaceStrategy
+  | { readonly type: "pull_request"; readonly reference: string };
+
 export interface ThreadLaunchInitialMessage {
   readonly messageId?: MessageId;
   readonly scheduledTaskId?: ScheduledTaskId;
@@ -88,7 +93,7 @@ export interface ThreadLaunchInput {
   readonly modelSelection: ModelSelection;
   readonly runtimeMode: RuntimeMode;
   readonly interactionMode: ProviderInteractionMode;
-  readonly workspaceStrategy: ThreadLaunchWorkspaceStrategy;
+  readonly workspaceStrategy: ThreadLaunchRequestWorkspaceStrategy;
   readonly initialMessage?: ThreadLaunchInitialMessage;
   readonly importedNativeThread?: {
     readonly ref: {
@@ -107,10 +112,8 @@ export interface ThreadLaunchInput {
   readonly delegatedFrom?: OrchestrationV2DelegatedFrom;
 }
 
-type PreparationInput = Pick<
-  ThreadLaunchInput,
-  "commandId" | "projectId" | "workspaceStrategy" | "initialMessage"
-> & {
+type PreparationInput = Pick<ThreadLaunchInput, "commandId" | "projectId" | "initialMessage"> & {
+  readonly workspaceStrategy: ThreadLaunchWorkspaceStrategy;
   readonly reusedWorktree?: { readonly baseRef: string };
 };
 
@@ -135,6 +138,7 @@ export class ThreadLaunchError extends Schema.TaggedError<ThreadLaunchError>()(
       "resolve-project",
       "read-receipt",
       "generate-metadata",
+      "checkout-pull-request",
       "provision-worktree",
       "run-setup-script",
       "create-thread",
@@ -222,7 +226,11 @@ const make = Effect.gen(function* () {
   yield* Effect.addFinalizer(() => Scope.close(preparationScope, Exit.void));
 
   const mapError =
-    (input: PreparationInput, operation: ThreadLaunchError["operation"], threadId?: ThreadId) =>
+    (
+      input: Pick<ThreadLaunchInput, "commandId" | "projectId">,
+      operation: ThreadLaunchError["operation"],
+      threadId?: ThreadId,
+    ) =>
     (cause: unknown) =>
       new ThreadLaunchError({
         operation,
@@ -905,22 +913,60 @@ const make = Effect.gen(function* () {
           yield* validateReusableThread(input, candidateThreadId);
         }
 
+        // The checkout this launch made, removed again if no thread takes it.
+        let createdWorktreePath: string | null = null;
+        const pullRequestWorktree = Effect.fn("ThreadLaunchService.pullRequestWorktree")(function* (
+          reference: string,
+        ) {
+          const bound = Option.isSome(launchReceipt)
+            ? yield* threads
+                .getThreadShell(candidateThreadId)
+                .pipe(Effect.mapError(mapError(input, "create-thread", candidateThreadId)))
+            : null;
+          if (bound?.worktreePath)
+            return {
+              type: "existing_worktree" as const,
+              worktreePath: bound.worktreePath,
+              ...(bound.branch === null ? {} : { branch: bound.branch }),
+            };
+          // No thread id: the launch runs setup once the thread exists, behind its link fence.
+          const prepared = yield* git
+            .preparePullRequestThread({ cwd: project.workspaceRoot, reference, mode: "worktree" })
+            .pipe(Effect.mapError(mapError(input, "checkout-pull-request", candidateThreadId)));
+          if (prepared.worktreePath === null)
+            return yield* mapError(
+              input,
+              "checkout-pull-request",
+              candidateThreadId,
+            )("The pull request was not checked out in a worktree.");
+          if (prepared.createdWorktree === true) createdWorktreePath = prepared.worktreePath;
+          return {
+            type: "existing_worktree" as const,
+            worktreePath: prepared.worktreePath,
+            branch: prepared.branch,
+          };
+        });
+        const requested = input.workspaceStrategy;
         const workspaceStrategy: ThreadLaunchWorkspaceStrategy =
-          input.workspaceStrategy.type === "root" && Option.isNone(launchReceipt)
-            ? Option.match(
-                yield* managedFolders
-                  .folderForThread({
-                    projectId: input.projectId,
-                    threadId: candidateThreadId,
-                    text: input.initialMessage?.text ?? input.title,
-                  })
-                  .pipe(Effect.mapError(mapError(input, "provision-worktree", candidateThreadId))),
-                {
-                  onNone: () => input.workspaceStrategy,
-                  onSome: (worktreePath) => ({ type: "existing_worktree", worktreePath }),
-                },
-              )
-            : input.workspaceStrategy;
+          requested.type === "pull_request"
+            ? yield* pullRequestWorktree(requested.reference)
+            : requested.type === "root" && Option.isNone(launchReceipt)
+              ? Option.match(
+                  yield* managedFolders
+                    .folderForThread({
+                      projectId: input.projectId,
+                      threadId: candidateThreadId,
+                      text: input.initialMessage?.text ?? input.title,
+                    })
+                    .pipe(
+                      Effect.mapError(mapError(input, "provision-worktree", candidateThreadId)),
+                    ),
+                  {
+                    onNone: () => requested,
+                    onSome: (worktreePath) => ({ type: "existing_worktree", worktreePath }),
+                  },
+                )
+              : requested;
         const initialBranch = workspaceStrategy.branch ?? null;
         const initialWorktreePath =
           workspaceStrategy.type === "existing_worktree" ? workspaceStrategy.worktreePath : null;
@@ -961,6 +1007,17 @@ const make = Effect.gen(function* () {
               input.reuseExistingThread === true ? "update-thread" : "create-thread",
               candidateThreadId,
             ),
+          ),
+          Effect.onError(() =>
+            createdWorktreePath === null
+              ? Effect.void
+              : git
+                  .removeWorktree({
+                    cwd: project.workspaceRoot,
+                    path: createdWorktreePath,
+                    force: true,
+                  })
+                  .pipe(Effect.ignoreCause({ log: true })),
           ),
         );
         const threadId =

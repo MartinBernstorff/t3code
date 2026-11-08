@@ -63,10 +63,18 @@ interface ThreadFixture {
   readonly worktreePath?: string | null;
   readonly archivedAt?: string | null;
   readonly deletedAt?: string | null;
+  readonly runs?: ReadonlyArray<{ readonly id: string; readonly status: string }>;
+  readonly providerSessions?: ReadonlyArray<{ readonly id: string; readonly status: string }>;
 }
 
-const makeProjection = (overrides: ThreadFixture = {}): OrchestrationV2ThreadProjection =>
+const makeProjection = ({
+  runs = [],
+  providerSessions = [],
+  ...overrides
+}: ThreadFixture = {}): OrchestrationV2ThreadProjection =>
   ({
+    runs,
+    providerSessions,
     thread: {
       id: threadId,
       projectId,
@@ -118,14 +126,49 @@ interface HarnessOptions {
   readonly deleteLocalBranchFails?: boolean;
   readonly createWorktreeGate?: Effect.Effect<void>;
   readonly existsFails?: boolean;
-  readonly worktreeSharedWith?: ReadonlyArray<ThreadId>;
+  readonly worktreeSharedWith?: ReadonlyArray<SharingShell>;
+}
+
+/** Another active thread on the worktree, as the shell snapshot lists it. */
+interface SharingShell {
+  readonly id: ThreadId;
+  readonly lineage?: {
+    readonly parentThreadId: ThreadId | null;
+    readonly relationshipToParent: "fork" | "subagent" | null;
+  };
+  readonly activeRunId?: string | null;
 }
 
 const makeHarness = (options: HarnessOptions = {}) => {
-  const thread = options.thread === undefined ? {} : options.thread;
+  const fixture = options.thread === undefined ? {} : options.thread;
+  // Archiving persists, and the orchestrator rejects archiving an archived thread.
+  let archivedAt = fixture?.archivedAt ?? null;
+  // A detached session leaves the projection.
+  const detached = new Set<string>();
+  const currentThread = () =>
+    fixture === null
+      ? null
+      : {
+          ...fixture,
+          archivedAt,
+          providerSessions: (fixture.providerSessions ?? []).filter(({ id }) => !detached.has(id)),
+        };
   const scope = makeScope(options.capabilities ?? new Set(["preview", "worktree"]));
-  const dispatch = vi.fn((_: unknown) =>
+  const dispatch = vi.fn((command: unknown) =>
     (options.dispatchGate ?? Effect.void).pipe(
+      Effect.andThen(
+        (command as { readonly type?: string }).type === "provider-session.detach"
+          ? Effect.sync(() => {
+              detached.add((command as { readonly providerSessionId: string }).providerSessionId);
+            })
+          : (command as { readonly type?: string }).type !== "thread.archive"
+            ? Effect.void
+            : archivedAt !== null
+              ? (Effect.fail("Thread is already archived.") as never)
+              : Effect.sync(() => {
+                  archivedAt = "2026-01-02T00:00:00.000Z";
+                }),
+      ),
       Effect.andThen(
         options.dispatchInterrupts
           ? (Effect.failCause(Cause.interrupt()) as never)
@@ -144,13 +187,22 @@ const makeHarness = (options: HarnessOptions = {}) => {
         : ["dev", "feature/taken", "feature/taken-idle"],
     ),
   );
+  const noLineage = { parentThreadId: null, relationshipToParent: null };
   const readShellSnapshot = () =>
     Effect.succeed(
-      Effect.succeed({
-        threads: [threadId, ...(options.worktreeSharedWith ?? [])].map((id) => ({ id })),
-      } as unknown as OrchestrationV2ThreadShellSnapshot),
+      Effect.sync(
+        () =>
+          ({
+            threads: [
+              ...(archivedAt === null ? [{ id: threadId }] : []),
+              ...(options.worktreeSharedWith ?? []),
+            ].map((shell) => ({ lineage: noLineage, activeRunId: null, ...shell })),
+          }) as unknown as OrchestrationV2ThreadShellSnapshot,
+      ),
     );
+  const getThreadEventSequence = vi.fn((_: ThreadId) => Effect.succeed(7));
   const getThreadRecords = vi.fn((id: ThreadId) => {
+    const thread = currentThread();
     if (options.threadReadError === "dispatch") {
       return Effect.fail(
         new OrchestratorDispatchError({
@@ -182,6 +234,9 @@ const makeHarness = (options: HarnessOptions = {}) => {
       thread !== null
     ) {
       return Effect.succeed(makeProjection({ ...thread, archivedAt: "2026-01-02T00:00:00.000Z" }));
+    }
+    if (options.worktreeSharedWith?.some((shell) => shell.id === id)) {
+      return Effect.succeed(makeProjection());
     }
     return id === threadId && thread !== null
       ? Effect.succeed(makeProjection(thread))
@@ -308,6 +363,7 @@ const makeHarness = (options: HarnessOptions = {}) => {
           getThreadRecords,
           sendToThread,
           readShellSnapshot,
+          getThreadEventSequence,
         } satisfies Partial<ThreadManagementService.ThreadManagementService["Service"]>),
         Layer.mock(ProjectService.ProjectService)({
           getById,
@@ -728,6 +784,7 @@ describe("archiveAndRemoveWorktree", () => {
       readonly harness: ReturnType<typeof makeHarness>;
       readonly worktreePath: string;
     }) => Effect.Effect<A, E, R>,
+    thread: ThreadFixture = {},
   ) =>
     Effect.gen(function* () {
       const fs = yield* FileSystem.FileSystem;
@@ -744,7 +801,7 @@ describe("archiveAndRemoveWorktree", () => {
       yield* command(cwd, ["commit", "--allow-empty", "-m", "base"]);
       yield* command(cwd, ["worktree", "add", "-b", "feature/archive", worktreePath]);
       const harness = makeHarness({
-        thread: { worktreePath, branch: "feature/archive" },
+        thread: { worktreePath, branch: "feature/archive", ...thread },
         git: { removeWorktree: (input) => git.removeWorktree({ ...input, cwd }) },
       });
       return yield* test({ harness, worktreePath });
@@ -758,23 +815,55 @@ describe("archiveAndRemoveWorktree", () => {
       ),
     );
 
-  it.effect("removes a clean worktree, then archives the thread", () =>
-    withLinkedWorktree(({ harness, worktreePath }) =>
-      Effect.gen(function* () {
-        const fs = yield* FileSystem.FileSystem;
-        const result = yield* runArchive(harness);
-        expect(result).toMatchObject({ worktreePath, worktreeRemoved: true });
-        expect(yield* fs.exists(worktreePath)).toBe(false);
-        expect(harness.dispatch.mock.calls.map(([command]) => command)).toEqual([
-          expect.objectContaining({ type: "thread.archive", threadId }),
-        ]);
+  it.effect("stops the provider session, removes a clean worktree, then archives the thread", () =>
+    withLinkedWorktree(
+      ({ harness, worktreePath }) =>
+        Effect.gen(function* () {
+          const fs = yield* FileSystem.FileSystem;
+          const result = yield* runArchive(harness);
+          expect(result).toMatchObject({ worktreePath, worktreeRemoved: true });
+          expect(yield* fs.exists(worktreePath)).toBe(false);
+          expect(harness.dispatch.mock.calls.map(([command]) => command)).toEqual([
+            expect.objectContaining({
+              type: "provider-session.detach",
+              threadId,
+              providerSessionId: "session-live",
+            }),
+            expect.objectContaining({ type: "thread.archive", threadId }),
+          ]);
 
-        // Retrying after the folder is gone only archives.
-        expect(yield* runArchive(harness)).toMatchObject({ worktreeRemoved: false });
-        expect(harness.dispatch).toHaveBeenCalledTimes(2);
-      }),
+          // A retry after success, or a thread archived elsewhere, succeeds without archiving again.
+          expect(yield* runArchive(harness)).toMatchObject({
+            sequence: 7,
+            worktreePath,
+            worktreeRemoved: false,
+          });
+          expect(harness.dispatch).toHaveBeenCalledTimes(2);
+        }),
+      {
+        runs: [{ id: "run-done", status: "completed" }],
+        providerSessions: [
+          { id: "session-live", status: "ready" },
+          { id: "session-old", status: "stopped" },
+        ],
+      },
     ),
   );
+
+  it.effect("refuses while the thread's run is active", () => {
+    const harness = makeHarness({
+      thread: {
+        worktreePath: "/worktrees/project/busy",
+        runs: [{ id: "run-live", status: "running" }],
+      },
+    });
+    return Effect.gen(function* () {
+      const exit = yield* Effect.exit(runArchive(harness));
+      expectTypedFailure(exit, { code: "invalid_request" });
+      expect(harness.removeWorktree).not.toHaveBeenCalled();
+      expect(harness.dispatch).not.toHaveBeenCalled();
+    });
+  });
 
   it.effect("changes nothing when the worktree has local changes", () =>
     withLinkedWorktree(({ harness, worktreePath }) =>
@@ -792,13 +881,41 @@ describe("archiveAndRemoveWorktree", () => {
   it.effect("refuses a worktree another active thread uses", () => {
     const harness = makeHarness({
       thread: { worktreePath: "/worktrees/project/shared" },
-      worktreeSharedWith: [ThreadId.make("thread-sharing")],
+      worktreeSharedWith: [{ id: ThreadId.make("thread-sharing") }],
     });
     return Effect.gen(function* () {
       const exit = yield* Effect.exit(runArchive(harness));
       expectTypedFailure(exit, { code: "invalid_request" });
       expect(harness.removeWorktree).not.toHaveBeenCalled();
       expect(harness.dispatch).not.toHaveBeenCalled();
+    });
+  });
+
+  it.effect("goes with the thread's idle subagent threads, but not a running one", () => {
+    const child = ThreadId.make("thread-subagent");
+    const subagentOf = (parentThreadId: ThreadId) => ({
+      parentThreadId,
+      relationshipToParent: "subagent" as const,
+    });
+    const run = (activeRunId: string | null) =>
+      Effect.exit(
+        runArchive(
+          makeHarness({
+            thread: { worktreePath: "/worktrees/project/delegated" },
+            worktreeSharedWith: [
+              { id: child, lineage: subagentOf(threadId) },
+              {
+                id: ThreadId.make("thread-grandchild"),
+                lineage: subagentOf(child),
+                activeRunId,
+              },
+            ],
+          }),
+        ),
+      );
+    return Effect.gen(function* () {
+      expect(Exit.isSuccess(yield* run(null))).toBe(true);
+      expectTypedFailure(yield* run("run-child"), { code: "invalid_request" });
     });
   });
 });

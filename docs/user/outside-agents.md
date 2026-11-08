@@ -110,6 +110,7 @@ t3 thread set "$id" --waiting on
 t3 thread set "$id" --snooze 2h
 t3 thread set "$id" --linear MB-123
 t3 thread archive "$id" --remove-worktree
+t3 thread unarchive "$id"
 ```
 
 `.` means the project that contains the current folder; a project id also
@@ -123,9 +124,11 @@ or `queued`), whether it is waiting on others (`--waiting on|off`), and snooze (
 `30m`, `2h`, `3d`, or `1w`, an ISO time, or `none` to wake the thread). Run by
 an agent, `set` defaults to the agent's own thread.
 `--linear` links a Linear issue id, and `--linear none` unlinks it. `show` prints the fields that
-are set. `archive --remove-worktree` also deletes the thread's worktree; it
-changes nothing if the worktree has local changes or another active thread
-uses it.
+are set. `archive --remove-worktree` also deletes the thread's worktree and
+keeps its branch; it changes nothing while the thread runs, if the worktree has
+local changes, or if another active thread uses it. A thread unarchived after
+that still points at the deleted folder: recreate it with
+`git worktree add <path> <branch>` before sending it work.
 
 `--wait` prints the agent's reply. It exits 1 when the run fails or stops, and
 2 when the agent waits for an answer you give in the app. Add `--json` for a
