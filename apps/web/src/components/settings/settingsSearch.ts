@@ -340,6 +340,14 @@ export const SETTINGS_SEARCH_ITEMS = [
     searchTerms: ["wide full width column layout messages composer monitor"],
   },
   {
+    id: "sidebar-thread-row-items",
+    title: "Sidebar thread rows",
+    to: "/settings/appearance",
+    searchTerms: [
+      "customize show hide sidebar thread row project icon name branch pull request diff changed lines terminals machine provider model time",
+    ],
+  },
+  {
     id: "thread-details-items",
     title: "Thread details",
     to: "/settings/appearance",
