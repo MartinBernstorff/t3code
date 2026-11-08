@@ -202,6 +202,8 @@ export interface CommandPaletteItem {
   /** Shown in place of the description when the match is not in the title. */
   readonly matchHint?: SearchMatchHint;
   readonly icon: ReactNode;
+  /** Drawn in place of the title, description, and timestamp. */
+  readonly content?: ReactNode;
   readonly disabled?: boolean;
   readonly titleLeadingContent?: ReactNode;
   readonly titleTrailingContent?: ReactNode;

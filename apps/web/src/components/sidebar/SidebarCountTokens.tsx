@@ -59,6 +59,13 @@ const PALETTES: Record<Exclude<SidebarTokenColor, "none">, TokenPalette> = {
   },
 };
 
+/** The colour of a thread's token under the sidebar's token colour setting. */
+export function sidebarTokenClassName(thread: ThreadGroupInput, color: SidebarTokenColor): string {
+  if (color === "none") return NEUTRAL_TOKEN;
+  const palette = PALETTES[color];
+  return palette.classes[palette.bucketOf(thread)]!;
+}
+
 export function SidebarCountNumber(props: { count: number }) {
   return <span className="font-normal tabular-nums">{props.count}</span>;
 }
