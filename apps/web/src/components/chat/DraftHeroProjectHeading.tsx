@@ -44,6 +44,7 @@ export function DraftHeroProjectHeading({
         >
           <span>What should we build in</span>
           <span className="flex items-baseline gap-2 px-2.5">
+            <span className="inline-block size-[0.9em]" />
             <span className="font-medium">{projectName}</span>
             {shortcutLabel ? <Kbd>{shortcutLabel}</Kbd> : null}?
           </span>
