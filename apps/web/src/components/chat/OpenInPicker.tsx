@@ -15,7 +15,9 @@ import { useRemoteOpenHint } from "../../remoteOpen";
 import { useEnvironment } from "../../state/environments";
 import { ChevronDownIcon, FolderClosedIcon, SquareArrowOutUpRightIcon } from "lucide-react";
 
+import { Button } from "../ui/button";
 import { Group, GroupSeparator } from "../ui/group";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import {
   Menu,
   MenuItem,
@@ -394,5 +396,56 @@ export const OpenInPicker = memo(function OpenInPicker({
         </MenuPopup>
       </Menu>
     </ActionGroup>
+  );
+});
+
+/** Icon-only button that opens `openInCwd` in the last-used editor. */
+export const OpenInEditorIconButton = memo(function OpenInEditorIconButton({
+  environmentId,
+  availableEditors,
+  openInCwd,
+}: {
+  environmentId: EnvironmentId;
+  availableEditors: ReadonlyArray<EditorId>;
+  openInCwd: string | null;
+}) {
+  const { remote, editors, preferredEditor, open } = useOpenInLastUsedEditor(
+    environmentId,
+    availableEditors,
+  );
+  const canOperateHost = useEnvironmentScope(environmentId, AuthOrchestrationOperateScope);
+  if (!preferredEditor || remote.mode === "remote-unavailable") return null;
+  const option = resolveOpenInOptions(navigator.platform, editors).find(
+    ({ value }) => value === preferredEditor,
+  );
+  const editorLabel = editorLabelForPlatform(preferredEditor, navigator.platform);
+  const label = `Open in ${editorLabel}`;
+  const OptionIcon = option?.Icon ?? SquareArrowOutUpRightIcon;
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <Button
+            className="shrink-0 [-webkit-app-region:no-drag]"
+            variant="ghost"
+            size="icon-sm"
+            aria-label={label}
+            disabled={!openInCwd || (remote.mode === "local-exec" && !canOperateHost)}
+            onClick={() => {
+              if (!openInCwd) return;
+              void open(openInCwd).then((opened) => {
+                if (opened) announce(`Opened in ${editorLabel}`);
+              });
+            }}
+          />
+        }
+      >
+        <OptionIcon
+          aria-hidden="true"
+          className={cn("size-4", option ? getOpenInIconClass(option.kind) : undefined)}
+        />
+      </TooltipTrigger>
+      <TooltipPopup side="bottom">{label}</TooltipPopup>
+    </Tooltip>
   );
 });
