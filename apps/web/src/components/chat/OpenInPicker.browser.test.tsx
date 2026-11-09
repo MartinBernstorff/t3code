@@ -4,7 +4,7 @@ import { Cause } from "effect";
 import { AsyncResult } from "effect/reactivity";
 import { describe, expect, it, vi } from "vite-plus/test";
 
-import { act, fakeTimers, render as renderUi } from "../../../test/render";
+import { act, render as renderUi } from "../../../test/render";
 import type { RemoteOpenState } from "../../remoteOpen";
 
 const state = vi.hoisted(() => ({
@@ -15,6 +15,7 @@ const state = vi.hoisted(() => ({
   openUrl: vi.fn(),
   setPreferred: vi.fn(),
   markHintSeen: vi.fn(),
+  toast: vi.fn(),
   listeners: new Set<() => void>(),
 }));
 
@@ -65,6 +66,11 @@ vi.mock(import("../../remoteOpen"), async (importOriginal) => ({
   openRemoteEditorUrl: state.openUrl,
 }));
 
+vi.mock(import("../ui/toast"), async (importOriginal) => {
+  const actual = await importOriginal();
+  return { ...actual, toastManager: { ...actual.toastManager, add: state.toast } };
+});
+
 import { OpenInPicker } from "./OpenInPicker";
 import {
   registerOpenFavoriteEditorCommand,
@@ -83,6 +89,7 @@ async function setup() {
   state.openUrl.mockReset().mockResolvedValue(true);
   state.setPreferred.mockReset();
   state.markHintSeen.mockReset();
+  state.toast.mockReset();
   state.listeners.clear();
   window.localStorage.clear();
 
@@ -204,35 +211,28 @@ describe("remote editor links", () => {
   });
 });
 
-describe("open in editor announcement", () => {
-  it("speaks only after the shortcut opened the editor, from the picker or the fallback", async () => {
+describe("open in editor toast", () => {
+  it("shows only after the shortcut opened the editor, from the picker or the fallback", async () => {
     await using fixture = await setup();
     const { screen, renderPicker, pressOpenFavorite, FavoriteEditorFallback } = fixture;
     state.allowed.add(selected);
     await renderPicker();
-    using _timers = fakeTimers();
-    const regions = () => [...document.querySelectorAll('body > [aria-live="polite"]')];
-    const spoken = async () => {
-      await act(async () => vi.runAllTimers());
-      return regions()
-        .map((region) => region.textContent)
-        .join("");
-    };
     const refuse = () =>
       state.run.mockResolvedValueOnce(AsyncResult.failure(Cause.fail(new Error("No editor"))));
+    const opened = { type: "success", title: "Opened in VS Code" };
 
     refuse();
     await pressOpenFavorite();
-    expect(await spoken()).toBe("");
+    expect(state.toast).not.toHaveBeenCalled();
     await pressOpenFavorite();
-    expect(await spoken()).toBe("Opened in VS Code");
+    expect(state.toast).toHaveBeenCalledExactlyOnceWith(opened);
 
-    for (const region of regions()) region.textContent = "";
+    state.toast.mockReset();
     await act(async () => screen.rerender(<FavoriteEditorFallback />));
     refuse();
     await pressOpenFavorite();
-    expect(await spoken()).toBe("");
+    expect(state.toast).not.toHaveBeenCalled();
     await pressOpenFavorite();
-    expect(await spoken()).toBe("Opened in VS Code");
+    expect(state.toast).toHaveBeenCalledExactlyOnceWith(opened);
   });
 });

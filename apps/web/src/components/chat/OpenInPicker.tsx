@@ -8,7 +8,7 @@ import {
 import { memo, use, useRef } from "react";
 import { BackgroundThreadContext } from "./backgroundThread";
 import { shortcutLabelForCommand } from "../../keybindings";
-import { OPEN_FAVORITE_EDITOR_ATTRIBUTE } from "./OpenInPickerShortcut";
+import { OPEN_FAVORITE_EDITOR_ATTRIBUTE, toastOpenedInEditor } from "./OpenInPickerShortcut";
 import { useOpenInLastUsedEditor } from "../../openInLastUsedEditor";
 import { editorLabelForPlatform } from "../../editorLabels";
 import { useRemoteOpenHint } from "../../remoteOpen";
@@ -56,7 +56,6 @@ import {
   RustRoverIcon,
   WebStormIcon,
 } from "../JetBrainsIcons";
-import { announce } from "~/lib/announce";
 import { cn, isMacPlatform, isWindowsPlatform } from "~/lib/utils";
 import {
   THREAD_DETAILS_PANEL_CHEVRON_CLASS,
@@ -295,7 +294,11 @@ export const OpenInPicker = memo(function OpenInPicker({
             density={presentation === "menu" ? "touch" : "default"}
 
             disabled={!openInCwd || !canOpenEditor}
-            onClick={() => openInEditor(preferredEditor)}
+            onClick={() => {
+              void openInEditor(preferredEditor).then((opened) => {
+                if (opened) toastOpenedInEditor(primaryOption.label);
+              });
+            }}
           >
             <primaryOption.Icon className={cn("size-4", getOpenInIconClass(primaryOption.kind))} />
             <MenuItemLabel>Open in {primaryOption.label}</MenuItemLabel>
@@ -335,7 +338,7 @@ export const OpenInPicker = memo(function OpenInPicker({
           if (!preferredEditor) return;
           const label = editorLabelForPlatform(preferredEditor, navigator.platform);
           void openInEditor(preferredEditor).then((opened) => {
-            if (opened) announce(`Opened in ${label}`);
+            if (opened) toastOpenedInEditor(label);
           });
         }}
       >
@@ -434,7 +437,7 @@ export const OpenInEditorIconButton = memo(function OpenInEditorIconButton({
             onClick={() => {
               if (!openInCwd) return;
               void open(openInCwd).then((opened) => {
-                if (opened) announce(`Opened in ${editorLabel}`);
+                if (opened) toastOpenedInEditor(editorLabel);
               });
             }}
           />
