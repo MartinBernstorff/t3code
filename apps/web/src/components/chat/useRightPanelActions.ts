@@ -4,6 +4,7 @@ import type { ThreadPreviewState } from "../../previewStateStore";
 import { formatFilePathForClipboard } from "@t3tools/client-runtime/media-actions";
 import { resolvePathLinkTarget } from "@t3tools/shared/fileLinks";
 import { resolveExplicitDiffOpenOnActivate } from "../ChatView.logic";
+import { useClientSettings } from "../../hooks/useSettings";
 import { useStableCallback } from "../../hooks/useStableCallback";
 import { type ScopedThreadRef, type RunId } from "@t3tools/contracts";
 import { scopedThreadKey } from "@t3tools/client-runtime/environment";
@@ -96,6 +97,9 @@ export function useRightPanelActions(input: RightPanelActionsInput) {
     explicitDiffOpenRef,
     onDiffPanelOpen,
   } = input;
+  const threadPanelOpenByDefault = useClientSettings(
+    (settings) => !settings.threadDetailsHiddenByDefault,
+  );
 
   const openPreview = useAtomCommand(previewEnvironment.open, { reportFailure: false });
   const onToggleDiff = () => {
@@ -236,12 +240,13 @@ export function useRightPanelActions(input: RightPanelActionsInput) {
         store.threadPanelVisibilityByThreadKey,
         activeThreadRef,
         "inline",
+        threadPanelOpenByDefault,
       );
       if (!open) requestWorkspaceFocus({ area: "details" });
       else if (document.activeElement?.closest('[data-workspace-area="details"]'))
         requestWorkspaceContentFocus();
     }
-    store.toggleThreadPanel(activeThreadRef, threadPanelPresentation);
+    store.toggleThreadPanel(activeThreadRef, threadPanelPresentation, threadPanelOpenByDefault);
   };
   const toggleThreadPanelStable = useStableCallback(toggleThreadPanel);
   const toggleRightPanelMaximized = () => {

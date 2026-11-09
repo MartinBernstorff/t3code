@@ -354,6 +354,12 @@ export const SETTINGS_SEARCH_ITEMS = [
     ],
   },
   {
+    id: "thread-details-hidden-by-default",
+    title: "Hide thread details by default",
+    to: "/settings/appearance",
+    searchTerms: ["collapse close panel card thread details default start hidden"],
+  },
+  {
     id: "composer-items",
     title: "Composer controls",
     to: "/settings/appearance",

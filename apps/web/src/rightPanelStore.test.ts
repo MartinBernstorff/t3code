@@ -11,6 +11,7 @@ import {
   pullRequestSurfaceId,
   selectActiveRightPanel,
   selectActiveRightPanelSurface,
+  selectThreadPanelOpen,
   selectThreadPanelVisibility,
   selectThreadRightPanelState,
   useRightPanelStore,
@@ -689,7 +690,7 @@ describe("rightPanelStore", () => {
     });
   });
 
-  it("persists inline preference without restoring an open popover", () => {
+  it("persists explicit inline choices without restoring an open popover", () => {
     expect(
       migratePersistedRightPanelState({
         threadPanelVisibilityByThreadKey: {
@@ -701,8 +702,22 @@ describe("rightPanelStore", () => {
       byThreadKey: {},
       threadPanelVisibilityByThreadKey: {
         "env-1:thread-A": { inlineOpen: false, popoverOpen: false },
+        "env-1:thread-B": { inlineOpen: true, popoverOpen: false },
       },
     });
+  });
+
+  it("follows the default until the user toggles the inline card", () => {
+    const visibility = () => useRightPanelStore.getState().threadPanelVisibilityByThreadKey;
+    expect(selectThreadPanelOpen(visibility(), refA, "inline", false)).toBe(false);
+    expect(selectThreadPanelOpen(visibility(), refA, "inline", true)).toBe(true);
+
+    useRightPanelStore.getState().toggleThreadPanel(refA, "inline", false);
+    expect(visibility()).toEqual({ "env-1:thread-A": { inlineOpen: true, popoverOpen: false } });
+    expect(selectThreadPanelOpen(visibility(), refA, "inline", false)).toBe(true);
+
+    useRightPanelStore.getState().toggleThreadPanel(refA, "inline", false);
+    expect(visibility()).toEqual({});
   });
 
   it("closes the popover atomically when the real right panel opens", () => {
@@ -714,7 +729,7 @@ describe("rightPanelStore", () => {
         useRightPanelStore.getState().threadPanelVisibilityByThreadKey,
         refA,
       ),
-    ).toEqual({ inlineOpen: true, popoverOpen: false });
+    ).toEqual({ popoverOpen: false });
   });
 
   it("keeps an open popover visible by promoting it to inline when the real panel closes", () => {
