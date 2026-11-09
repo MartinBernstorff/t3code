@@ -286,6 +286,7 @@ import { resolveScrollToEndClearance } from "./composerFooterLayout";
 import { ChatHeader } from "./chat/ChatHeader";
 import { useSideChat } from "./chat/useSideChat";
 import { useRemoteOpenState } from "~/remoteOpen";
+import { OpenInEditorIconButton } from "./chat/OpenInPicker";
 import { shouldShowOpenInPicker } from "./chat/OpenInPicker.logic";
 import { useOpenFavoriteEditorShortcut } from "./chat/OpenInPickerShortcut";
 import {
@@ -3310,6 +3311,13 @@ export default function ChatView(props: ChatViewProps) {
     />
   ) : null;
   const panelToggleControlProps = {
+    openInControl: showOpenInPicker ? (
+      <OpenInEditorIconButton
+        environmentId={activeThread?.environmentId ?? environmentId}
+        availableEditors={availableEditors}
+        openInCwd={gitCwd}
+      />
+    ) : null,
     terminalAvailable: activeProject !== null,
     terminalOpen: terminalUiState.terminalOpen,
     terminalShortcutLabel: shortcutLabelForCommand(keybindings, "terminal.toggle"),
