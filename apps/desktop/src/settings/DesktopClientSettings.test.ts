@@ -70,6 +70,7 @@ const clientSettings: ClientSettings = {
   boringSidebarEnabled: false,
   boringSidebarMultilineRows: false,
   threadDetailsUsageEnabled: false,
+  threadDetailsHiddenByDefault: false,
   threadDetailsItems: {},
   sidebarThreadRowItems: {},
   composerItems: {},

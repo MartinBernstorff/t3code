@@ -292,6 +292,27 @@ export function AppearanceSettingsPanel() {
           }
         />
         <ThreadDetailsItemsRow />
+        <SettingsRow
+          {...searchableSetting("thread-details-hidden-by-default")}
+          description="Start threads with the details card closed. Threads you open or close yourself keep that choice."
+          resetAction={
+            settings.threadDetailsHiddenByDefault ? (
+              <SettingResetButton
+                label="thread details default"
+                onClick={() => updateSettings({ threadDetailsHiddenByDefault: false })}
+              />
+            ) : null
+          }
+          control={
+            <Switch
+              checked={settings.threadDetailsHiddenByDefault}
+              onCheckedChange={(checked) =>
+                updateSettings({ threadDetailsHiddenByDefault: Boolean(checked) })
+              }
+              aria-label="Hide thread details by default"
+            />
+          }
+        />
         <SidebarThreadRowItemsRow />
         <ComposerItemsRow />
         <SettingsRow

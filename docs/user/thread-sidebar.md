@@ -396,6 +396,10 @@ To choose what the thread details card shows, right-click the card or open
 shortcuts, such as Open in editor and project scripts. **Reset to default** brings
 back the standard rows.
 
+To start threads with the card closed, turn on **Settings → Appearance → Hide
+thread details by default**. A thread where you open or close the card yourself
+keeps that choice.
+
 ## Side chats
 
 A side chat lets you ask a question about a thread without adding to it. It starts
