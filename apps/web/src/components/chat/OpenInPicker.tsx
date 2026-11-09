@@ -56,7 +56,7 @@ import {
   RustRoverIcon,
   WebStormIcon,
 } from "../JetBrainsIcons";
-import { announce } from "~/lib/announce";
+import { toastManager } from "../ui/toast";
 import { cn, isMacPlatform, isWindowsPlatform } from "~/lib/utils";
 import {
   THREAD_DETAILS_PANEL_CHEVRON_CLASS,
@@ -335,7 +335,7 @@ export const OpenInPicker = memo(function OpenInPicker({
           if (!preferredEditor) return;
           const label = editorLabelForPlatform(preferredEditor, navigator.platform);
           void openInEditor(preferredEditor).then((opened) => {
-            if (opened) announce(`Opened in ${label}`);
+            if (opened) toastManager.add({ type: "success", title: `Opened in ${label}` });
           });
         }}
       >
@@ -434,7 +434,8 @@ export const OpenInEditorIconButton = memo(function OpenInEditorIconButton({
             onClick={() => {
               if (!openInCwd) return;
               void open(openInCwd).then((opened) => {
-                if (opened) announce(`Opened in ${editorLabel}`);
+                if (opened)
+                  toastManager.add({ type: "success", title: `Opened in ${editorLabel}` });
               });
             }}
           />

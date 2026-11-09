@@ -3,9 +3,9 @@ import { useEffect } from "react";
 
 import { editorLabelForPlatform } from "../../editorLabels";
 import { isOpenFavoriteEditorShortcut } from "../../keybindings";
-import { announce } from "../../lib/announce";
 import { useOpenInLastUsedEditor } from "../../openInLastUsedEditor";
 import { registerCommands } from "../../shortcuts/dispatcher";
+import { toastManager } from "../ui/toast";
 
 /** Marks an OpenInPicker's primary button as the target of `editor.openFavorite`. */
 export const OPEN_FAVORITE_EDITOR_ATTRIBUTE = "data-open-favorite-editor";
@@ -65,7 +65,7 @@ export function useOpenFavoriteEditorShortcut({
       event.preventDefault();
       const label = editorLabelForPlatform(preferredEditor, navigator.platform);
       void open(openInCwd).then((opened) => {
-        if (opened) announce(`Opened in ${label}`);
+        if (opened) toastManager.add({ type: "success", title: `Opened in ${label}` });
       });
     };
     window.addEventListener("keydown", handler);

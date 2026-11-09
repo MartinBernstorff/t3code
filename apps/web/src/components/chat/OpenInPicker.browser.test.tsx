@@ -4,7 +4,8 @@ import { Cause } from "effect";
 import { AsyncResult } from "effect/reactivity";
 import { describe, expect, it, vi } from "vite-plus/test";
 
-import { act, fakeTimers, render as renderUi } from "../../../test/render";
+import { act, render as renderUi } from "../../../test/render";
+import { toastManager } from "../ui/toast";
 import type { RemoteOpenState } from "../../remoteOpen";
 
 const state = vi.hoisted(() => ({
@@ -204,35 +205,27 @@ describe("remote editor links", () => {
   });
 });
 
-describe("open in editor announcement", () => {
-  it("speaks only after the shortcut opened the editor, from the picker or the fallback", async () => {
+describe("open in editor toast", () => {
+  it("toasts only after the shortcut opened the editor, from the picker or the fallback", async () => {
     await using fixture = await setup();
     const { screen, renderPicker, pressOpenFavorite, FavoriteEditorFallback } = fixture;
     state.allowed.add(selected);
     await renderPicker();
-    using _timers = fakeTimers();
-    const regions = () => [...document.querySelectorAll('body > [aria-live="polite"]')];
-    const spoken = async () => {
-      await act(async () => vi.runAllTimers());
-      return regions()
-        .map((region) => region.textContent)
-        .join("");
-    };
+    using toast = vi.spyOn(toastManager, "add");
+    const toasted = () => toast.mock.calls.map(([options]) => options.title);
     const refuse = () =>
       state.run.mockResolvedValueOnce(AsyncResult.failure(Cause.fail(new Error("No editor"))));
 
     refuse();
     await pressOpenFavorite();
-    expect(await spoken()).toBe("");
     await pressOpenFavorite();
-    expect(await spoken()).toBe("Opened in VS Code");
+    await vi.waitFor(() => expect(toasted()).toEqual(["Opened in VS Code"]));
 
-    for (const region of regions()) region.textContent = "";
+    toast.mockClear();
     await act(async () => screen.rerender(<FavoriteEditorFallback />));
     refuse();
     await pressOpenFavorite();
-    expect(await spoken()).toBe("");
     await pressOpenFavorite();
-    expect(await spoken()).toBe("Opened in VS Code");
+    await vi.waitFor(() => expect(toasted()).toEqual(["Opened in VS Code"]));
   });
 });
