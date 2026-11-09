@@ -319,6 +319,9 @@ export function DraftHeroHeadline({
             />
           }
         >
+          {activeProjectGroup && !isScratchDraft ? (
+            <ProjectFavicon project={activeProjectGroup} className="size-[0.9em] shrink-0" />
+          ) : null}
           <DraftProjectName
             value={isScratchDraft ? "No project" : (activeProjectTitle ?? "Choose a project")}
             singleLine
