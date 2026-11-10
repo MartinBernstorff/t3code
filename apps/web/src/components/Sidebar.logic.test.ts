@@ -54,6 +54,7 @@ import {
   completeSidebarRouteReveal,
   pendingSidebarRouteReveal,
   resolveSidebarRouteReveal,
+  revealSidebarProjectScopeKeys,
 } from "./sidebar/routeReveal";
 
 const localEnvironmentId = EnvironmentId.make("environment-local");
@@ -1580,6 +1581,35 @@ describe("resolveSidebarRouteReveal", () => {
         findThread,
       }),
     ).toEqual({ pendingKey: hiddenKey, widensScope: false });
+  });
+});
+
+describe("revealSidebarProjectScopeKeys", () => {
+  const groups = [
+    {
+      projectKey: "group-other",
+      memberProjectRefs: [{ environmentId: "environment-test", projectId: "project-other" }],
+    },
+  ];
+
+  it("adds the revealed thread's project to the scope", () => {
+    expect(
+      revealSidebarProjectScopeKeys({
+        scopeKeys: ["group-scoped"],
+        groups,
+        thread: { environmentId: "environment-test", projectId: "project-other" },
+      }),
+    ).toEqual(["group-scoped", "group-other"]);
+  });
+
+  it("widens to every project when the thread has no pickable project", () => {
+    expect(
+      revealSidebarProjectScopeKeys({
+        scopeKeys: ["group-scoped"],
+        groups,
+        thread: { environmentId: "environment-test", projectId: "project-archived" },
+      }),
+    ).toEqual([]);
   });
 });
 

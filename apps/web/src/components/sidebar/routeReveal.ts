@@ -70,3 +70,26 @@ export function resolveSidebarRouteReveal<T extends RevealableThread>(input: {
     filterSidebarV2VisibleThreads([thread], null, delegatedUnderParent).length === 1;
   return { pendingKey, widensScope };
 }
+
+// A reveal adds the thread's project to the scope. A thread with no pickable
+// project (archived, or not yet grouped) widens the scope to every project.
+export function revealSidebarProjectScopeKeys(input: {
+  readonly scopeKeys: ReadonlyArray<string>;
+  readonly groups: ReadonlyArray<{
+    readonly projectKey: string;
+    readonly memberProjectRefs: ReadonlyArray<{
+      readonly environmentId: string;
+      readonly projectId: string;
+    }>;
+  }>;
+  readonly thread: { readonly environmentId: string; readonly projectId: string };
+}): string[] {
+  const group = input.groups.find((candidate) =>
+    candidate.memberProjectRefs.some(
+      (ref) =>
+        ref.environmentId === input.thread.environmentId &&
+        ref.projectId === input.thread.projectId,
+    ),
+  );
+  return group === undefined ? [] : [...input.scopeKeys, group.projectKey];
+}
