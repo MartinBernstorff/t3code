@@ -242,6 +242,7 @@ import { ProjectFavicon } from "./ProjectFavicon";
 import { useStableCallback } from "../hooks/useStableCallback";
 import {
   resolveSidebarRouteReveal,
+  revealSidebarProjectScopeKeys,
   type SidebarRouteReveal,
   useActiveRowReveal,
 } from "./sidebar/routeReveal";
@@ -1190,14 +1191,13 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     settings: projectGroupingSettings,
     canClearMissingScope: allProjectSnapshotsReady && allProjectConfigsReady,
   }).filter((key) => !archivedProjectKeys.has(key));
-  const chosenProjectGroups = scopeGroups.filter((project) =>
-    chosenProjectScopeKeys.includes(project.projectKey),
-  );
-  const chosenScopeProjectKeys =
-    chosenProjectGroups.length === 0
+  const scopedGroupsFor = (keys: readonly string[]) =>
+    scopeGroups.filter((project) => keys.includes(project.projectKey));
+  const memberProjectKeysFor = (groups: ReturnType<typeof scopedGroupsFor>) =>
+    groups.length === 0
       ? null
       : new Set(
-          chosenProjectGroups.flatMap((project) =>
+          groups.flatMap((project) =>
             project.memberProjectRefs.map(
               (projectRef) => `${projectRef.environmentId}:${projectRef.projectId}`,
             ),
@@ -1223,15 +1223,27 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
   // scrolled away; a remount starts at the top, so each mount scrolls to the open
   // thread once. Render decides the widening, so the first frame of the new route
   // already lists the row; the active row's ref callback scrolls to it.
-  const { widensScope: revealWidensScope } = resolveSidebarRouteReveal({
-    reveal: routeReveal,
-    routeKey: routeRowThreadKey,
-    isSearching: isSearchingThreads,
-    scopedProjectKeys: chosenScopeProjectKeys,
-    delegatedUnderParent,
-    findThread: (key) => threads.find((candidate) => threadShellKey(candidate) === key),
-  });
-  const projectScopeKeys = revealWidensScope ? [] : chosenProjectScopeKeys;
+  const findThreadShell = (key: string) =>
+    threads.find((candidate) => threadShellKey(candidate) === key);
+  const { pendingKey: pendingRevealKey, widensScope: revealWidensScope } =
+    resolveSidebarRouteReveal({
+      reveal: routeReveal,
+      routeKey: routeRowThreadKey,
+      isSearching: isSearchingThreads,
+      scopedProjectKeys: memberProjectKeysFor(scopedGroupsFor(chosenProjectScopeKeys)),
+      delegatedUnderParent,
+      findThread: findThreadShell,
+    });
+  const revealedThread =
+    revealWidensScope && pendingRevealKey !== null ? findThreadShell(pendingRevealKey) : undefined;
+  const projectScopeKeys =
+    revealedThread === undefined
+      ? chosenProjectScopeKeys
+      : revealSidebarProjectScopeKeys({
+          scopeKeys: chosenProjectScopeKeys,
+          groups: scopeGroups,
+          thread: revealedThread,
+        });
   const projectScopeKey = projectScopeKeys.length === 0 ? null : projectScopeKeys.join("\n");
   const toggleProjectScopeKey = (key: string) =>
     setProjectScopeKeys(
@@ -1243,12 +1255,13 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
   // scope. Route changes arrive from history, links and the palette, and only this
   // component holds the project groups that decide a widening, so no single
   // navigation handler can make the write.
+  const revealedScopeKey = revealedThread === undefined ? null : projectScopeKeys.join("\n");
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- writes a route reveal's widened project scope back to the persisted sidebar scope and clears selection
   useEffect(() => {
-    if (!revealWidensScope) return;
+    if (revealedScopeKey === null) return;
     clearSelection();
-    setPersistedProjectScopeKeys([]);
-  }, [clearSelection, revealWidensScope, setPersistedProjectScopeKeys]);
+    setPersistedProjectScopeKeys(revealedScopeKey === "" ? [] : revealedScopeKey.split("\n"));
+  }, [clearSelection, revealedScopeKey, setPersistedProjectScopeKeys]);
   const revealActiveRow = useActiveRowReveal(routeReveal, routeRowThreadKey);
   const showProjectEnvironments = projectGroupsSpanEnvironments(projectGroups);
   const scratchMachineLabelFor = (
@@ -1286,9 +1299,9 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     matches: (item, query) =>
       projectScopeFilter.contains(item, query, (candidate) => candidate.label),
   });
-  const scopedProjectGroups = revealWidensScope ? [] : chosenProjectGroups;
+  const scopedProjectGroups = scopedGroupsFor(projectScopeKeys);
   const scopedProjectRefs = scopedProjectGroups.flatMap((project) => project.memberProjectRefs);
-  const scopedProjectKeys = revealWidensScope ? null : chosenScopeProjectKeys;
+  const scopedProjectKeys = memberProjectKeysFor(scopedProjectGroups);
   const threadSearch = useThreadSearch(
     connectedEnvironmentIds,
     threadSearchQuery,
