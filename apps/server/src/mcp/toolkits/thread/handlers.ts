@@ -140,6 +140,11 @@ export const layer = McpToolAccess.toLayer(ThreadToolkit, {
       };
     }),
   ),
+  t3_thread_messages: McpToolAccess.reads((input) =>
+    Effect.flatMap(ThreadSearch.ThreadSearch, (threadSearch) =>
+      threadSearch.messageLog(input).pipe(Effect.mapError(unavailable)),
+    ),
+  ),
   t3_thread_transfer: McpToolAccess.either(
     (input) => input.action === "status",
     McpToolAccess.reads((input) =>

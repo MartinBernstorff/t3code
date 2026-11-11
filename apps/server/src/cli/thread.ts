@@ -5,6 +5,11 @@ import {
   OrchestratorMcpThreadReadResult,
   OrchestratorMcpThreadSendResult,
   OrchestratorMcpThreadWaitResult,
+  OrchestrationThreadMessageCreatedBy,
+  OrchestrationThreadMessageLogInput,
+  OrchestrationThreadMessageLogResult,
+  type OrchestrationThreadMessageLogEntry,
+  THREAD_MESSAGE_LOG_PAGE_MAX,
   ProjectId,
   RunId,
   ThreadEngagement,
@@ -611,6 +616,71 @@ const threadListCommand = Command.make("list", {
   ),
 );
 
+const isInstant = Schema.is(OrchestrationThreadMessageLogInput.fields.since);
+const instantFlag = (name: "since" | "until", description: string) =>
+  Flag.String(name).pipe(
+    Flag.withDescription(description),
+    Flag.filter(isInstant, () => "an ISO 8601 time, such as 2026-11-10T00:00:00Z"),
+  );
+
+const threadMessagesCommand = Command.make("messages", {
+  ...projectLocationFlags,
+  since: instantFlag("since", "Earliest send time, inclusive, as an ISO 8601 time."),
+  until: instantFlag("until", "Latest send time, exclusive, as an ISO 8601 time."),
+  project: Flag.String("project").pipe(
+    Flag.withDescription(
+      "Project id or a path inside the project. Repeat for several. Defaults to every project.",
+    ),
+    Flag.atLeast(0),
+  ),
+  createdBy: Flag.Literals("created-by", OrchestrationThreadMessageCreatedBy.literals).pipe(
+    Flag.withDescription("Only messages the user sent, or only those agents and the server sent."),
+    Flag.optional,
+  ),
+  json: jsonFlag,
+}).pipe(
+  Command.withDescription(
+    "List messages sent into threads in a time range, oldest first, including archived threads.",
+  ),
+  Command.withHandler((flags) =>
+    withThreadTools(
+      flags,
+      Effect.fn("cli.thread.messages")(function* (tools) {
+        const projectIds = yield* Effect.forEach(flags.project, (identifier) =>
+          Effect.map(resolveProject(tools, identifier), (project) => project.id),
+        );
+        const messages: Array<OrchestrationThreadMessageLogEntry> = [];
+        let cursor: string | null | undefined;
+        do {
+          const page: OrchestrationThreadMessageLogResult = yield* tools.call(
+            "t3_thread_messages",
+            {
+              since: flags.since,
+              until: flags.until,
+              ...(projectIds.length === 0 ? {} : { projectIds }),
+              ...Option.match(flags.createdBy, {
+                onNone: () => ({}),
+                onSome: (createdBy) => ({ createdBy }),
+              }),
+              ...(cursor == null ? {} : { cursor }),
+              limit: THREAD_MESSAGE_LOG_PAGE_MAX,
+            },
+            OrchestrationThreadMessageLogResult,
+          );
+          messages.push(...page.messages);
+          cursor = page.nextCursor;
+        } while (cursor !== null);
+        if (flags.json) {
+          return yield* printJson(messages);
+        }
+        for (const message of messages) {
+          yield* Console.log(`${message.createdAt}  ${message.threadId}  ${message.threadTitle}`);
+        }
+      }),
+    ).pipe(reportThreadErrors),
+  ),
+);
+
 const threadStartCommand = Command.make("start", {
   ...projectLocationFlags,
   project: Argument.String("project").pipe(
@@ -1031,6 +1101,7 @@ export const threadCommand = Command.make("thread").pipe(
   ),
   Command.withSubcommands([
     threadListCommand,
+    threadMessagesCommand,
     threadStartCommand,
     threadSendCommand,
     threadShowCommand,

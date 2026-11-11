@@ -4,6 +4,8 @@ import {
   ScheduledTask,
   OrchestrationSearchThreadsInput,
   OrchestrationThreadSearchMatch,
+  OrchestrationThreadMessageLogInput,
+  OrchestrationThreadMessageLogResult,
   OrchestrationV2ThreadForkSourcePoint,
   OrchestrationV2ContextTransfer,
   TrimmedNonEmptyString,
@@ -24,6 +26,7 @@ import {
   ProjectId,
 } from "@t3tools/contracts";
 import * as SecureRandom from "effect/crypto/SecureRandom";
+import * as McpSchema from "effect/ai/McpSchema";
 import * as Schema from "effect/Schema";
 import { Tool, Toolkit } from "effect/ai";
 
@@ -242,6 +245,22 @@ const ThreadSearchTool = Tool.make("t3_thread_search", {
   .annotate(Tool.Readonly, true)
   .annotate(Tool.Destructive, false);
 
+const ThreadMessagesTool = Tool.make("t3_thread_messages", {
+  ...commandTool,
+  description:
+    "User-role messages sent in [since, until), oldest first, across threads including archived ones. Pages with `nextCursor`.",
+  parameters: Schema.Struct({
+    environmentId: OrchestratorMcpEnvironmentTarget,
+    ...OrchestrationThreadMessageLogInput.fields,
+  }),
+  success: OrchestrationThreadMessageLogResult,
+  dependencies: [...commandTool.dependencies, ThreadSearch.ThreadSearch],
+})
+  .annotate(Tool.Readonly, true)
+  .annotate(Tool.Destructive, false)
+  // For the `t3 thread messages` CLI; agents have no use for it.
+  .annotate(McpSchema.EnabledWhen, McpInvocationContext.hiddenFromThreads);
+
 const ScheduledTaskRunTool = Tool.make("run_scheduled_task_now", {
   ...commandTool,
   description:
@@ -266,6 +285,7 @@ const ScheduledTaskRunTool = Tool.make("run_scheduled_task_now", {
 export const ThreadToolkit = Toolkit.make(
   ScheduledTaskRunTool,
   ThreadSearchTool,
+  ThreadMessagesTool,
   ThreadConfigureTool,
   ThreadTransferTool,
   ThreadOrganizeTool,
