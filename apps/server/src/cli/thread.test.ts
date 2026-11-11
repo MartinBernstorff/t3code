@@ -230,6 +230,107 @@ it.effect("list --json keeps each thread's worktree path, Linear issue and prior
   ),
 );
 
+it.effect("messages resolves every --project and reads every page", () =>
+  Effect.gen(function* () {
+    const fs = yield* FileSystem.FileSystem;
+    const path = yield* Path.Path;
+    const baseDir = yield* fs.makeTempDirectoryScoped({ prefix: "t3-thread-messages-" });
+    yield* persistServerRuntimeState({
+      path: path.join(baseDir, "userdata", "server-runtime.json"),
+      state: yield* makePersistedServerRuntimeState({
+        config: { host: "127.0.0.1", devUrl: undefined },
+        port: 3_773,
+      }),
+    });
+    const repo = ProjectId.make("project-repo");
+    const notes = ProjectId.make("project-notes");
+    const entry = (messageId: string, createdAt: string) => ({
+      messageId,
+      threadId,
+      threadTitle: "A thread",
+      projectId: repo,
+      projectRoot: "/repo",
+      createdAt,
+      createdBy: "user",
+      creationSource: "web",
+    });
+    const pages = [
+      { messages: [entry("m1", "2026-11-10T09:00:00.000Z")], nextCursor: "page-2" },
+      { messages: [entry("m2", "2026-11-10T10:00:00.000Z")], nextCursor: null },
+    ];
+    const calls: Array<Readonly<Record<string, unknown>>> = [];
+    using _session = vi.spyOn(McpBridge, "mcpToolSession").mockReturnValue(
+      Effect.succeed({
+        call: (tool, args) => {
+          switch (tool) {
+            case "t3_project_list":
+              return Effect.succeed({
+                structuredContent: {
+                  projects: [
+                    { id: repo, title: "Repo", workspaceRoot: "/repo" },
+                    { id: notes, title: "Notes", workspaceRoot: "/notes" },
+                  ],
+                  nextCursor: null,
+                },
+              });
+            case "t3_thread_messages":
+              calls.push(args);
+              return Effect.succeed({ structuredContent: pages[calls.length - 1] });
+            default:
+              return Effect.die(`unexpected ${tool} call`);
+          }
+        },
+      }),
+    );
+
+    yield* Command.runWith(threadCommand, { version: "0.0.0" })([
+      "messages",
+      "--since",
+      "2026-11-10T00:00:00+01:00",
+      "--until",
+      "2026-11-11T00:00:00Z",
+      "--project",
+      repo,
+      "--project",
+      "/notes/sub",
+      "--created-by",
+      "user",
+      "--json",
+      "--base-dir",
+      baseDir,
+    ]);
+
+    assert.deepEqual(
+      calls.map(({ cursor, ...rest }) => ({ cursor, rest })),
+      [undefined, "page-2"].map((cursor) => ({
+        cursor,
+        rest: {
+          since: "2026-11-10T00:00:00+01:00",
+          until: "2026-11-11T00:00:00Z",
+          projectIds: [repo, notes],
+          createdBy: "user",
+          limit: 500,
+        },
+      })),
+    );
+    const listed = JSON.parse(String((yield* TestConsole.logLines).at(-1)));
+    assert.deepEqual(
+      listed.map((message: { readonly messageId: string }) => message.messageId),
+      ["m1", "m2"],
+    );
+  }).pipe(
+    Effect.scoped,
+    Effect.provide(
+      Layer.mergeAll(
+        NodeServices.layer,
+        NodeCrypto.layer,
+        NetService.layer,
+        ConfigProvider.layer(ConfigProvider.fromEnv({ env: { T3CODE_PORT: "3773" } })),
+      ),
+    ),
+  ),
+);
+
 it.effect("set sends each flag to its MCP tool", () =>
   Effect.gen(function* () {
     const fs = yield* FileSystem.FileSystem;

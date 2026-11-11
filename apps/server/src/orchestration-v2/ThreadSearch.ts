@@ -8,6 +8,9 @@ import {
   ThreadPullRequestLink,
   type OrchestrationSearchThreadsInput,
   type OrchestrationSearchThreadsResult,
+  OrchestrationThreadMessageCreatedBy,
+  type OrchestrationThreadMessageLogInput,
+  type OrchestrationThreadMessageLogResult,
   type OrchestrationV2SearchThreadsInput,
   type OrchestrationV2SearchThreadsResult,
   type OrchestrationV2ThreadShellSnapshot,
@@ -298,8 +301,40 @@ export class ThreadSearch extends Context.Service<
       readonly environmentLabel?: string | undefined;
       readonly messageThreadIds: ReadonlyArray<ThreadId>;
     }) => Effect.Effect<ReadonlyArray<ThreadId>, ThreadSearchError>;
+    /**
+     * User-role messages in a time range, oldest first, on every thread including archived,
+     * deleted and subagent ones, for tools that log when work happened.
+     */
+    readonly messageLog: (
+      input: OrchestrationThreadMessageLogInput,
+    ) => Effect.Effect<OrchestrationThreadMessageLogResult, ThreadSearchError>;
   }
 >()("t3/orchestration-v2/ThreadSearch") {}
+
+const MESSAGE_LOG_DEFAULT_LIMIT = 200;
+// The last row a page returned; the next page starts after it.
+const MessageLogCursor = Schema.fromJsonString(Schema.Tuple([IsoDateTime, MessageId]));
+const decodeMessageLogCursor = Schema.decodeEffect(MessageLogCursor);
+const encodeMessageLogCursor = Schema.encodeEffect(MessageLogCursor);
+const MessageLogRequest = Schema.Struct({
+  since: IsoDateTime,
+  until: IsoDateTime,
+  projectIds: Schema.NullOr(TokenList),
+  createdBy: Schema.NullOr(OrchestrationThreadMessageCreatedBy),
+  afterCreatedAt: Schema.NullOr(IsoDateTime),
+  afterMessageId: Schema.NullOr(MessageId),
+  limit: Schema.Int,
+});
+const MessageLogRow = Schema.Struct({
+  messageId: MessageId,
+  threadId: ThreadId,
+  threadTitle: Schema.String,
+  projectId: ProjectId,
+  projectRoot: Schema.NullOr(Schema.String),
+  createdAt: IsoDateTime,
+  createdBy: OrchestrationThreadMessageCreatedBy,
+  creationSource: Schema.NullOr(Schema.String),
+});
 
 // Rows a client gets per search: enough for the shown results without sending every match.
 const OLDER_SETTLED_TITLE_ROWS = 15;
@@ -417,6 +452,40 @@ export const make = Effect.gen(function* () {
         AND json_extract(threads.payload_json, '$.settledAt') < ${before}
         AND (${projectIds} IS NULL
           OR threads.project_id IN (SELECT value FROM json_each(${projectIds})))
+    `,
+  });
+
+  // Stored times are UTC with milliseconds, so bounds in that form compare as text. Messages
+  // from before `createdBy` existed were all the user's, as `latestUserMessageAt` assumes.
+  const messageLogRows = SqlSchema.findAll({
+    Request: MessageLogRequest,
+    Result: MessageLogRow,
+    execute: (request) => sql`
+      SELECT
+        messages.message_id AS "messageId",
+        messages.thread_id AS "threadId",
+        threads.title AS "threadTitle",
+        threads.project_id AS "projectId",
+        projects.workspace_root AS "projectRoot",
+        messages.created_at AS "createdAt",
+        COALESCE(json_extract(messages.payload_json, '$.createdBy'), 'user') AS "createdBy",
+        json_extract(messages.payload_json, '$.creationSource') AS "creationSource"
+      FROM orchestration_v2_projection_messages AS messages
+      JOIN orchestration_v2_projection_threads AS threads
+        ON threads.thread_id = messages.thread_id
+      LEFT JOIN projection_projects AS projects
+        ON projects.project_id = threads.project_id
+      WHERE messages.role = 'user'
+        AND messages.created_at >= ${request.since}
+        AND messages.created_at < ${request.until}
+        AND (${request.projectIds} IS NULL
+          OR threads.project_id IN (SELECT value FROM json_each(${request.projectIds})))
+        AND (${request.createdBy} IS NULL
+          OR COALESCE(json_extract(messages.payload_json, '$.createdBy'), 'user') = ${request.createdBy})
+        AND (${request.afterCreatedAt} IS NULL
+          OR (messages.created_at, messages.message_id) > (${request.afterCreatedAt}, ${request.afterMessageId}))
+      ORDER BY messages.created_at, messages.message_id
+      LIMIT ${request.limit}
     `,
   });
 
@@ -649,7 +718,40 @@ export const make = Effect.gen(function* () {
     ];
   });
 
-  return ThreadSearch.of({ search, searchThreads, searchOlderSettled });
+  const messageLog = Effect.fn("ThreadSearch.messageLog")(function* (
+    input: OrchestrationThreadMessageLogInput,
+  ) {
+    const limit = input.limit ?? MESSAGE_LOG_DEFAULT_LIMIT;
+    const after =
+      input.cursor === undefined
+        ? null
+        : yield* decodeMessageLogCursor(input.cursor).pipe(
+            Effect.mapError((cause) => new ThreadSearchError({ operation: "decode", cause })),
+          );
+    // One extra row tells whether another page follows.
+    const rows = yield* read(
+      messageLogRows({
+        since: DateTime.formatIso(DateTime.makeUnsafe(input.since)),
+        until: DateTime.formatIso(DateTime.makeUnsafe(input.until)),
+        projectIds: input.projectIds ?? null,
+        createdBy: input.createdBy ?? null,
+        afterCreatedAt: after?.[0] ?? null,
+        afterMessageId: after?.[1] ?? null,
+        limit: limit + 1,
+      }),
+    );
+    const messages = rows.slice(0, limit);
+    const last = messages.at(-1);
+    const nextCursor =
+      rows.length > limit && last !== undefined
+        ? yield* encodeMessageLogCursor([last.createdAt, last.messageId]).pipe(
+            Effect.mapError((cause) => new ThreadSearchError({ operation: "decode", cause })),
+          )
+        : null;
+    return { messages, nextCursor };
+  });
+
+  return ThreadSearch.of({ search, searchThreads, searchOlderSettled, messageLog });
 });
 
 export const layer = Layer.effect(ThreadSearch, make);

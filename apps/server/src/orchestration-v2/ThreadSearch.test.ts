@@ -1242,3 +1242,73 @@ it.effect("searches on the reader worker while the writer is busy", () =>
     }).pipe(Effect.provide(layerFile));
   }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
 );
+
+it.effect("logs user-role messages in a time range, oldest first, a page at a time", () =>
+  Effect.gen(function* () {
+    const projections = yield* ProjectionStore.ProjectionStoreV2;
+    const search = yield* ThreadSearch.ThreadSearch;
+    const work = ProjectId.make("project:work");
+    const other = ProjectId.make("project:other");
+    yield* createProject(work);
+    yield* createProject(other);
+    const active = ThreadId.make("thread:active");
+    const archived = ThreadId.make("thread:archived-log");
+    const elsewhere = ThreadId.make("thread:elsewhere");
+    yield* Effect.forEach(
+      [
+        thread(active, work, { title: "Active" }),
+        thread(archived, work, { title: "Archived", archivedAt: at(9) }),
+        thread(elsewhere, other, { title: "Elsewhere" }),
+        message(active, "before", "user", "too early", { minute: 1 }),
+        message(active, "first", "user", "at since", { minute: 2 }),
+        message(active, "answer", "assistant", "not a user message", { minute: 3 }),
+        message(archived, "notice", "user", "checks failed", { minute: 3, createdBy: "agent" }),
+        message(elsewhere, "other-project", "user", "other project", { minute: 4 }),
+        message(archived, "last", "user", "on an archived thread", { minute: 5 }),
+        message(active, "at-until", "user", "at until", { minute: 6 }),
+      ],
+      projections.apply,
+      { discard: true },
+    );
+    // Any offset works; 00:02 UTC is 01:02 at +01:00.
+    const range = { since: "2026-09-27T01:02:00+01:00", until: DateTime.formatIso(at(6)) };
+    const ids = (result: { readonly messages: ReadonlyArray<{ readonly messageId: string }> }) =>
+      result.messages.map((entry) => entry.messageId);
+
+    const all = yield* search.messageLog(range);
+    assert.deepEqual(ids(all), ["first", "notice", "other-project", "last"]);
+    assert.isNull(all.nextCursor);
+    assert.deepEqual(all.messages[1], {
+      messageId: MessageId.make("notice"),
+      threadId: archived,
+      threadTitle: "Archived",
+      projectId: work,
+      projectRoot: "/work/project:work",
+      createdAt: DateTime.formatIso(at(3)),
+      createdBy: "agent",
+      creationSource: "web",
+    });
+
+    assert.deepEqual(ids(yield* search.messageLog({ ...range, createdBy: "user" })), [
+      "first",
+      "other-project",
+      "last",
+    ]);
+    assert.deepEqual(ids(yield* search.messageLog({ ...range, projectIds: [work] })), [
+      "first",
+      "notice",
+      "last",
+    ]);
+
+    const firstPage = yield* search.messageLog({ ...range, limit: 3 });
+    assert.deepEqual(ids(firstPage), ["first", "notice", "other-project"]);
+    assert.isNotNull(firstPage.nextCursor);
+    const secondPage = yield* search.messageLog({
+      ...range,
+      limit: 3,
+      cursor: firstPage.nextCursor!,
+    });
+    assert.deepEqual(ids(secondPage), ["last"]);
+    assert.isNull(secondPage.nextCursor);
+  }).pipe(Effect.provide(layerTest)),
+);

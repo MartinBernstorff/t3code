@@ -58,3 +58,57 @@ export class OrchestrationSearchThreadsError extends Schema.TaggedError<Orchestr
     cause: Schema.optional(Schema.Defect()),
   },
 ) {}
+
+export const THREAD_MESSAGE_LOG_PAGE_MAX = 500;
+
+/** An ISO 8601 time with a date part, in any offset; the server compares it as UTC. */
+const IsoInstant = Schema.String.check(
+  Schema.makeFilter(
+    (value: string) => /^\d{4}-\d{2}-\d{2}T/.test(value) && Number.isFinite(Date.parse(value)),
+    { expected: "an ISO 8601 time, such as 2026-11-10T00:00:00Z" },
+  ),
+);
+
+/** Who sent a user-role message: the user, or an agent or the server on their behalf. */
+export const OrchestrationThreadMessageCreatedBy = Schema.Literals(["user", "agent"]);
+export type OrchestrationThreadMessageCreatedBy = typeof OrchestrationThreadMessageCreatedBy.Type;
+
+/**
+ * User-role messages sent in `[since, until)`, oldest first, for tools that
+ * log when work happened. Pages are bounded for the same reason as search.
+ */
+export const OrchestrationThreadMessageLogInput = Schema.Struct({
+  since: IsoInstant,
+  until: IsoInstant,
+  /** Omitted means every project. */
+  projectIds: Schema.optionalKey(Schema.Array(ProjectId)),
+  /** Omitted means both. */
+  createdBy: Schema.optionalKey(OrchestrationThreadMessageCreatedBy),
+  /** The previous page's `nextCursor`. */
+  cursor: Schema.optionalKey(Schema.String),
+  limit: Schema.optionalKey(
+    Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: THREAD_MESSAGE_LOG_PAGE_MAX })),
+  ),
+});
+export type OrchestrationThreadMessageLogInput = typeof OrchestrationThreadMessageLogInput.Type;
+
+export const OrchestrationThreadMessageLogEntry = Schema.Struct({
+  messageId: MessageId,
+  threadId: ThreadId,
+  threadTitle: Schema.String,
+  projectId: ProjectId,
+  /** Null when the thread's project record is gone. */
+  projectRoot: Schema.NullOr(Schema.String),
+  createdAt: IsoDateTime,
+  createdBy: OrchestrationThreadMessageCreatedBy,
+  /** Such as `web`, `provider`, `server` or `mcp`. Null for messages older than the field. */
+  creationSource: Schema.NullOr(Schema.String),
+});
+export type OrchestrationThreadMessageLogEntry = typeof OrchestrationThreadMessageLogEntry.Type;
+
+export const OrchestrationThreadMessageLogResult = Schema.Struct({
+  messages: Schema.Array(OrchestrationThreadMessageLogEntry),
+  /** Null on the last page. */
+  nextCursor: Schema.NullOr(Schema.String),
+});
+export type OrchestrationThreadMessageLogResult = typeof OrchestrationThreadMessageLogResult.Type;

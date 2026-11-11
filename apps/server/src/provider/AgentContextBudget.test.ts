@@ -1,11 +1,12 @@
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { expect, it } from "@effect/vitest";
-import { ProviderInstanceId } from "@t3tools/contracts";
+import { EnvironmentId, ProviderInstanceId, ThreadId } from "@t3tools/contracts";
 import { McpProviderSessions } from "@t3tools/provider-core/server/McpProviderSessions";
+import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
-import { McpServer } from "effect/ai";
+import { McpSchema, McpServer } from "effect/ai";
 
 import { AssetSigner } from "../assets/AssetSigner.ts";
 import { ServerSecretStore } from "../auth/ServerSecretStore.ts";
@@ -14,6 +15,7 @@ import { DeviceService } from "../device/DeviceService.ts";
 import { ServerEnvironment } from "../environment/ServerEnvironment.ts";
 import { GitWorkflowService } from "../git/GitWorkflowService.ts";
 import * as McpHttpServer from "../mcp/McpHttpServer.ts";
+import * as McpInvocationContext from "../mcp/McpInvocationContext.ts";
 import { PreviewAutomationBroker } from "../mcp/PreviewAutomationBroker.ts";
 import {
   CLAUDE_PROVIDER,
@@ -108,6 +110,32 @@ const codexAdditionalContext = () =>
     .map((entry) => entry.value)
     .join("");
 
+// What an agent in a top-level thread is shown: tools that serve only other callers do not count.
+const threadCaller: McpInvocationContext.McpInvocationScope = {
+  environmentId: EnvironmentId.make("context-budget"),
+  requestNamespace: "context-budget",
+  thread: {
+    threadId: ThreadId.make("context-budget"),
+    providerSessionId: "context-budget",
+    providerInstanceId: ProviderInstanceId.make(CLAUDE_PROVIDER),
+    subagent: false,
+  },
+  client: undefined,
+  capabilities: new Set(),
+  issuedAt: 0,
+};
+const toolsShownToThreads = Effect.flatMap(McpServer.McpServer, (mcp) =>
+  Effect.sync(() =>
+    mcp.tools.filter(({ annotations }) => {
+      const enabledWhen = Context.getOrUndefined(annotations, McpSchema.EnabledWhen);
+      return (
+        enabledWhen === undefined ||
+        enabledWhen({ protocolVersion: "2025-06-18", capabilities: {}, clientInfo: undefined })
+      );
+    }),
+  ),
+).pipe(Effect.provideService(McpInvocationContext.McpInvocationContext, threadCaller));
+
 const layerAdvertisedTools = McpHttpServer.layerTools.pipe(
   Layer.provideMerge(McpHttpServer.layerInProcessMcpServer),
   Layer.provide(toolHandlerServices),
@@ -128,14 +156,14 @@ it.effect("only request_secret asks Claude Code to load it up front", () =>
 // needs the agent-context-increase label. Lower the values when the text shrinks.
 it.effect("agent context matches the committed budget", () =>
   Effect.gen(function* () {
-    const mcp = yield* McpServer.McpServer;
+    const tools = yield* toolsShownToThreads;
     const measured = {
       claudeSystemAppendBytes: utf8Bytes(claudeSystemAppend()),
       codexAdditionalContextBytes: utf8Bytes(codexAdditionalContext()),
       // The model sees these fields. outputSchema and annotations are protocol metadata.
       mcpToolListJsonBytes: utf8Bytes(
         JSON.stringify(
-          mcp.tools.map(({ tool }) => ({
+          tools.map(({ tool }) => ({
             name: tool.name,
             description: tool.description,
             inputSchema: tool.inputSchema,

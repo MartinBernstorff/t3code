@@ -103,6 +103,7 @@ id=$(t3 thread start . "Find why the tests are slow")
 t3 thread send "$id" "Now fix it" --wait
 t3 thread show "$id"
 t3 thread list
+t3 thread messages --since 2026-11-10T00:00:00Z --until 2026-11-11T00:00:00Z --created-by user
 t3 thread set "$id" --title "Speed up the tests"
 t3 thread set "$id" --priority urgent
 t3 thread set "$id" --engagement queued
@@ -129,6 +130,12 @@ keeps its branch; it changes nothing while the thread runs, if the worktree has
 local changes, or if another active thread uses it. A thread unarchived after
 that still points at the deleted folder: recreate it with
 `git worktree add <path> <branch>` before sending it work.
+
+`messages` lists the messages sent into threads between `--since` (inclusive)
+and `--until` (exclusive), oldest first, including archived threads, with no
+message text. `--created-by user` keeps the ones you sent and `--created-by agent`
+the ones agents and the server sent. `--project` limits it to one project and
+can be repeated.
 
 `--wait` prints the agent's reply. It exits 1 when the run fails or stops, and
 2 when the agent waits for an answer you give in the app. Add `--json` for a
