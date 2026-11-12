@@ -67,6 +67,10 @@ export const fixPath = Effect.fn("fixPath")(function* (options?: {
   const platform = yield* HostProcess.Platform;
   const env = yield* HostProcess.Environment;
 
+  // `node --watch` sets this for the server; inherited by a Node child, it sends
+  // `watch:require` IPC messages that crash tools such as jest-worker.
+  delete env.WATCH_REPORT_DEPENDENCIES;
+
   if (platform === "win32") {
     // Desktop already populated the child env; repeating PowerShell probes costs seconds.
     if (options?.shellEnvironmentPrepared === true) return;

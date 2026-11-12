@@ -151,3 +151,17 @@ effectIt.effect("replaces a Path-spelled Windows PATH instead of adding a second
     assert.deepEqual(env, { PATH: "C:\\Tools;C:\\Windows" });
   }),
 );
+
+effectIt.effect("removes node --watch's dependency reporting flag from the child environment", () =>
+  Effect.gen(function* () {
+    const env: NodeJS.ProcessEnv = { HOME: "/home/test", WATCH_REPORT_DEPENDENCIES: "1" };
+
+    yield* fixPath({ shellEnvironmentPrepared: true }).pipe(
+      Effect.provideService(HostProcess.Platform, "linux"),
+      Effect.provideService(HostProcess.Environment, env),
+      Effect.provide(NodeServices.layer),
+    );
+
+    assert.deepEqual(env, { HOME: "/home/test" });
+  }),
+);
