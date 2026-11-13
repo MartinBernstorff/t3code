@@ -1187,23 +1187,32 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
   const visibleLinkedRefs = linkedRefs.refs.filter((ref) =>
     ref.kind === "linear" ? visibleItems.linearIssue : visibleItems.pullRequest,
   );
+  const renderLinkedRefChips = (refs: ReadonlyArray<SidebarLinkedRef>) =>
+    refs.map((ref) => (
+      <SidebarLinkedRefChip
+        key={ref.key}
+        linkedRef={ref}
+        onOpenPullRequest={
+          linkedRefs.pullRequestChipsOpenList
+            ? (event) => {
+                event.preventDefault();
+                handlePrListClick();
+              }
+            : (event, url) => openPullRequest(event, url, openPullRequestsInRightPanel)
+        }
+      />
+    ));
+  // Cards show pull requests at the end of the bottom meta line.
+  const metaLinePullRequestRefs =
+    variant === "card" ? visibleLinkedRefs.filter((ref) => ref.kind === "pull-request") : [];
+  const linkedRefsRowRefs =
+    variant === "card"
+      ? visibleLinkedRefs.filter((ref) => ref.kind !== "pull-request")
+      : visibleLinkedRefs;
   const linkedRefsRow =
-    visibleLinkedRefs.length === 0 ? null : (
+    linkedRefsRowRefs.length === 0 ? null : (
       <div className="mt-0.5 flex h-4 min-w-0 items-center gap-1 overflow-hidden">
-        {visibleLinkedRefs.map((ref) => (
-          <SidebarLinkedRefChip
-            key={ref.key}
-            linkedRef={ref}
-            onOpenPullRequest={
-              linkedRefs.pullRequestChipsOpenList
-                ? (event) => {
-                    event.preventDefault();
-                    handlePrListClick();
-                  }
-                : (event, url) => openPullRequest(event, url, openPullRequestsInRightPanel)
-            }
-          />
-        ))}
+        {renderLinkedRefChips(linkedRefsRowRefs)}
       </div>
     );
   const showsTerminals = visibleItems.terminals && runningTerminalIds.length > 0;
@@ -1280,7 +1289,12 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
     />
   ) : null;
   // Only the trailing icons would remain, so the row moves them to the title line instead.
-  const metaLineEmpty = !showsBranch && !showsScratchMachine && diff === null && !showsTerminals;
+  const metaLineEmpty =
+    !showsBranch &&
+    !showsScratchMachine &&
+    diff === null &&
+    !showsTerminals &&
+    metaLinePullRequestRefs.length === 0;
   const metaLine = metaLineEmpty ? null : (
     <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-secondary-label text-xs">
       {showsBranch && thread.branch ? (
@@ -1316,6 +1330,11 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
         {remoteMachineIcon}
         {providerStack}
       </span>
+      {metaLinePullRequestRefs.length > 0 ? (
+        <span className="flex shrink-0 items-center gap-1">
+          {renderLinkedRefChips(metaLinePullRequestRefs)}
+        </span>
+      ) : null}
     </div>
   );
   const titleLineIcons =
