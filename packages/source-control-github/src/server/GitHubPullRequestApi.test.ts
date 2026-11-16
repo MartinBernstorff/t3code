@@ -1143,6 +1143,7 @@ layer("GitHubPullRequestApi.layer", (it) => {
                       headRefName: "feat/eight",
                       state: "OPEN",
                       isDraft: false,
+                      viewerDidAuthor: true,
                       mergeable: "MERGEABLE",
                       reviewDecision: null,
                       latestReviews: { nodes: [] },
