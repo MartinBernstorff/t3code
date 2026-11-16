@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vite-plus/test";
 import { page, userEvent } from "vite-plus/test/browser";
 import { DEFAULT_RESOLVED_KEYBINDINGS } from "@t3tools/shared/keybindings";
-import { DEFAULT_CLIENT_SETTINGS } from "@t3tools/contracts/settings";
+import { DEFAULT_CLIENT_SETTINGS, DEFAULT_SERVER_SETTINGS } from "@t3tools/contracts/settings";
 import { act, render } from "../../test/render";
 import { CommandPalette } from "./CommandPalette";
 import { openCommandPalette } from "../commandPaletteBus";
@@ -22,6 +22,9 @@ vi.mock("../hooks/useSettings", async (original) => ({
   ...(await original<typeof import("../hooks/useSettings")>()),
   useClientSettings: () => DEFAULT_CLIENT_SETTINGS,
   useUpdateEnvironmentSettings: () => () => undefined,
+  usePrimarySettings: <T,>(selector: (settings: typeof DEFAULT_SERVER_SETTINGS) => T) =>
+    selector(DEFAULT_SERVER_SETTINGS),
+  useUpdatePrimarySettings: () => () => undefined,
 }));
 vi.mock("../hooks/useScratchProject", () => ({
   useScratchProject: () => ({ scratchEnvironmentId: () => null }),
