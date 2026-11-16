@@ -1793,7 +1793,7 @@ function SidebarLinkedRefChip(props: {
     linkedRef.pullRequestState === null
       ? null
       : resolvePullRequestState(linkedRef.pullRequestState);
-  const content = (
+  const ref = (
     <>
       {linkedRef.kind === "pull-request" ? (
         <SidebarPullRequestChipIcon presentation={statePresentation} />
@@ -1801,6 +1801,17 @@ function SidebarLinkedRefChip(props: {
       {linkedRef.label}
     </>
   );
+  // A long login truncates before the number does.
+  const content =
+    linkedRef.author === null ? (
+      ref
+    ) : (
+      <span className="flex min-w-0 items-center">
+        <span className="min-w-0 truncate font-sans text-muted-foreground">{linkedRef.author}</span>
+        <span className="shrink-0 whitespace-pre font-sans text-muted-foreground"> · </span>
+        <span className="shrink-0">{ref}</span>
+      </span>
+    );
   if (url === null) {
     return <span className={LINKED_REF_CHIP_CLASS_NAME}>{content}</span>;
   }
@@ -1812,7 +1823,9 @@ function SidebarLinkedRefChip(props: {
       aria-label={
         statePresentation === null
           ? undefined
-          : `${linkedRef.label}, ${statePresentation.label.toLowerCase()}`
+          : `${linkedRef.label}, ${statePresentation.label.toLowerCase()}${
+              linkedRef.author === null ? "" : `, by ${linkedRef.author}`
+            }`
       }
       // Opening a ref must not open the thread or start a row drag.
       onPointerDown={(event) => event.stopPropagation()}

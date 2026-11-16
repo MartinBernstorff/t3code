@@ -37,6 +37,7 @@ const BRANCH_PR = {
   state: "merged" as const,
 };
 const OPEN = { state: "open", isDraft: false };
+const OCTOCAT = { login: "octocat", name: null, avatarUrl: null };
 
 describe("resolveSidebarLinkedRefs", () => {
   it.each([
@@ -89,6 +90,23 @@ describe("resolveSidebarLinkedRefs", () => {
       expected: [{ label: "#12", url: PR_A.url, state: null }],
       opensList: false,
     },
+    {
+      name: "names the author only of pull requests the viewer did not write",
+      linearIssue: null,
+      slug: "acme",
+      links: [
+        link(1, { snapshot: { ...PR_A.snapshot!, viewerIsAuthor: false, author: OCTOCAT } }),
+        link(2, { snapshot: { ...PR_A.snapshot!, viewerIsAuthor: true, author: OCTOCAT } }),
+        link(3, { snapshot: { ...PR_A.snapshot!, author: OCTOCAT } }),
+      ],
+      fallback: null,
+      expected: [
+        { label: "#1", url: link(1).url, state: OPEN, author: "octocat" },
+        { label: "#2", url: link(2).url, state: OPEN },
+        { label: "#3", url: link(3).url, state: OPEN },
+      ],
+      opensList: true,
+    },
   ] as const)("$name", ({ linearIssue, slug, links, fallback, expected, opensList }) => {
     const result = resolveSidebarLinkedRefs({
       linearIssue,
@@ -97,10 +115,11 @@ describe("resolveSidebarLinkedRefs", () => {
       fallbackPullRequest: fallback,
     });
     expect(
-      result.refs.map(({ label, url, pullRequestState }) => ({
+      result.refs.map(({ label, url, pullRequestState, author }) => ({
         label,
         url,
         state: pullRequestState,
+        ...(author === null ? {} : { author }),
       })),
     ).toEqual(expected);
     expect(result.pullRequestChipsOpenList).toBe(opensList);

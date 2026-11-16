@@ -117,6 +117,8 @@ export interface ProviderChangeRequestSummary {
   readonly mergedAt?: string | null;
   readonly updatedAt: string;
   readonly author?: PullRequestActor | null | undefined;
+  /** Absent where the host does not say whether the signed-in account wrote it. */
+  readonly viewerIsAuthor?: boolean | undefined;
   readonly additions?: number | undefined;
   readonly deletions?: number | undefined;
   readonly changedFiles?: number | undefined;

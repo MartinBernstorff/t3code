@@ -1709,6 +1709,9 @@ export const make = Effect.gen(function* () {
     observedAt,
     ...(changeRequest.isDraft === undefined ? {} : { isDraft: changeRequest.isDraft }),
     ...(changeRequest.author === undefined ? {} : { author: changeRequest.author }),
+    ...("viewerIsAuthor" in changeRequest && changeRequest.viewerIsAuthor !== undefined
+      ? { viewerIsAuthor: changeRequest.viewerIsAuthor }
+      : {}),
     ...(changeRequest.additions === undefined ? {} : { additions: changeRequest.additions }),
     ...(changeRequest.deletions === undefined ? {} : { deletions: changeRequest.deletions }),
     ...(changeRequest.changedFiles === undefined
