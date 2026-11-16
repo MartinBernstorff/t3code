@@ -371,6 +371,8 @@ it.effect("set sends each flag to its MCP tool", () =>
     const badLinear = yield* Effect.flip(run(threadId, "--linear", "MB123"));
     yield* run(threadId, "--title", "  Renamed  ", "--priority", "high");
     const blankTitle = yield* Effect.flip(run(threadId, "--title", "  "));
+    yield* run(threadId, "--tag", "review-request", "--tag", "web", "--untag", "wip");
+    const badTag = yield* Effect.flip(run(threadId, "--tag", "  "));
 
     assert.deepStrictEqual(calls, [
       { tool: "t3_thread_organize", args: { threadId, action: "set", priority: "urgent" } },
@@ -395,11 +397,21 @@ it.effect("set sends each flag to its MCP tool", () =>
       { tool: "t3_thread_organize", args: { threadId, action: "set", linearIssue: null } },
       { tool: "t3_thread_update", args: { threadId, action: "rename", title: "Renamed" } },
       { tool: "t3_thread_organize", args: { threadId, action: "set", priority: "high" } },
+      {
+        tool: "t3_thread_organize",
+        args: {
+          threadId,
+          action: "set",
+          addTags: ["review-request", "web"],
+          removeTags: ["wip"],
+        },
+      },
     ]);
     assert.strictEqual(empty._tag, "ThreadUsageError");
     assert.strictEqual(badSnooze._tag, "ThreadUsageError");
     assert.strictEqual(badLinear._tag, "ThreadUsageError");
     assert.strictEqual(blankTitle._tag, "ThreadUsageError");
+    assert.strictEqual(badTag._tag, "ThreadUsageError");
   }).pipe(
     Effect.scoped,
     Effect.provide(

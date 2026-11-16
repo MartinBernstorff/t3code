@@ -32,6 +32,7 @@ import {
   type OrchestrationV2ThreadShell,
   type OrchestrationV2TurnItem,
   type LinearIssueId,
+  type ThreadTag,
   ProjectId,
   PROVIDER_SEND_TURN_MAX_FILE_BYTES,
   ProviderInstanceId,
@@ -484,6 +485,8 @@ export interface ThreadManagementServiceShape {
     readonly waitingOnOthers?: boolean | undefined;
     readonly engagement?: ThreadEngagement | undefined;
     readonly linearIssue?: LinearIssueId | null | undefined;
+    readonly addTags?: ReadonlyArray<ThreadTag> | undefined;
+    readonly removeTags?: ReadonlyArray<ThreadTag> | undefined;
   }) => Effect.Effect<
     { readonly sequence: number },
     Orchestrator.OrchestratorV2Error | ThreadManagementProviderInstanceDisabledError
@@ -1195,6 +1198,19 @@ const make = Effect.gen(function* () {
         ...common("linear-issue"),
         type: "thread.linear-issue.set",
         linearIssue: input.linearIssue,
+      });
+    }
+    for (const [tagged, tags] of [
+      [true, input.addTags ?? []],
+      [false, input.removeTags ?? []],
+    ] as const) {
+      tags.forEach((tag, index) => {
+        commands.push({
+          ...common(`${tagged ? "tag" : "untag"}-${index}`),
+          type: "thread.tag.set",
+          tag,
+          tagged,
+        });
       });
     }
     let sequence = 0;

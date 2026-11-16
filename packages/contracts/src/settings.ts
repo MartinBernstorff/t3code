@@ -26,6 +26,7 @@ import { SecretProviderId, SecretProviderSlug } from "./secretReference.ts";
 import { SettingsSecretValue } from "./settingsSecretValue.ts";
 import { EnvironmentMachineKind, ThreadEnvMode, WorktreeSubmodules } from "./environment.ts";
 import { KeybindingShortcut } from "./keybindings.ts";
+import { EMPTY_THREAD_TAG_FILTER, ThreadTagFilter, ThreadTagFilterPresets } from "./threadTags.ts";
 import {
   CustomModelSetting,
   DEFAULT_TEXT_GENERATION_MODEL,
@@ -1456,6 +1457,15 @@ export const ServerSettings = Schema.Struct({
     Schema.withDecodingDefault(Effect.succeed([])),
   ),
   hideTaggedThreads: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
+  /** The sidebar's tag filter, read from the primary environment. A bad hand edit clears only the filter. */
+  threadTagFilter: ThreadTagFilter.pipe(
+    Schema.catchDecoding(() => Effect.succeedSome(EMPTY_THREAD_TAG_FILTER)),
+    Schema.withDecodingDefault(Effect.succeed(EMPTY_THREAD_TAG_FILTER)),
+  ),
+  threadTagFilterPresets: ThreadTagFilterPresets.pipe(
+    Schema.catchDecoding(() => Effect.succeedSome([])),
+    Schema.withDecodingDefault(Effect.succeed([])),
+  ),
   /** Beta: guest links for this machine's threads. Off refuses new links and pauses existing ones. */
   guestSharingEnabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
   /**
@@ -1853,6 +1863,8 @@ export const ServerSettingsPatch = Schema.Struct({
   snoozePresets: Schema.optionalKey(SnoozePresetSettings),
   hiddenThreadTags: Schema.optionalKey(Schema.Array(Schema.String)),
   hideTaggedThreads: Schema.optionalKey(Schema.Boolean),
+  threadTagFilter: Schema.optionalKey(ThreadTagFilter),
+  threadTagFilterPresets: Schema.optionalKey(ThreadTagFilterPresets),
   guestSharingEnabled: Schema.optionalKey(Schema.Boolean),
   linkedEnvironmentsEnabled: Schema.optionalKey(Schema.Boolean),
   backgroundActivity: Schema.optionalKey(

@@ -7,6 +7,7 @@ export const SIDEBAR_THREAD_ROW_ITEMS = [
   { id: "branch", label: "Branch" },
   { id: "pullRequest", label: "Pull request" },
   { id: "linearIssue", label: "Linear issue" },
+  { id: "tags", label: "Tags" },
   { id: "diff", label: "Changed lines" },
   { id: "terminals", label: "Running terminals" },
   { id: "machine", label: "Machine" },

@@ -785,11 +785,11 @@ function threadSnooze(
 function threadFields(
   thread: Pick<
     OrchestrationV2ThreadShell,
-    "priority" | "engagement" | "waitingOnOthers" | "linearIssue"
+    "priority" | "engagement" | "waitingOnOthers" | "linearIssue" | "tags"
   >,
 ): Pick<
   OrchestratorMcpThreadListItem,
-  "priority" | "engagement" | "waitingOnOthers" | "linearIssue"
+  "priority" | "engagement" | "waitingOnOthers" | "linearIssue" | "tags"
 > {
   return {
     ...(thread.priority != null && { priority: thread.priority }),
@@ -797,6 +797,7 @@ function threadFields(
       thread.engagement !== "inbox" && { engagement: thread.engagement }),
     ...(thread.waitingOnOthers === true && { waitingOnOthers: true }),
     ...(thread.linearIssue != null && { linearIssue: thread.linearIssue }),
+    ...(thread.tags?.length && { tags: thread.tags }),
   };
 }
 

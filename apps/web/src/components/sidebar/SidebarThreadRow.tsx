@@ -51,6 +51,7 @@ import {
   PinOffIcon,
   ShieldQuestionIcon,
   SquarePenIcon,
+  TagIcon,
   TerminalIcon,
   Undo2Icon,
   UserRoundIcon,
@@ -1209,10 +1210,20 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
     variant === "card"
       ? visibleLinkedRefs.filter((ref) => ref.kind !== "pull-request")
       : visibleLinkedRefs;
+  const visibleTags = visibleItems.tags ? (thread.source.tags ?? []) : [];
   const linkedRefsRow =
-    linkedRefsRowRefs.length === 0 ? null : (
+    linkedRefsRowRefs.length === 0 && visibleTags.length === 0 ? null : (
       <div className="mt-0.5 flex h-4 min-w-0 items-center gap-1 overflow-hidden">
         {renderLinkedRefChips(linkedRefsRowRefs)}
+        {visibleTags.map((tag) => (
+          <span key={`tag:${tag}`} className={LINKED_REF_CHIP_CLASS_NAME}>
+            <TagIcon
+              aria-hidden
+              className="mr-0.5 inline size-3 align-[-2px] text-muted-foreground"
+            />
+            {tag}
+          </span>
+        ))}
       </div>
     );
   const showsTerminals = visibleItems.terminals && runningTerminalIds.length > 0;

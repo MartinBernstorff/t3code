@@ -380,7 +380,9 @@ export const layer = McpToolAccess.toLayer(ThreadToolkit, {
           input.priority === undefined &&
           input.waitingOnOthers === undefined &&
           input.engagement === undefined &&
-          input.linearIssue === undefined
+          input.linearIssue === undefined &&
+          !input.addTags?.length &&
+          !input.removeTags?.length
         ) {
           return yield* new OrchestratorMcpFailure({
             code: "invalid_request",
@@ -394,6 +396,8 @@ export const layer = McpToolAccess.toLayer(ThreadToolkit, {
             waitingOnOthers: input.waitingOnOthers,
             engagement: input.engagement,
             linearIssue: input.linearIssue,
+            addTags: input.addTags,
+            removeTags: input.removeTags,
           })
           .pipe(Effect.mapError(dispatchFailure));
       }

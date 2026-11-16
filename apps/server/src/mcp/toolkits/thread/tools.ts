@@ -20,6 +20,7 @@ import {
   ThreadId,
   ThreadPriority,
   ThreadEngagement,
+  ThreadTag,
   LinearIssueId,
   RunId,
   NonNegativeInt,
@@ -38,7 +39,7 @@ import * as WorktreeMcpService from "../../WorktreeMcpService.ts";
 
 const ThreadOrganizeTool = Tool.make("t3_thread_organize", {
   description:
-    "Pin, snooze, settle, archive, or mark a thread unread, or `set` its fields. Omit `threadId` for this thread. `snooze` needs `snoozedUntil`. Settling this thread applies at turn end. A failed turn or queued message leaves it active. `set` changes only the fields you pass; null clears one. Set `waitingOnOthers` while you wait on CI or a review; the user's next message clears it.",
+    "Pin, snooze, settle, archive, or mark a thread unread, or `set` its fields. Omit `threadId` for this thread. `snooze` needs `snoozedUntil`. Settling this thread applies at turn end. A failed turn or queued message leaves it active. `set` changes only the fields you pass; null clears one. Set `waitingOnOthers` while you wait on CI or a review; the user's next message clears it. `addTags` and `removeTags` change the thread's tags, which the user filters the sidebar by.",
   parameters: Schema.Struct({
     environmentId: OrchestratorMcpEnvironmentTarget,
     threadId: Schema.optional(ThreadId),
@@ -63,6 +64,8 @@ const ThreadOrganizeTool = Tool.make("t3_thread_organize", {
         description: "Linear issue you work on, e.g. MB-123.",
       }),
     ),
+    addTags: Schema.optional(Schema.Array(ThreadTag)),
+    removeTags: Schema.optional(Schema.Array(ThreadTag)),
     removeWorktree: Schema.optional(
       Schema.Boolean.annotate({
         description:
