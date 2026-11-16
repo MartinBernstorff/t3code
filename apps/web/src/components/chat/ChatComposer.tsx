@@ -220,7 +220,11 @@ import {
   resolveContextWindowModelDisplayName,
   shouldReserveContextWindowMeter,
 } from "./ContextWindowMeter.logic";
-import type { WeeklyUsage } from "./ComposerUsageMeter";
+import {
+  ComposerUsageMeter,
+  ComposerUsageMeterPlaceholder,
+  type WeeklyUsage,
+} from "./ComposerUsageMeter";
 import {
   buildAttachmentVideoPreview,
   buildExpandedImagePreview,
@@ -3251,6 +3255,21 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       focusComposer={focusComposer}
     />
   ) : null;
+  const visibleContextWindow = composerVisibility.context ? activeContextWindow : null;
+  const composerUsageMeter =
+    visibleContextWindow || props.weeklyUsage ? (
+      <ComposerUsageMeter
+        contextWindow={visibleContextWindow}
+        capTokens={settings.contextWindowMeterCapTokens}
+        weeklyUsage={props.weeklyUsage}
+        modelDisplayName={activeThreadModelDisplayName}
+        onCompact={compactCommandAvailable ? compactThreadContextStable : undefined}
+        compactDisabled={compactDisabled || noProviderAvailable || isSendBusy}
+        compactDisabledReason={resolvedCompactDisabledReason}
+      />
+    ) : reserveContextWindowMeter ? (
+      <ComposerUsageMeterPlaceholder />
+    ) : null;
   return (
     <form
       ref={composerFormRef}
@@ -3611,6 +3630,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                 )}
               >
                 {composerAttachButton ? <div className="me-2">{composerAttachButton}</div> : null}
+                {composerUsageMeter}
                 <div
                   data-chat-composer-actions="right"
                   data-chat-composer-transition-actions="true"
@@ -3630,11 +3650,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                   <ComposerFooterPrimaryActions
                     compact={isComposerPrimaryActionsCompact}
                     canOperateThread={canOperateThread}
-                    activeContextWindow={composerVisibility.context ? activeContextWindow : null}
-                    contextWindowMeterCapTokens={settings.contextWindowMeterCapTokens}
-                    reserveContextWindowMeter={reserveContextWindowMeter}
-                    weeklyUsage={props.weeklyUsage}
-                    activeThreadModelDisplayName={activeThreadModelDisplayName}
                     pendingAction={pendingPrimaryAction}
                     isRunning={phase === "running"}
                     canInterrupt={canInterrupt}
@@ -3682,11 +3697,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                     compactBeforeSendTokens={props.resumeCompactionTokens}
                     keepFullHistory={props.keepFullHistory}
                     onToggleKeepFullHistory={props.onToggleKeepFullHistory}
-                    compactDisabled={compactDisabled || noProviderAvailable || isSendBusy}
-                    compactDisabledReason={resolvedCompactDisabledReason}
-                    {...(compactCommandAvailable
-                      ? { onCompactContext: compactThreadContextStable }
-                      : {})}
                   >
                     {speechInput.available ? (
                       <>
