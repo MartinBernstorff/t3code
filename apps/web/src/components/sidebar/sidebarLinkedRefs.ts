@@ -21,6 +21,8 @@ export interface SidebarLinkedRef {
   readonly url: string | null;
   /** Pull requests only; null until the state is known. */
   readonly pullRequestState: SidebarPullRequestState | null;
+  /** Pull requests someone else wrote; null for the viewer's own or when unknown. */
+  readonly author: string | null;
 }
 
 export interface SidebarLinkedRefs {
@@ -53,6 +55,7 @@ export function resolveSidebarLinkedRefs(input: {
       label: input.linearIssue,
       url: linearIssueHref(input.linearWorkspaceSlug, input.linearIssue),
       pullRequestState: null,
+      author: null,
     });
   }
   const links = visibleThreadPullRequests(input.pullRequestLinks);
@@ -65,6 +68,8 @@ export function resolveSidebarLinkedRefs(input: {
             link.snapshot === null
               ? null
               : { state: link.snapshot.state, isDraft: link.snapshot.isDraft },
+          author:
+            link.snapshot?.viewerIsAuthor === false ? (link.snapshot.author?.login ?? null) : null,
         }))
       : input.fallbackPullRequest === null
         ? []
@@ -76,6 +81,7 @@ export function resolveSidebarLinkedRefs(input: {
                 state: input.fallbackPullRequest.state,
                 isDraft: input.fallbackPullRequest.isDraft === true,
               },
+              author: null,
             },
           ];
   for (const pullRequest of pullRequests) {
@@ -85,6 +91,7 @@ export function resolveSidebarLinkedRefs(input: {
       label: `#${pullRequest.number}`,
       url: pullRequest.url,
       pullRequestState: pullRequest.state,
+      author: pullRequest.author,
     });
   }
   return { refs, pullRequestChipsOpenList: pullRequests.length > 1 };

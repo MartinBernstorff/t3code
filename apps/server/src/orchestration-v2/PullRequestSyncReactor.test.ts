@@ -810,6 +810,27 @@ describe("PullRequestSyncReactor", () => {
     ),
   );
 
+  it.effect("re-snapshots a link once the host says who wrote it", () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        yield* TestClock.setTime(Date.parse(NOW));
+        const fixture = yield* makeHarness({
+          snapshot: makeSnapshot([makeThread("one", { pullRequests: [makeLink(42, {})] })]),
+          summary: (input) => Effect.succeed(makeSummary(input, { viewerIsAuthor: false })),
+        });
+
+        yield* Effect.gen(function* () {
+          yield* startAndSweep(fixture);
+          const commands = yield* Ref.get(fixture.syncCommands);
+          assert.deepStrictEqual(
+            commands.map((command) => command.snapshot.viewerIsAuthor),
+            [false],
+          );
+        }).pipe(Effect.provide(fixture.layer));
+      }),
+    ),
+  );
+
   it.effect("keeps the known mergeability while the host recomputes it", () =>
     Effect.scoped(
       Effect.gen(function* () {

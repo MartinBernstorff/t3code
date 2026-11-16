@@ -931,6 +931,7 @@ export interface GitHubPullRequestSummary {
   readonly mergedAt: string | null;
   readonly updatedAt: string;
   readonly author: PullRequestActor | null;
+  readonly viewerIsAuthor: boolean;
   readonly additions: number;
   readonly deletions: number;
   readonly changedFiles: number;
@@ -954,6 +955,7 @@ export function toPullRequestSummary(pr: SummarizedPullRequest): GitHubPullReque
     mergedAt: trimmed(pr.mergedAt),
     updatedAt: pr.updatedAt,
     author: toActor(pr.author),
+    viewerIsAuthor: pr.viewerDidAuthor,
     additions: pr.additions,
     deletions: pr.deletions,
     changedFiles: pr.changedFiles,

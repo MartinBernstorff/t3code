@@ -45,6 +45,8 @@ export const ThreadPullRequestSnapshot = Schema.Struct({
   closedAt: Schema.optional(Schema.NullOr(Schema.String)),
   mergedAt: Schema.optional(Schema.NullOr(Schema.String)),
   author: Schema.optional(Schema.NullOr(PullRequestActor)),
+  /** Absent where the host does not say whether the server's signed-in account wrote it. */
+  viewerIsAuthor: Schema.optional(Schema.Boolean),
   additions: Schema.optional(NonNegativeInt),
   deletions: Schema.optional(NonNegativeInt),
   changedFiles: Schema.optional(NonNegativeInt),

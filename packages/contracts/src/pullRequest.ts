@@ -490,6 +490,7 @@ export const PullRequestSummary = Schema.Struct({
   updatedAt: IsoDateTime,
   observedAt: Schema.optional(Schema.Finite),
   author: Schema.optional(Schema.NullOr(PullRequestActor)),
+  viewerIsAuthor: Schema.optional(Schema.Boolean),
   additions: Schema.optional(NonNegativeInt),
   deletions: Schema.optional(NonNegativeInt),
   changedFiles: Schema.optional(NonNegativeInt),
