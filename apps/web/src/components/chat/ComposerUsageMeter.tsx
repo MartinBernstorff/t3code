@@ -109,7 +109,7 @@ export function ComposerUsageMeter(props: {
         {...composerFloatingLayerProps}
         tooltipStyle
         side="top"
-        align="end"
+        align="start"
         padding="none"
         className="text-left whitespace-normal"
       >
