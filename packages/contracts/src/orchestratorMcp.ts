@@ -355,12 +355,13 @@ export const OrchestratorMcpThreadPullRequest = Schema.Struct({
 });
 export type OrchestratorMcpThreadPullRequest = typeof OrchestratorMcpThreadPullRequest.Type;
 
-/** Omitted when unset; engagement is omitted for inbox and waitingOnOthers when false. */
+/** Omitted when unset; engagement is omitted for inbox, waitingOnOthers when false, and tags when empty. */
 const OrchestratorMcpThreadFields = {
   priority: Schema.optional(ThreadPriority),
   engagement: Schema.optional(ThreadEngagement),
   waitingOnOthers: Schema.optional(Schema.Boolean),
   linearIssue: Schema.optional(LinearIssueId),
+  tags: Schema.optional(Schema.Array(Schema.String)),
 };
 
 export const OrchestratorMcpThreadListItem = Schema.Struct({

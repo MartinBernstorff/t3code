@@ -14,6 +14,7 @@ import {
   RunId,
   ThreadEngagement,
   ThreadId,
+  ThreadTag,
   TrimmedNonEmptyString,
   type OrchestratorMcpThreadListItem,
   type OrchestratorMcpThreadStatus,
@@ -575,6 +576,18 @@ const threadArgument = Argument.String("thread").pipe(Argument.withDescription("
 
 const decodeThreadIdValue = Schema.decodeUnknownEffect(ThreadId);
 const decodeTitle = Schema.decodeUnknownEffect(TrimmedNonEmptyString);
+const decodeTag = Schema.decodeEffect(ThreadTag);
+const decodeTags = (values: ReadonlyArray<string>) =>
+  Effect.forEach(values, (value) =>
+    decodeTag(value).pipe(
+      Effect.mapError(
+        () =>
+          new ThreadUsageError({
+            detail: `Invalid tag "${value}". Use a single line of at most 64 characters.`,
+          }),
+      ),
+    ),
+  );
 const decodeThreadId = (value: string) =>
   decodeThreadIdValue(value.trim()).pipe(
     Effect.mapError(() => new ThreadUsageError({ detail: `'${value}' is not a thread id.` })),
@@ -938,9 +951,19 @@ const threadSetCommand = Command.make("set", {
     Flag.withDescription("Linear issue id, such as MB-123, or none to unlink it."),
     Flag.optional,
   ),
+  tag: Flag.String("tag").pipe(
+    Flag.withDescription("Add a tag, such as review-request. Repeat for several."),
+    Flag.atLeast(0),
+  ),
+  untag: Flag.String("untag").pipe(
+    Flag.withDescription("Remove a tag. Repeat for several."),
+    Flag.atLeast(0),
+  ),
   json: jsonFlag,
 }).pipe(
-  Command.withDescription("Change a thread's fields, such as its title, priority, or snooze."),
+  Command.withDescription(
+    "Change a thread's fields, such as its title, priority, tags, or snooze.",
+  ),
   Command.withHandler((flags) =>
     Effect.gen(function* () {
       // Agents launch with T3CODE_THREAD_ID set to their thread (PortScanner.AGENT_THREAD_ENV).
@@ -958,6 +981,8 @@ const threadSetCommand = Command.make("set", {
       const linearIssue = Option.isSome(flags.linear)
         ? yield* decodeLinearFlag(flags.linear.value)
         : undefined;
+      const addTags = yield* decodeTags(flags.tag);
+      const removeTags = yield* decodeTags(flags.untag);
       const fields = {
         ...Option.match(flags.priority, {
           onNone: () => ({}),
@@ -972,6 +997,8 @@ const threadSetCommand = Command.make("set", {
           onSome: (waitingOnOthers) => ({ waitingOnOthers }),
         }),
         ...(linearIssue === undefined ? {} : { linearIssue }),
+        ...(addTags.length > 0 ? { addTags } : {}),
+        ...(removeTags.length > 0 ? { removeTags } : {}),
       };
       const nowMillis = yield* Clock.currentTimeMillis;
       const snooze = Option.map(flags.snooze, (value) => ({
@@ -985,7 +1012,7 @@ const threadSetCommand = Command.make("set", {
       }
       if (Object.keys(fields).length === 0 && Option.isNone(snooze) && title === undefined) {
         return yield* new ThreadUsageError({
-          detail: "Pass a field to set, such as --title, --priority, or --snooze.",
+          detail: "Pass a field to set, such as --title, --priority, --tag, or --snooze.",
         });
       }
       yield* withThreadTools(

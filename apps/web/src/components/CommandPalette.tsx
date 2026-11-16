@@ -53,6 +53,7 @@ import {
   SourceControlProviderKind,
   PRIMARY_LOCAL_ENVIRONMENT_ID,
   resolveEnvironmentMachineKind,
+  EMPTY_THREAD_TAG_FILTER,
   type ThreadPriority,
 } from "@t3tools/contracts";
 import { useLocation, useNavigate } from "@tanstack/react-router";
@@ -82,6 +83,7 @@ import {
   PinIcon,
   PinOffIcon,
   SquarePenIcon,
+  TagIcon,
   TextSearchIcon,
   UserPlusIcon,
   XIcon,
@@ -116,7 +118,14 @@ import {
   copyPromptLink,
   promptLinkRepositoryOf,
 } from "./promptLinks/copyPromptLink";
-import { updateClientSettings, useClientSettings } from "../hooks/useSettings";
+import {
+  updateClientSettings,
+  useClientSettings,
+  usePrimarySettings,
+  useUpdatePrimarySettings,
+} from "../hooks/useSettings";
+import { isThreadTagFilterActive } from "@t3tools/client-runtime/state/threads";
+import { matchingThreadTagPreset } from "./sidebar/sidebarTagFilter.logic";
 import { useStableCallback } from "../hooks/useStableCallback";
 import { readLocalApi } from "../localApi";
 import { configuredHostedAppUrl } from "../hostedPairing";
@@ -470,6 +479,9 @@ function OpenCommandPaletteDialog(props: {
     setHighlightedItemValue(null);
   }
   const clientSettings = useClientSettings(selectCommandPaletteClientSettings);
+  const tagFilter = usePrimarySettings((settings) => settings.threadTagFilter);
+  const tagFilterPresets = usePrimarySettings((settings) => settings.threadTagFilterPresets);
+  const updatePrimarySettings = useUpdatePrimarySettings();
   const createProject = useAtomCommand(projectEnvironment.create, {
     reportFailure: false,
   });
@@ -1837,6 +1849,56 @@ function OpenCommandPaletteDialog(props: {
       run: async () => {
         await navigate({ to: "/pull-requests", search: readPullRequestListPreferences() });
       },
+    });
+  }
+
+  const appliedTagPreset = matchingThreadTagPreset(tagFilterPresets, tagFilter);
+  const tagFilterActive = isThreadTagFilterActive(tagFilter);
+  if (tagFilterPresets.length > 0 || tagFilterActive) {
+    actionItems.push({
+      kind: "submenu",
+      value: "action:tag-filter",
+      searchTerms: ["tag", "tags", "filter", "preset", "hide", "require"],
+      title: "Apply tag filter...",
+      icon: <TagIcon className={ITEM_ICON_CLASS} />,
+      addonIcon: <TagIcon className={ADDON_ICON_CLASS} />,
+      groups: [
+        {
+          value: "tag-filter-presets",
+          label: "Tag filter",
+          items: [
+            ...tagFilterPresets.map((preset): CommandPaletteActionItem => ({
+              kind: "action",
+              value: `action:tag-filter:${preset.name}`,
+              searchTerms: [preset.name, ...preset.required, ...preset.hidden],
+              title: preset.name,
+              icon: <TagIcon className={ITEM_ICON_CLASS} />,
+              ...(preset === appliedTagPreset
+                ? { titleTrailingContent: <CheckIcon className={ITEM_ICON_CLASS} /> }
+                : {}),
+              run: async () => {
+                updatePrimarySettings({
+                  threadTagFilter: { required: preset.required, hidden: preset.hidden },
+                });
+              },
+            })),
+            ...(tagFilterActive
+              ? [
+                  {
+                    kind: "action" as const,
+                    value: "action:tag-filter:clear",
+                    searchTerms: ["clear", "none", "all threads"],
+                    title: "Clear tag filter",
+                    icon: <XIcon className={ITEM_ICON_CLASS} />,
+                    run: async () => {
+                      updatePrimarySettings({ threadTagFilter: EMPTY_THREAD_TAG_FILTER });
+                    },
+                  },
+                ]
+              : []),
+          ],
+        },
+      ],
     });
   }
 

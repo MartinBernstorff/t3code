@@ -149,6 +149,17 @@ it("drops a hand-edited non-string hidden tag and keeps the rest of the settings
   expect(settings.hideTaggedThreads).toBe(true);
 });
 
+it("clears a hand-edited bad tag filter and keeps its presets", () => {
+  const settings = decodeServerSettings({
+    threadTagFilter: { required: "review-request" },
+    threadTagFilterPresets: [{ name: "Review batch", required: ["review-request"], hidden: [] }],
+  });
+  expect(settings.threadTagFilter).toEqual({ required: [], hidden: [] });
+  expect(settings.threadTagFilterPresets).toEqual([
+    { name: "Review batch", required: ["review-request"], hidden: [] },
+  ]);
+});
+
 describe("ServerSettings secret providers", () => {
   const onePassword = (account: string) => ({
     kind: "one_password",

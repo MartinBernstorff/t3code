@@ -2,7 +2,12 @@ import { EnvironmentId, ThreadId } from "@t3tools/contracts";
 import { describe, expect, it } from "vite-plus/test";
 
 import { threadKey } from "./entities.ts";
-import { hiddenThreadKeys, NO_HIDDEN_THREADS, visibleLinkedThreads } from "./threadTagFilter.ts";
+import {
+  hiddenThreadKeys,
+  matchesThreadTagFilter,
+  NO_HIDDEN_THREADS,
+  visibleLinkedThreads,
+} from "./threadTagFilter.ts";
 
 const local = EnvironmentId.make("local");
 const linked = EnvironmentId.make("linked");
@@ -123,5 +128,22 @@ describe("hiddenThreadKeys", () => {
       new Set([parentKey]),
     );
     expect([...archived]).toEqual([key(linked, "delegated-from-private")]);
+  });
+});
+
+describe("matchesThreadTagFilter", () => {
+  it.each([
+    { tags: ["review", "web"], matches: true },
+    { tags: ["review"], matches: false },
+    { tags: ["review", "web", "wip"], matches: false },
+    { tags: undefined, matches: false },
+  ])("requires every required tag and no hidden tag: $tags", ({ tags, matches }) => {
+    expect(matchesThreadTagFilter(tags, { required: ["review", "web"], hidden: ["wip"] })).toBe(
+      matches,
+    );
+  });
+
+  it("lists an untagged thread when only hiding", () => {
+    expect(matchesThreadTagFilter(undefined, { required: [], hidden: ["review"] })).toBe(true);
   });
 });

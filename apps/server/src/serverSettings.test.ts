@@ -409,6 +409,8 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))("server settings"
 
       yield* serverSettings.updateSettings({
         observability: { otlpTracesUrl: "http://localhost:4318/v1/traces" },
+        // Its empty list equals the default, which must not be stripped from the saved filter.
+        threadTagFilter: { required: [], hidden: ["review-request"] },
         textGenerationModelSelection: {
           instanceId: ProviderInstanceId.make("codex"),
           model: DEFAULT_SERVER_SETTINGS.textGenerationModelSelection.model,
@@ -432,6 +434,7 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))("server settings"
 
       assert.equal(next.observability.otlpTracesUrl, "http://localhost:4318/v1/traces");
       assert.equal(next.observability.otlpMetricsUrl, "http://localhost:4318/v1/metrics");
+      assert.deepEqual(next.threadTagFilter, { required: [], hidden: ["review-request"] });
       assert.deepEqual(
         next.textGenerationModelSelection,
         createModelSelection(

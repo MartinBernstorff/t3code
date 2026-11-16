@@ -165,12 +165,17 @@ it.effect("setThreadFields dispatches one command per given field", () => {
       waitingOnOthers: true,
       engagement: undefined,
       linearIssue: null,
+      addTags: ["review-request", "web"],
+      removeTags: ["wip"],
     });
     expect(result).toEqual({ sequence: 1 });
     expect(dispatched).toEqual([
       "thread.priority.set",
       "thread.waiting.set",
       "thread.linear-issue.set",
+      "thread.tag.set",
+      "thread.tag.set",
+      "thread.tag.set",
     ]);
   }).pipe(Effect.provide(layerDispatchChokepointTest(ServerSettings.layerTest())(dispatched)));
 });

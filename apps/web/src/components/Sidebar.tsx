@@ -61,8 +61,13 @@ import {
   ProjectId,
   type ScopedThreadRef,
   type ThreadId,
+  type ThreadTagFilter,
 } from "@t3tools/contracts";
-import type { OlderSettledScope } from "@t3tools/client-runtime/state/threads";
+import {
+  isThreadTagFilterActive,
+  matchesThreadTagFilter,
+  type OlderSettledScope,
+} from "@t3tools/client-runtime/state/threads";
 
 import {
   CheckIcon,
@@ -141,6 +146,8 @@ import {
   updateClientSettings,
   useBoringSidebarEnabled,
   useClientSettings,
+  usePrimarySettings,
+  useUpdatePrimarySettings,
 } from "../hooks/useSettings";
 import { useCopyToClipboard } from "../hooks/useCopyToClipboard";
 import { useLocalStorage } from "../hooks/useLocalStorage";
@@ -264,6 +271,7 @@ import {
 import { SidebarContent, SidebarGroup, useSidebar } from "./ui/sidebar";
 import { SidebarChromeFooter, SidebarChromeHeader } from "./sidebar/SidebarChrome";
 import { SidebarHeaderIconButton, SidebarThreadHeader } from "./sidebar/SidebarThreadHeader";
+import { SidebarTagFilterBar, SidebarTagFilterMenu } from "./sidebar/SidebarTagFilter";
 import { TooltipProvider } from "./ui/tooltip";
 import { composerDraftHasUserContent, DraftId, useComposerDraftStore } from "../composerDraftStore";
 import { useThreadRouteTarget } from "../hooks/useThreadRouteTarget";
@@ -324,6 +332,9 @@ interface SidebarThreadPartitionInput {
   readonly scopedProjectKeys: ReadonlySet<string> | null;
   /** Tasks linked environments run for a listed thread; they show under it. */
   readonly delegatedUnderParent: ReadonlySet<string>;
+  /** Null while off. The open thread stays listed so the row under the user never vanishes. */
+  readonly tagFilter: ThreadTagFilter | null;
+  readonly routeRowThreadKey: string | null;
   readonly serverConfigs: ReadonlyMap<EnvironmentId, EnvironmentServerConfig>;
   readonly connectedEnvironmentIds: readonly EnvironmentId[];
   readonly optimisticDrop: SidebarOptimisticDrop | null;
@@ -418,6 +429,7 @@ function useSidebarThreads(input: {
   readonly optimisticDrop: SidebarOptimisticDrop | null;
   readonly threads: readonly EnvironmentThreadShell[];
   readonly delegatedUnderParent: ReadonlySet<string>;
+  readonly tagFilter: ThreadTagFilter | null;
   readonly routeRowThreadKey: string | null;
   // Set in boring mode: the project groups to fold active threads into, in order.
   readonly folderGroups: readonly SidebarProjectSnapshot[] | null;
@@ -435,6 +447,7 @@ function useSidebarThreads(input: {
     optimisticDrop,
     threads,
     delegatedUnderParent,
+    tagFilter,
     routeRowThreadKey,
     folderGroups,
     keepEmptyFolders: keepEmpty,
@@ -503,6 +516,8 @@ function useSidebarThreads(input: {
     threads,
     scopedProjectKeys,
     delegatedUnderParent,
+    tagFilter,
+    routeRowThreadKey,
     serverConfigs,
     connectedEnvironmentIds,
     optimisticDrop,
@@ -529,8 +544,10 @@ function useSidebarThreads(input: {
   });
   const listedSettledThreads = settledThreads.filter(olderSettledShelf.isListed);
   useOlderSettledShelfGrowth(olderSettledShelf, listedSettledThreads);
+  // The server counts older settled threads without tags, so a tag filter counts only loaded ones.
   const settledCount =
-    settledThreads.length + olderSettledShelf.unloadedCount(partition.visibleThreads);
+    settledThreads.length +
+    (tagFilter === null ? olderSettledShelf.unloadedCount(partition.visibleThreads) : 0);
   const visibleSettledThreads = (() => {
     const visible = listedSettledThreads.slice(0, settledVisibleCount);
     if (
@@ -709,7 +726,16 @@ function partitionSidebarThreads(input: SidebarThreadPartitionInput) {
     threadSort,
   } = input;
   const preciseNow = new Date().toISOString();
-  const visible = filterSidebarV2VisibleThreads(threads, scopedProjectKeys, delegatedUnderParent);
+  const scoped = filterSidebarV2VisibleThreads(threads, scopedProjectKeys, delegatedUnderParent);
+  const { tagFilter, routeRowThreadKey } = input;
+  const visible =
+    tagFilter === null
+      ? scoped
+      : scoped.filter(
+          (thread) =>
+            matchesThreadTagFilter(thread.source.tags, tagFilter) ||
+            threadShellKey(thread) === routeRowThreadKey,
+        );
   const inboxObservation = inboxReturns.observe(workingShelfEnabled ? threads : null);
   const pinned: EnvironmentThreadShell[] = [];
   const active: EnvironmentThreadShell[] = [];
@@ -800,6 +826,7 @@ function partitionSidebarThreads(input: SidebarThreadPartitionInput) {
     ),
     settledThreads: sortSettledThreads(settled),
     visibleThreads: visible,
+    tagHiddenCount: scoped.length - visible.length,
     snoozeNow: preciseNow,
   };
 }
@@ -1204,6 +1231,19 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
           ),
         );
   const threads = useQuietThreadShells();
+  const tagFilterSetting = usePrimarySettings((settings) => settings.threadTagFilter);
+  const tagFilterPresets = usePrimarySettings((settings) => settings.threadTagFilterPresets);
+  const updatePrimarySettings = useUpdatePrimarySettings();
+  const tagFilter = isThreadTagFilterActive(tagFilterSetting) ? tagFilterSetting : null;
+  const setTagFilter = (next: ThreadTagFilter) => {
+    clearSelection();
+    updatePrimarySettings({ threadTagFilter: next });
+  };
+  const tagCounts = new Map<string, number>();
+  for (const thread of threads) {
+    if (thread.archivedAt !== null) continue;
+    for (const tag of thread.source.tags ?? []) tagCounts.set(tag, (tagCounts.get(tag) ?? 0) + 1);
+  }
   const routeRowThreadKey =
     routeThreadRef === null
       ? null
@@ -1428,6 +1468,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     settledCount,
     olderSettledShelf,
     hiddenSettledCount,
+    tagHiddenCount,
     showMoreSettled,
     settledShelfExpanded,
     toggleSettledShelf,
@@ -1462,6 +1503,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     optimisticDrop,
     threads,
     delegatedUnderParent,
+    tagFilter,
     routeRowThreadKey,
     folderGroups: boringSidebarEnabled
       ? scopedProjectGroups.length === 0
@@ -3545,6 +3587,21 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
       </ComboboxPopup>
     </Combobox>
   );
+  const tagFilterMenu = (
+    <SidebarTagFilterMenu
+      filter={tagFilterSetting}
+      presets={tagFilterPresets}
+      tagCounts={tagCounts}
+      onFilterChange={setTagFilter}
+      onPresetsChange={(presets) => updatePrimarySettings({ threadTagFilterPresets: presets })}
+    />
+  );
+  const projectAndTagScope = (
+    <>
+      {projectScopeSelector}
+      {tagFilterMenu}
+    </>
+  );
   return (
     <>
       <ThreadContextDragGhost />
@@ -3554,33 +3611,44 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
         fixedHeader={
           // On web a minimal header row without projects would hold nothing; desktop keeps it for the window controls.
           sidebarMinimal && !isElectron && projectGroups.length === 0 ? null : (
-            <SidebarChromeHeader isElectron={isElectron}>
-              {sidebarMinimal ? (
-                projectGroups.length > 0 ? (
-                  <div className="flex justify-end">{projectScopeSelector}</div>
-                ) : null
-              ) : (
-                <SidebarThreadHeader
-                  hasProjects={projectGroups.length > 0}
-                  projectScope={projectScopeSelector}
-                  onNewProject={openAddProjectCommandPalette}
-                  onNewThread={handleNewThreadClick}
-                  newThreadDisabled={projects.length === 0}
-                  newThreadShortcutLabel={newThreadShortcutLabel}
-                  searchInputRef={threadSearchInputRef}
-                  searchQuery={threadSearchQuery}
-                  onSearchQueryChange={(value) => {
-                    setThreadSearchQuery(value);
-                    setSearchHighlightKey(null);
-                  }}
-                  onSearchKeyDown={handleThreadSearchKeyDown}
-                  isSearching={isSearchingThreads}
-                  searchResultCount={threadSearchResults.length}
-                  activeSearchResultIndex={activeSearchResultIndex}
-                  onClearSearch={clearThreadSearch}
-                />
-              )}
-            </SidebarChromeHeader>
+            <>
+              <SidebarChromeHeader isElectron={isElectron}>
+                {sidebarMinimal ? (
+                  projectGroups.length > 0 ? (
+                    <div className="flex justify-end">{projectAndTagScope}</div>
+                  ) : null
+                ) : (
+                  <SidebarThreadHeader
+                    hasProjects={projectGroups.length > 0}
+                    projectScope={projectAndTagScope}
+                    onNewProject={openAddProjectCommandPalette}
+                    onNewThread={handleNewThreadClick}
+                    newThreadDisabled={projects.length === 0}
+                    newThreadShortcutLabel={newThreadShortcutLabel}
+                    searchInputRef={threadSearchInputRef}
+                    searchQuery={threadSearchQuery}
+                    onSearchQueryChange={(value) => {
+                      setThreadSearchQuery(value);
+                      setSearchHighlightKey(null);
+                    }}
+                    onSearchKeyDown={handleThreadSearchKeyDown}
+                    isSearching={isSearchingThreads}
+                    searchResultCount={threadSearchResults.length}
+                    activeSearchResultIndex={activeSearchResultIndex}
+                    onClearSearch={clearThreadSearch}
+                  />
+                )}
+              </SidebarChromeHeader>
+              <SidebarTagFilterBar
+                filter={tagFilterSetting}
+                presets={tagFilterPresets}
+                hiddenCount={tagHiddenCount}
+                onFilterChange={setTagFilter}
+                onPresetsChange={(presets) =>
+                  updatePrimarySettings({ threadTagFilterPresets: presets })
+                }
+              />
+            </>
           )
         }
       >

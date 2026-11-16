@@ -4,6 +4,7 @@ import {
   type OrchestrationV2ThreadShell,
   type ScopedThreadRef,
   type ThreadId,
+  type ThreadTagFilter,
 } from "@t3tools/contracts";
 
 import { threadKey } from "./entities.ts";
@@ -122,4 +123,16 @@ export function hiddenThreadKeys(
     if (isHidden(key)) hidden.add(key);
   }
   return hidden.size === 0 ? NO_HIDDEN_THREADS : hidden;
+}
+
+export function isThreadTagFilterActive(filter: ThreadTagFilter): boolean {
+  return filter.required.length > 0 || filter.hidden.length > 0;
+}
+
+export function matchesThreadTagFilter(
+  tags: ReadonlyArray<string> | undefined,
+  filter: ThreadTagFilter,
+): boolean {
+  const has = (tag: string) => tags?.includes(tag) === true;
+  return filter.required.every(has) && !filter.hidden.some(has);
 }

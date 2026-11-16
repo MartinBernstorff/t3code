@@ -110,6 +110,7 @@ t3 thread set "$id" --engagement queued
 t3 thread set "$id" --waiting on
 t3 thread set "$id" --snooze 2h
 t3 thread set "$id" --linear MB-123
+t3 thread set "$id" --tag review-request --untag wip
 t3 thread archive "$id" --remove-worktree
 t3 thread unarchive "$id"
 ```
@@ -124,7 +125,7 @@ the message to read it from stdin. `set` changes a thread's title, priority (`ur
 or `queued`), whether it is waiting on others (`--waiting on|off`), and snooze (`--snooze` takes a duration such as
 `30m`, `2h`, `3d`, or `1w`, an ISO time, or `none` to wake the thread). Run by
 an agent, `set` defaults to the agent's own thread.
-`--linear` links a Linear issue id, and `--linear none` unlinks it. `show` prints the fields that
+`--linear` links a Linear issue id, and `--linear none` unlinks it. `--tag` adds a tag and `--untag` removes one; repeat either for several. `show` prints the fields that
 are set. `archive --remove-worktree` also deletes the thread's worktree and
 keeps its branch; it changes nothing while the thread runs, if the worktree has
 local changes, or if another active thread uses it. A thread unarchived after
