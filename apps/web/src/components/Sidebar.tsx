@@ -3409,6 +3409,15 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     else if (!sidebarOpen) setSidebarOpen(true);
     dispatchProjectScopeMenu({ type: "open-changed", open: !projectScopeMenuState.open });
   });
+  const [tagFilterMenuOpen, setTagFilterMenuOpen] = useState(false);
+  const toggleTagFilterFromShortcut = useStableCallback((event: KeyboardEvent) => {
+    if (event.repeat || projectGroups.length === 0) return false;
+    event.preventDefault();
+    event.stopPropagation();
+    if (isMobile) setOpenMobile(true);
+    else if (!sidebarOpen) setSidebarOpen(true);
+    setTagFilterMenuOpen((open) => !open);
+  });
   const toggleMinimalFromShortcut = useStableCallback((event: KeyboardEvent) => {
     event.preventDefault();
     event.stopPropagation();
@@ -3422,11 +3431,12 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
       registerCommands(
         {
           "sidebar.filterByProject": toggleProjectFilterFromShortcut,
+          "sidebar.filterByTag": toggleTagFilterFromShortcut,
           "sidebar.toggleMinimal": toggleMinimalFromShortcut,
         },
         { capture: true },
       ),
-    [toggleProjectFilterFromShortcut, toggleMinimalFromShortcut],
+    [toggleProjectFilterFromShortcut, toggleTagFilterFromShortcut, toggleMinimalFromShortcut],
   );
 
   const shouldShowJumpHintsNow = shouldShowThreadJumpHintsForModifiers(
@@ -3676,6 +3686,8 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
       tagCounts={tagCounts}
       onFilterChange={setTagFilter}
       onPresetsChange={(presets) => updatePrimarySettings({ threadTagFilterPresets: presets })}
+      open={tagFilterMenuOpen}
+      onOpenChange={setTagFilterMenuOpen}
     />
   );
   const projectAndTagScope = (
@@ -3728,6 +3740,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                 onPresetsChange={(presets) =>
                   updatePrimarySettings({ threadTagFilterPresets: presets })
                 }
+                onChoosePreset={() => setTagFilterMenuOpen(true)}
               />
             </>
           )

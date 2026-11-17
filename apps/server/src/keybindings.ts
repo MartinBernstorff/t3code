@@ -131,6 +131,11 @@ const MOVED_DEFAULT_KEYBINDINGS: ReadonlyArray<{
     from: { key: "mod+shift+b", command: "threadPanel.toggle", when: "!terminalFocus" },
     to: { key: "mod+alt+shift+b", command: "threadPanel.toggle", when: "!terminalFocus" },
   },
+  {
+    id: "thread.pin:mod+alt+shift+p",
+    from: { key: "mod+shift+p", command: "thread.pin", when: "!terminalFocus" },
+    to: { key: "mod+alt+shift+p", command: "thread.pin", when: "!terminalFocus" },
+  },
   ...THREAD_JUMP_KEYBINDING_COMMANDS.map((command, index) => ({
     id: `${command}:web`,
     from: { key: `mod+${index + 1}`, command, when: "!modelPickerOpen && isDesktop" },
