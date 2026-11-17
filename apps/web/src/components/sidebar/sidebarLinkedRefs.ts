@@ -23,6 +23,13 @@ export interface SidebarLinkedRef {
   readonly pullRequestState: SidebarPullRequestState | null;
   /** Pull requests someone else wrote; null for the viewer's own or when unknown. */
   readonly author: string | null;
+  /** The pull request's layer in a native stack, 1 nearest the base; null outside one or unknown. */
+  readonly stack: SidebarPullRequestStackPosition | null;
+}
+
+export interface SidebarPullRequestStackPosition {
+  readonly position: number;
+  readonly size: number;
 }
 
 export interface SidebarLinkedRefs {
@@ -45,6 +52,7 @@ export function resolveSidebarLinkedRefs(input: {
     readonly url: string;
     readonly state: PullRequestState;
     readonly isDraft?: boolean | undefined;
+    readonly stack?: SidebarPullRequestStackPosition | null | undefined;
   } | null;
 }): SidebarLinkedRefs {
   const refs: Array<SidebarLinkedRef> = [];
@@ -56,6 +64,7 @@ export function resolveSidebarLinkedRefs(input: {
       url: linearIssueHref(input.linearWorkspaceSlug, input.linearIssue),
       pullRequestState: null,
       author: null,
+      stack: null,
     });
   }
   const links = visibleThreadPullRequests(input.pullRequestLinks);
@@ -70,6 +79,7 @@ export function resolveSidebarLinkedRefs(input: {
               : { state: link.snapshot.state, isDraft: link.snapshot.isDraft },
           author:
             link.snapshot?.viewerIsAuthor === false ? (link.snapshot.author?.login ?? null) : null,
+          stack: stackPositionOf(link),
         }))
       : input.fallbackPullRequest === null
         ? []
@@ -82,6 +92,7 @@ export function resolveSidebarLinkedRefs(input: {
                 isDraft: input.fallbackPullRequest.isDraft === true,
               },
               author: null,
+              stack: input.fallbackPullRequest.stack ?? null,
             },
           ];
   for (const pullRequest of pullRequests) {
@@ -92,7 +103,14 @@ export function resolveSidebarLinkedRefs(input: {
       url: pullRequest.url,
       pullRequestState: pullRequest.state,
       author: pullRequest.author,
+      stack: pullRequest.stack,
     });
   }
   return { refs, pullRequestChipsOpenList: pullRequests.length > 1 };
+}
+
+function stackPositionOf(link: ThreadPullRequestLink): SidebarPullRequestStackPosition | null {
+  if (link.stack === null) return null;
+  const index = link.stack.layers.findIndex((layer) => layer.number === link.number);
+  return index === -1 ? null : { position: index + 1, size: link.stack.layers.length };
 }

@@ -107,6 +107,46 @@ describe("resolveSidebarLinkedRefs", () => {
       ],
       opensList: true,
     },
+    {
+      name: "places a linked pull request in its native stack, counting unlinked layers",
+      linearIssue: null,
+      slug: "acme",
+      links: [
+        link(15, {
+          stack: {
+            kind: "native",
+            id: "stack-1",
+            number: 1,
+            url: "https://github.com/acme/app/stacks/1",
+            base: "main",
+            layers: [
+              { number: 14, headBranch: "head-14", state: "merged" },
+              { number: 15, headBranch: "head-15", state: "open" },
+              { number: 16, headBranch: "head-16", state: "open" },
+            ],
+          },
+        }),
+      ],
+      fallback: null,
+      expected: [{ label: "#15", url: link(15).url, state: OPEN, stack: { position: 2, size: 3 } }],
+      opensList: false,
+    },
+    {
+      name: "places the branch's pull request in the stack its summary reported",
+      linearIssue: null,
+      slug: "acme",
+      links: [],
+      fallback: { ...BRANCH_PR, stack: { position: 1, size: 2 } },
+      expected: [
+        {
+          label: "#20",
+          url: BRANCH_PR.url,
+          state: { state: "merged", isDraft: false },
+          stack: { position: 1, size: 2 },
+        },
+      ],
+      opensList: false,
+    },
   ] as const)("$name", ({ linearIssue, slug, links, fallback, expected, opensList }) => {
     const result = resolveSidebarLinkedRefs({
       linearIssue,
@@ -115,11 +155,12 @@ describe("resolveSidebarLinkedRefs", () => {
       fallbackPullRequest: fallback,
     });
     expect(
-      result.refs.map(({ label, url, pullRequestState, author }) => ({
+      result.refs.map(({ label, url, pullRequestState, author, stack }) => ({
         label,
         url,
         state: pullRequestState,
         ...(author === null ? {} : { author }),
+        ...(stack === null ? {} : { stack }),
       })),
     ).toEqual(expected);
     expect(result.pullRequestChipsOpenList).toBe(opensList);
