@@ -4,7 +4,7 @@ import {
   type ThreadTagFilter,
   type ThreadTagFilterPreset,
 } from "@t3tools/contracts";
-import { CheckIcon, MinusIcon, PlusIcon, TagIcon, XIcon } from "lucide-react";
+import { CheckIcon, ChevronsUpDownIcon, MinusIcon, PlusIcon, TagIcon, XIcon } from "lucide-react";
 import * as Schema from "effect/Schema";
 import { createElement, type ReactNode, useState } from "react";
 
@@ -196,9 +196,10 @@ export function SidebarTagFilterMenu(props: {
   tagCounts: ReadonlyMap<string, number>;
   onFilterChange: (filter: ThreadTagFilter) => void;
   onPresetsChange: (presets: ReadonlyArray<ThreadTagFilterPreset>) => void;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 }) {
-  const { filter, presets, tagCounts, onFilterChange, onPresetsChange } = props;
-  const [open, setOpen] = useState(false);
+  const { filter, presets, tagCounts, onFilterChange, onPresetsChange, open } = props;
   const [query, setQuery] = useState("");
   const activePreset = matchingThreadTagPreset(presets, filter);
   const activeCount = filter.required.length + filter.hidden.length;
@@ -251,7 +252,7 @@ export function SidebarTagFilterMenu(props: {
       isItemEqualToValue={(left, right) => left.value === right.value}
       open={open}
       onOpenChange={(nextOpen) => {
-        setOpen(nextOpen);
+        props.onOpenChange(nextOpen);
         if (!nextOpen) setQuery("");
       }}
       value={null}
@@ -393,6 +394,7 @@ export function SidebarTagFilterBar(props: {
   presets: ReadonlyArray<ThreadTagFilterPreset>;
   onFilterChange: (filter: ThreadTagFilter) => void;
   onPresetsChange: (presets: ReadonlyArray<ThreadTagFilterPreset>) => void;
+  onChoosePreset: () => void;
 }) {
   const { filter, presets, onFilterChange, onPresetsChange } = props;
   const [presetName, setPresetName] = useState<string | null>(null);
@@ -442,7 +444,7 @@ export function SidebarTagFilterBar(props: {
 
   if (activePreset) {
     return (
-      <div className="mx-2 mt-1 mb-1.5 flex flex-col gap-1.5 rounded-lg border border-primary/25 bg-primary/6 px-2 py-1.5 text-xs">
+      <div className="px-(--sidebar-content-inset) pt-1 pb-1.5 text-xs [--control-radius:var(--radius-md)]">
         <div className="flex min-w-0 items-center gap-2">
           <PresetIconPicker
             icon={activePreset.icon}
@@ -452,18 +454,17 @@ export function SidebarTagFilterBar(props: {
               )
             }
           />
-          <span className="flex min-w-0 flex-col leading-tight">
-            <span className="text-3xs text-muted-foreground">Preset</span>
-            <span className="truncate font-medium text-foreground text-sm">
-              {activePreset.name}
-            </span>
-          </span>
-          <Button size="xs" variant="outline" className="ml-auto" onClick={clear}>
-            <XIcon />
-            Exit
+          <Button
+            size="xs"
+            variant="ghost"
+            className="min-w-0"
+            title="Choose a preset"
+            onClick={props.onChoosePreset}
+          >
+            <span className="truncate font-medium text-sm">{activePreset.name}</span>
+            <ChevronsUpDownIcon className="opacity-60" />
           </Button>
         </div>
-        <div className="pl-8">{chips}</div>
       </div>
     );
   }

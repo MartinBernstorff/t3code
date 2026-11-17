@@ -105,7 +105,8 @@ its agent to. A thread can have several tags. Thread cards and two-line rows sho
 under the title unless you turn off **Tags** in **Settings → Appearance → Sidebar thread
 rows**.
 
-To filter the sidebar by tag, open the tag filter next to the project filter. Each tag
+To filter the sidebar by tag, open the tag filter next to the project filter
+(`mod+shift+p` by default). Each tag
 has **Require** and **Hide**: the sidebar lists a thread only when it has every
 required tag and no hidden tag. Enter requires the highlighted tag and Shift+Enter
 hides it. Type a tag no thread has yet to require or hide it ahead of time. The thread
@@ -114,7 +115,8 @@ tags and how many threads it hides; **Clear** turns it off.
 
 **Save as preset** names the current filter, for example "Focus" to hide
 `review-request` and "Review batch" to require it. Presets are listed at the top of the
-tag filter and in the command palette under **Apply tag filter…**. The filter and
+tag filter and in the command palette under **Apply tag filter…**. Click the active preset's
+name to switch presets, or choose the active preset again to turn it off. The filter and
 presets are saved on your main machine, so every device that connects to it shares them.
 
 ## Link a Linear issue

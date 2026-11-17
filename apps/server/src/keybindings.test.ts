@@ -302,24 +302,30 @@ it.layer(NodeServices.layer)("keybindings", (it) => {
     }).pipe(Effect.provide(layerKeybindings())),
   );
 
-  it.effect("moves the thread panel off mod+shift+b so the project filter can take it", () =>
+  it.effect("moves the thread panel and pin off the keys the sidebar filters take", () =>
     Effect.gen(function* () {
       const { keybindingsConfigPath } = yield* ServerConfig.ServerConfig;
       const keybindings = yield* Keybindings.Keybindings;
       yield* writeKeybindingsConfig(keybindingsConfigPath, [
         { key: "mod+shift+b", command: "threadPanel.toggle", when: "!terminalFocus" },
+        { key: "mod+shift+p", command: "thread.pin", when: "!terminalFocus" },
       ]);
 
       yield* keybindings.syncDefaultKeybindingsOnStartup;
       const persisted = yield* readKeybindingsConfig(keybindingsConfigPath);
+      const commands = new Set([
+        "threadPanel.toggle",
+        "sidebar.filterByProject",
+        "thread.pin",
+        "sidebar.filterByTag",
+      ]);
       assert.deepStrictEqual(
-        persisted.filter(
-          (entry) =>
-            entry.command === "threadPanel.toggle" || entry.command === "sidebar.filterByProject",
-        ),
+        persisted.filter((entry) => commands.has(entry.command)),
         [
           { key: "mod+shift+b", command: "sidebar.filterByProject", when: "!terminalFocus" },
+          { key: "mod+shift+p", command: "sidebar.filterByTag", when: "!terminalFocus" },
           { key: "mod+alt+shift+b", command: "threadPanel.toggle", when: "!terminalFocus" },
+          { key: "mod+alt+shift+p", command: "thread.pin", when: "!terminalFocus" },
         ],
       );
     }).pipe(Effect.provide(layerKeybindings())),
