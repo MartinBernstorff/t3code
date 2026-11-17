@@ -1,7 +1,12 @@
 import type { PullRequestState, ThreadPullRequestLink } from "@t3tools/contracts";
 import { describe, expect, it } from "vite-plus/test";
 
-import { groupSidebarStackRuns, resolveSidebarStackPlacements } from "./sidebarStacks";
+import {
+  groupSidebarStackRuns,
+  liveStackMembership,
+  resolveSidebarStackPlacements,
+  savedStackMembership,
+} from "./sidebarStacks";
 
 const stack = (id: string, states: ReadonlyArray<PullRequestState>, firstNumber: number) => ({
   kind: "native" as const,
@@ -60,12 +65,43 @@ describe("groupSidebarStackRuns", () => {
       thread("four-1", { stack: FOUR, layer: 1 }),
       thread("l7", { stack: NINE, layer: 7 }),
     ];
-    expect(keys(groupSidebarStackRuns(threads))).toEqual(["l8", "l7", "l6", "other", "four-1"]);
+    expect(keys(groupSidebarStackRuns(threads, savedStackMembership))).toEqual([
+      "l8",
+      "l7",
+      "l6",
+      "other",
+      "four-1",
+    ]);
+  });
+
+  it("groups threads known only from their branch through the host's stack read", () => {
+    const live = new Map(
+      [4073, 4077].map((number) => [
+        `branch-${number}`,
+        liveStackMembership(
+          { ...NINE, layers: NINE.layers.map((layer) => ({ ...layer })) },
+          number,
+        ),
+      ]),
+    );
+    const threads = [
+      thread("branch-4073", null),
+      thread("other", null),
+      thread("branch-4077", null),
+    ];
+    expect(
+      keys(
+        groupSidebarStackRuns(
+          threads,
+          (entry) => savedStackMembership(entry) ?? live.get(entry.key) ?? null,
+        ),
+      ),
+    ).toEqual(["branch-4077", "branch-4073", "other"]);
   });
 
   it("returns the same list when no stack has two members", () => {
     const threads = [thread("l8", { stack: NINE, layer: 8 }), thread("other", null)];
-    expect(groupSidebarStackRuns(threads)).toBe(threads);
+    expect(groupSidebarStackRuns(threads, savedStackMembership)).toBe(threads);
   });
 });
 
@@ -79,6 +115,7 @@ describe("resolveSidebarStackPlacements", () => {
       threads: [...segments.flat(), ...hidden],
       isFinished: (entry) => entry.finished,
       keyOf: (entry) => entry.key,
+      membershipOf: savedStackMembership,
     });
 
   it("marks the lowest open, unfinished layer as next and heads the run", () => {
