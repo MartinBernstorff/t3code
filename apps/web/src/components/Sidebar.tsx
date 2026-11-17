@@ -290,8 +290,13 @@ import { SidebarDraftBlock } from "./sidebar/SidebarDraftBlock";
 import {
   groupSidebarStackRuns,
   resolveSidebarStackPlacements,
+  savedStackMembership,
   useStableStackPlacements,
+  type SidebarStackMembershipOf,
 } from "./sidebar/sidebarStacks";
+import { branchPullRequestStacksAtom, type BranchPullRequestThread } from "../state/pullRequests";
+import { visibleThreadPullRequests } from "@t3tools/client-runtime/thread-pull-requests";
+import { sourceControlClients } from "@t3tools/client-runtime/source-control-clients";
 import {
   EMPTY_PROVIDER_ENTRIES,
   sidebarProviderEntriesAtom,
@@ -359,6 +364,7 @@ interface SidebarThreadPartitionInput {
   // on the clock, so the minute tick, the precise snooze-wake tick and the inbox
   // tracker's expiry version are inputs: a new key repartitions.
   readonly clockKey: string;
+  readonly stackMembershipOf: SidebarStackMembershipOf<EnvironmentThreadShell>;
 }
 
 function scrollSidebarToTop(content: HTMLElement | null) {
@@ -523,6 +529,33 @@ function useSidebarThreads(input: {
   const settledVisibleCount =
     settledTail.scopeKey === projectScopeKey ? settledTail.count : SETTLED_TAIL_INITIAL_COUNT;
 
+  // Threads that know their pull request only from their branch read its stack from live summaries.
+  const branchStacks = useAtomValue(
+    branchPullRequestStacksAtom(
+      JSON.stringify(
+        threads
+          .flatMap((thread): BranchPullRequestThread[] =>
+            thread.branchPullRequest == null ||
+            visibleThreadPullRequests(thread.pullRequests).length > 0
+              ? []
+              : [
+                  {
+                    key: threadShellKey(thread),
+                    environmentId: thread.environmentId,
+                    reference: {
+                      ...thread.branchPullRequest,
+                      host: sourceControlClients.parseChangeRequestUrl(thread.branchPullRequest.url)
+                        ?.link.host,
+                    },
+                  },
+                ],
+          )
+          .toSorted((left, right) => left.key.localeCompare(right.key)),
+      ),
+    ),
+  );
+  const stackMembershipOf = (thread: EnvironmentThreadShell) =>
+    savedStackMembership(thread) ?? branchStacks.get(threadShellKey(thread)) ?? null;
   const partition = partitionSidebarThreads({
     threads,
     scopedProjectKeys,
@@ -537,6 +570,7 @@ function useSidebarThreads(input: {
     sortActiveBySend: folderGroups !== null,
     threadSort,
     clockKey: `${nowMinute}:${snoozeWakeClock}:${inboxReturnsVersion}`,
+    stackMembershipOf,
   });
 
   const {
@@ -643,6 +677,7 @@ function useSidebarThreads(input: {
         orderLaneThreads: (laneThreads, lane) =>
           groupSidebarStackRuns(
             orderSidebarLaneThreads(defaultThreadSort, threadSortOverrides)(laneThreads, lane),
+            stackMembershipOf,
           ),
       },
     ).map((row) =>
@@ -693,6 +728,7 @@ function useSidebarThreads(input: {
         sectionByThreadKey.get(threadShellKey(thread)) === "settled" ||
         thread.latestRun?.status === "completed",
       keyOf: threadShellKey,
+      membershipOf: stackMembershipOf,
     }),
   );
   return {
@@ -767,6 +803,7 @@ function partitionSidebarThreads(input: SidebarThreadPartitionInput) {
     pinnedJoinWorking,
     sortActiveBySend,
     threadSort,
+    stackMembershipOf,
   } = input;
   const preciseNow = new Date().toISOString();
   const scoped = filterSidebarV2VisibleThreads(threads, scopedProjectKeys, delegatedUnderParent);
@@ -850,6 +887,7 @@ function partitionSidebarThreads(input: SidebarThreadPartitionInput) {
             preferredIds: optimisticDrop.order,
             getId: (thread) => scopedThreadKey(scopeThreadRef(thread.environmentId, thread.id)),
           }),
+      stackMembershipOf,
     ),
     draggableThreadKeys,
     activeReorderableThreadKeys,
@@ -861,17 +899,19 @@ function partitionSidebarThreads(input: SidebarThreadPartitionInput) {
             preferredIds: optimisticDrop.order,
             getId: (thread) => scopedThreadKey(scopeThreadRef(thread.environmentId, thread.id)),
           }),
+      stackMembershipOf,
     ),
-    workingThreads: groupSidebarStackRuns(sortWorkingThreadsBySend(working)),
-    waitingThreads: groupSidebarStackRuns(sortWorkingThreadsBySend(waiting)),
+    workingThreads: groupSidebarStackRuns(sortWorkingThreadsBySend(working), stackMembershipOf),
+    waitingThreads: groupSidebarStackRuns(sortWorkingThreadsBySend(waiting), stackMembershipOf),
     snoozedThreads: groupSidebarStackRuns(
       snoozed.toSorted(
         (left, right) =>
           firstValidTimestampMs(left.snoozedUntil ?? null) -
           firstValidTimestampMs(right.snoozedUntil ?? null),
       ),
+      stackMembershipOf,
     ),
-    settledThreads: groupSidebarStackRuns(sortSettledThreads(settled)),
+    settledThreads: groupSidebarStackRuns(sortSettledThreads(settled), stackMembershipOf),
     visibleThreads: visible,
     snoozeNow: preciseNow,
   };

@@ -1,8 +1,14 @@
 import { useState } from "react";
-import type { ThreadPullRequestLink, ThreadPullRequestStack } from "@t3tools/contracts";
+import type {
+  PullRequestStack,
+  ThreadPullRequestLink,
+  ThreadPullRequestStack,
+} from "@t3tools/contracts";
 import { visibleThreadPullRequests } from "@t3tools/client-runtime/thread-pull-requests";
 
 type StackThread = { readonly pullRequests: ReadonlyArray<ThreadPullRequestLink> };
+
+export type SidebarStackMembershipOf<T> = (thread: T) => SidebarStackMembership | null;
 
 export type SidebarStackStep = "merged" | "closed" | "finished" | "next" | "open";
 
@@ -20,12 +26,14 @@ export interface SidebarStackPlacement {
   } | null;
 }
 
-interface Membership {
+export interface SidebarStackMembership {
   readonly stack: ThreadPullRequestStack;
+  /** The thread's layer, 0 nearest the base. */
   readonly index: number;
 }
 
-function stackMembership(thread: StackThread): Membership | null {
+/** The stack a thread's saved pull request links place it in. */
+export function savedStackMembership(thread: StackThread): SidebarStackMembership | null {
   for (const link of visibleThreadPullRequests(thread.pullRequests)) {
     if (link.stack === null) continue;
     const index = link.stack.layers.findIndex((layer) => layer.number === link.number);
@@ -34,15 +42,38 @@ function stackMembership(thread: StackThread): Membership | null {
   return null;
 }
 
+/** Where a host's stack read places one of its pull requests. */
+export function liveStackMembership(
+  stack: PullRequestStack,
+  number: number,
+): SidebarStackMembership | null {
+  const index = stack.layers.findIndex((layer) => layer.number === number);
+  if (index === -1) return null;
+  return {
+    stack: {
+      kind: "native",
+      id: stack.id,
+      number: stack.number,
+      url: stack.url,
+      base: stack.base,
+      layers: stack.layers.map(({ number, headBranch, state }) => ({ number, headBranch, state })),
+    },
+    index,
+  };
+}
+
 /**
  * Pulls threads of one native stack together at the first member's slot, top layer first.
  * Returns the input when nothing moves, so callers keep their memoized lists.
  */
-export function groupSidebarStackRuns<T extends StackThread>(threads: readonly T[]): readonly T[] {
-  const membershipOf = new Map<T, Membership>();
+export function groupSidebarStackRuns<T>(
+  threads: readonly T[],
+  stackMembershipOf: SidebarStackMembershipOf<T>,
+): readonly T[] {
+  const membershipOf = new Map<T, SidebarStackMembership>();
   const membersByStack = new Map<string, T[]>();
   for (const thread of threads) {
-    const membership = stackMembership(thread);
+    const membership = stackMembershipOf(thread);
     if (membership === null) continue;
     membershipOf.set(thread, membership);
     const members = membersByStack.get(membership.stack.id);
@@ -74,17 +105,18 @@ export function groupSidebarStackRuns<T extends StackThread>(threads: readonly T
  * sidebar draws without a header between them. The next layer is the lowest open one whose
  * thread is listed, including in collapsed shelves, and not finished.
  */
-export function resolveSidebarStackPlacements<T extends StackThread>(input: {
+export function resolveSidebarStackPlacements<T>(input: {
   readonly segments: ReadonlyArray<ReadonlyArray<T>>;
   readonly threads: ReadonlyArray<T>;
   readonly isFinished: (thread: T) => boolean;
   readonly keyOf: (thread: T) => string;
+  readonly membershipOf: SidebarStackMembershipOf<T>;
 }): ReadonlyMap<string, SidebarStackPlacement> {
   const placements = new Map<string, SidebarStackPlacement>();
-  const memberships = input.segments.map((segment) => segment.map(stackMembership));
+  const memberships = input.segments.map((segment) => segment.map(input.membershipOf));
   const threadsByStack = new Map<string, Map<number, T>>();
   for (const thread of input.threads) {
-    const membership = stackMembership(thread);
+    const membership = input.membershipOf(thread);
     if (membership === null) continue;
     const byLayer = threadsByStack.get(membership.stack.id) ?? new Map<number, T>();
     threadsByStack.set(membership.stack.id, byLayer);

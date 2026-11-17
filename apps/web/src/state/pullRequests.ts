@@ -15,6 +15,7 @@ import {
   type PullRequestListStatsInput,
   type PullRequestListEntry,
   type PullRequestRef,
+  type PullRequestStack,
   type PullRequestSummary,
   type ThreadPullRequestLink,
 } from "@t3tools/contracts";
@@ -38,6 +39,10 @@ import {
 import { writePullRequestDetailSnapshot } from "../components/pullRequest/pullRequestDetail.logic";
 import { pullRequestChecksState } from "../components/pullRequest/pullRequestPresentation";
 import { useGuideRunStore } from "../components/pullRequest/guide/guideRunStore";
+import {
+  liveStackMembership,
+  type SidebarStackMembership,
+} from "../components/sidebar/sidebarStacks";
 import { formatEnvironmentQueryError } from "./query";
 import { environmentThreadShells } from "./threads";
 
@@ -515,6 +520,55 @@ export function useSharedPullRequestSummary(
 export const pullRequestStackAtom = createPullRequestStackAtomFamily(
   connectionAtomRuntime,
   pullRequestEnvironment.refreshes,
+);
+
+export interface BranchPullRequestThread {
+  readonly key: string;
+  readonly environmentId: EnvironmentId;
+  readonly reference: PullRequestRef;
+}
+
+/**
+ * Stack memberships, by thread key, of pull requests that threads know only from their branch.
+ * Rows already query each summary; this reads those answers and asks each stack once for layers.
+ * Keyed by the JSON of the threads, sorted by key.
+ */
+export const branchPullRequestStacksAtom = Atom.family((signature: string) =>
+  Atom.make((get) => {
+    const threads = JSON.parse(signature) as ReadonlyArray<BranchPullRequestThread>;
+    const stacks = new Map<string, PullRequestStack | null>();
+    const memberships = new Map<string, SidebarStackMembership>();
+    for (const { key, environmentId, reference } of threads) {
+      const membership = observedPullRequestSummary(
+        get(pullRequestObservationsAtom(pullRequestSummaryKey(environmentId, reference))),
+      )?.stack;
+      if (membership == null) continue;
+      const stackKey = JSON.stringify([
+        environmentId,
+        reference.repository.toLowerCase(),
+        membership.number,
+      ]);
+      if (!stacks.has(stackKey)) {
+        stacks.set(
+          stackKey,
+          AsyncResult.getOrElse(
+            get(pullRequestStackAtom({ environmentId, input: reference })),
+            () => null,
+          ),
+        );
+      }
+      const stack = stacks.get(stackKey);
+      const stackMembership = stack == null ? null : liveStackMembership(stack, reference.number);
+      if (stackMembership !== null) memberships.set(key, stackMembership);
+    }
+    return memberships;
+  }).pipe(
+    Atom.withEquality(
+      (previous: ReadonlyMap<string, SidebarStackMembership>, next) =>
+        JSON.stringify([...previous]) === JSON.stringify([...next]),
+    ),
+    Atom.withLabel("web-pull-requests:branch-stacks"),
+  ),
 );
 
 export interface EnvironmentQueryTarget<Input> {
