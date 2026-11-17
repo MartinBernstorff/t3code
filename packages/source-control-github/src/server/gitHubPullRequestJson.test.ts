@@ -390,6 +390,7 @@ describe("pull request detail decoding", () => {
             baseRef: null,
             reviewRequests: { nodes: [] },
             labels: { nodes: [] },
+            reviewThreads: { nodes: [] },
             commits: {
               nodes: [
                 {
@@ -437,6 +438,21 @@ describe("pull request detail decoding", () => {
       expect(detail.canEditMaintainerEdits).toBe(allowed);
     },
   );
+
+  it.each([
+    [{ mergeStateStatus: "CLEAN", reviewDecision: "REVIEW_REQUIRED" }, []],
+    [{}, ["other"]],
+    [
+      {
+        reviewDecision: "REVIEW_REQUIRED",
+        reviewThreads: { nodes: [{ isResolved: true }, { isResolved: false }] },
+      },
+      ["review-required", "unresolved-conversations"],
+    ],
+    [{ reviewDecision: "CHANGES_REQUESTED" }, ["changes-requested"]],
+  ])("names what blocks the merge: %j", (overrides, blockers) => {
+    expect(detailOf([], overrides).mergeBlockers).toEqual(blockers);
+  });
 
   const detailJson = JSON.stringify({
     comments: [{ id: "c1", body: "second", createdAt: "2026-07-04T00:00:00Z" }],

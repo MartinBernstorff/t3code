@@ -159,6 +159,12 @@ query PullRequestCore(
           color
         }
       }
+      # GitHub does not say why a merge is BLOCKED; open conversations are one reason it can name.
+      reviewThreads(first: 100) {
+        nodes {
+          isResolved
+        }
+      }
       commits(last: 1) {
         nodes {
           commit {

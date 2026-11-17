@@ -3,6 +3,7 @@ import type {
   PullRequestCheck,
   PullRequestComment,
   PullRequestDetail,
+  PullRequestMergeBlocker,
   ThreadPullRequestWatch,
 } from "@t3tools/contracts";
 import * as DateTime from "effect/DateTime";
@@ -16,7 +17,12 @@ const SNIPPET_LENGTH = 200;
 
 export type PullRequestWatchChange =
   | { readonly kind: "checks-failed"; readonly failed: ReadonlyArray<PullRequestCheck> }
-  | { readonly kind: "checks-passed"; readonly count: number; readonly required: boolean }
+  | {
+      readonly kind: "checks-passed";
+      readonly count: number;
+      readonly required: boolean;
+      readonly blockers: ReadonlyArray<PullRequestMergeBlocker>;
+    }
   | { readonly kind: "remarks"; readonly remarks: ReadonlyArray<PullRequestComment> }
   | { readonly kind: "no-checks"; readonly minutes: number }
   | { readonly kind: "conflicting" }
@@ -43,6 +49,7 @@ export function evaluatePullRequestWatch(
     | "viewer"
     | "author"
     | "mergeQueueRemoval"
+    | "mergeBlockers"
   >,
   remarks: ReadonlyArray<PullRequestComment> | null,
   now: number,
@@ -82,7 +89,12 @@ export function evaluatePullRequestWatch(
       failed.length === 0 && detail.checks.every((check) => check.status !== "pending");
     owedChecks = owed;
     if (passedNow && (!passed || gateGrew)) {
-      changes.push({ kind: "checks-passed", count: gate.length, required: required.length > 0 });
+      changes.push({
+        kind: "checks-passed",
+        count: gate.length,
+        required: required.length > 0,
+        blockers: detail.mergeBlockers ?? [],
+      });
       owedChecks =
         required.length > 0
           ? detail.checks
@@ -90,7 +102,12 @@ export function evaluatePullRequestWatch(
               .map((check) => check.name)
           : [];
     } else if (settled && owed.length > 0) {
-      changes.push({ kind: "checks-passed", count: detail.checks.length, required: false });
+      changes.push({
+        kind: "checks-passed",
+        count: detail.checks.length,
+        required: false,
+        blockers: detail.mergeBlockers ?? [],
+      });
       owedChecks = [];
     }
     passed = passedNow;
@@ -215,10 +232,14 @@ function changeLines(
             `  - ${check.name}${check.status === "failure" ? "" : ` (${check.status})`}${check.url ? ` ${check.url}` : ""}`,
         ),
       ];
-    case "checks-passed":
+    case "checks-passed": {
+      const passed = `- All ${change.count} ${change.required ? "required " : ""}${change.count === 1 ? "check" : "checks"} passed${context.commit}`;
+      if (change.blockers.length === 0) return [`${passed}.`];
       return [
-        `- All ${change.count} ${change.required ? "required " : ""}${change.count === 1 ? "check" : "checks"} passed${context.commit}.`,
+        `${passed}, but the host still blocks the merge:`,
+        ...change.blockers.map((blocker) => `  - ${BLOCKER[blocker]}`),
       ];
+    }
     case "remarks":
       return [
         `- ${change.remarks.length} new ${change.remarks.length === 1 ? "comment" : "comments"}:`,
@@ -241,6 +262,13 @@ function changeLines(
       ];
   }
 }
+
+const BLOCKER: Record<PullRequestMergeBlocker, string> = {
+  "review-required": "An approving review is required.",
+  "changes-requested": "A reviewer requested changes.",
+  "unresolved-conversations": "Review conversations are unresolved.",
+  other: "The host does not say why. A branch rule may require something else.",
+};
 
 const SUMMARY: Record<PullRequestWatchChange["kind"], string> = {
   "checks-failed": "checks failed",
@@ -277,7 +305,11 @@ export function pullRequestWatchMessage(input: {
       change.kind === "conflicting" ||
       change.kind === "merge-queue-removed",
   );
+  const blocked = changes.some(
+    (change) => change.kind === "checks-passed" && change.blockers.length > 0,
+  );
   const summary = changes.map((change) => SUMMARY[change.kind]);
+  if (blocked) summary.push("merge blocked");
   if (exhausted) summary.push("stopped watching");
   return {
     text,
@@ -285,7 +317,7 @@ export function pullRequestWatchMessage(input: {
       source: { kind: "monitor" },
       outcome: failed
         ? "failed"
-        : changes.every((change) => change.kind === "checks-passed")
+        : !blocked && changes.every((change) => change.kind === "checks-passed")
           ? "completed"
           : "updated",
       summary: `#${input.number}: ${summary.join(", ")}`,

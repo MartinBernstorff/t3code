@@ -54,6 +54,15 @@ export type PullRequestChecksState = typeof PullRequestChecksState.Type;
 export const PullRequestMergeability = Schema.Literals(["mergeable", "conflicting", "unknown"]);
 export type PullRequestMergeability = typeof PullRequestMergeability.Type;
 
+/** Why a host holds back a merge; "other" is a block the host does not explain. */
+export const PullRequestMergeBlocker = Schema.Literals([
+  "review-required",
+  "changes-requested",
+  "unresolved-conversations",
+  "other",
+]);
+export type PullRequestMergeBlocker = typeof PullRequestMergeBlocker.Type;
+
 export const PullRequestMergeMethod = Schema.Literals(["merge", "squash", "rebase"]);
 export type PullRequestMergeMethod = typeof PullRequestMergeMethod.Type;
 
@@ -645,6 +654,8 @@ export const PullRequestDetail = Schema.Struct({
   workflowApprovalsRequired: Schema.optional(NonNegativeInt),
   /** Absent where the host has no merge queue or does not report one. */
   mergeQueueRemoval: Schema.optional(PullRequestMergeQueueRemoval),
+  /** Empty when the host does not block the merge; absent where the host does not report it. */
+  mergeBlockers: Schema.optional(ForwardCompatibleArray(PullRequestMergeBlocker)),
   maintainerCanModify: Schema.optional(Schema.Boolean),
 });
 export type PullRequestDetail = typeof PullRequestDetail.Type;
