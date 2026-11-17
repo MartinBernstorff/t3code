@@ -1197,7 +1197,8 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
     refs.map((ref) => (
       <SidebarLinkedRefChip
         key={ref.key}
-        linkedRef={ref}
+        // The stack frame already numbers the row's layer.
+        linkedRef={props.stack ? { ...ref, stack: null } : ref}
         onOpenPullRequest={
           linkedRefs.pullRequestChipsOpenList
             ? (event) => {
