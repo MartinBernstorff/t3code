@@ -1179,7 +1179,8 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
     linearIssue: thread.linearIssue,
     linearWorkspaceSlug: props.project?.linearWorkspaceSlug,
     pullRequestLinks: supportsMultiplePullRequests ? thread.pullRequests : [],
-    fallbackPullRequest: pr,
+    fallbackPullRequest:
+      pr === null ? null : { ...pr, stack: linkedPullRequestStatus?.stack ?? null },
   });
   const handlePrListClick = () => {
     useRightPanelStore.getState().open(threadRef, "pull-requests");
@@ -1810,6 +1811,12 @@ function SidebarLinkedRefChip(props: {
         <SidebarPullRequestChipIcon presentation={statePresentation} />
       ) : null}
       {linkedRef.label}
+      {linkedRef.stack === null ? null : (
+        <span className="ml-1 inline-flex items-center gap-0.5 font-sans">
+          <PullRequestGlyph.stack aria-hidden className="size-3" />
+          {linkedRef.stack.position}/{linkedRef.stack.size}
+        </span>
+      )}
     </>
   );
   // A long login truncates before the number does.
@@ -1835,8 +1842,10 @@ function SidebarLinkedRefChip(props: {
         statePresentation === null
           ? undefined
           : `${linkedRef.label}, ${statePresentation.label.toLowerCase()}${
-              linkedRef.author === null ? "" : `, by ${linkedRef.author}`
-            }`
+              linkedRef.stack === null
+                ? ""
+                : `, layer ${linkedRef.stack.position} of ${linkedRef.stack.size} in its stack`
+            }${linkedRef.author === null ? "" : `, by ${linkedRef.author}`}`
       }
       // Opening a ref must not open the thread or start a row drag.
       onPointerDown={(event) => event.stopPropagation()}

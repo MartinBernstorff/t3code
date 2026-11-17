@@ -11,6 +11,7 @@ import { pullRequestDetailToVcsStatus } from "@t3tools/client-runtime/state/pull
 import {
   resolveEnvironmentMachineKind,
   type EnvironmentId,
+  type PullRequestStackMembership,
   type ScopedThreadRef,
   type ThreadLinkedPullRequest,
   type ThreadPullRequestLink,
@@ -79,6 +80,8 @@ export type ThreadPr = VcsStatusResult["pr"];
 export interface LinkedThreadPullRequestStatus {
   readonly pr: NonNullable<ThreadPr>;
   readonly sourceControlProvider: NonNullable<VcsStatusResult["sourceControlProvider"]>;
+  /** Native stack membership from the host's summary; absent for saved link snapshots. */
+  readonly stack?: PullRequestStackMembership | null;
 }
 
 export function useLinkedThreadPullRequest(
@@ -113,6 +116,7 @@ export function useLinkedThreadPullRequest(
           name: sourceControlClients.get(detail.provider).label,
           baseUrl: "",
         },
+        stack: detail.stack ?? null,
       };
 }
 
