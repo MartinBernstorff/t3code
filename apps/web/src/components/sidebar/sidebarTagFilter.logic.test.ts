@@ -35,11 +35,15 @@ describe("matchingThreadTagPreset", () => {
 });
 
 describe("saveThreadTagPreset", () => {
-  it("replaces a preset of the same name and refuses a new one when full", () => {
+  it("replaces a preset of the same name, keeping its icon, and refuses a new one when full", () => {
     const filter = { required: ["review"], hidden: [] };
     expect(
-      saveThreadTagPreset([{ name: "Batch", required: [], hidden: ["wip"] }], "Batch", filter),
-    ).toEqual([{ name: "Batch", ...filter }]);
+      saveThreadTagPreset(
+        [{ name: "Batch", icon: "target", required: [], hidden: ["wip"] }],
+        "Batch",
+        filter,
+      ),
+    ).toEqual([{ name: "Batch", icon: "target", ...filter }]);
     const full = Array.from({ length: MAX_THREAD_TAG_FILTER_PRESETS }, (_, index) => ({
       name: `Preset ${index}`,
       ...filter,

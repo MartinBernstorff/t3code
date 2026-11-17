@@ -4,15 +4,18 @@ import {
   type ThreadTagFilter,
   type ThreadTagFilterPreset,
 } from "@t3tools/contracts";
-import { BookmarkIcon, CheckIcon, MinusIcon, PlusIcon, TagIcon, XIcon } from "lucide-react";
+import { CheckIcon, MinusIcon, PlusIcon, TagIcon, XIcon } from "lucide-react";
 import * as Schema from "effect/Schema";
-import { type ReactNode, useState } from "react";
+import { createElement, type ReactNode, useState } from "react";
 
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import {
   Combobox,
+  ComboboxCollection,
   ComboboxEmpty,
+  ComboboxGroup,
+  ComboboxGroupLabel,
   ComboboxItem,
   ComboboxList,
   ComboboxPopup,
@@ -20,6 +23,7 @@ import {
   ComboboxTrigger,
 } from "../ui/combobox";
 import { Input } from "../ui/input";
+import { Popover, PopoverPopup, PopoverTrigger } from "../ui/popover";
 import { toastManager } from "../ui/toast";
 import { SidebarHeaderIconButton } from "./SidebarThreadHeader";
 import {
@@ -29,6 +33,7 @@ import {
   toggleThreadTagMode,
   type ThreadTagMode,
 } from "./sidebarTagFilter.logic";
+import { THREAD_TAG_PRESET_ICONS, threadTagPresetIcon } from "./threadTagPresetIcons";
 
 type TagFilterItem =
   | {
@@ -43,6 +48,12 @@ type TagFilterItem =
       readonly label: string;
       readonly count: number | null;
     };
+
+// A type alias, not an interface, so it satisfies Base UI's index-signature `Group`.
+type TagFilterGroup = {
+  readonly value: "presets" | "tags";
+  readonly items: ReadonlyArray<TagFilterItem>;
+};
 
 const isThreadTag = Schema.is(ThreadTag);
 
@@ -71,6 +82,84 @@ function BadgedIcon(props: {
         </span>
       )}
     </span>
+  );
+}
+
+function PresetIcon(props: { name: string | undefined; className: string }) {
+  return createElement(threadTagPresetIcon(props.name), {
+    className: props.className,
+    "aria-hidden": true,
+  });
+}
+
+/** Required tags read as green `+tag`, hidden ones as grey `−tag`. */
+function TagChip(props: { tag: string; mode: ThreadTagMode; onRemove?: () => void }) {
+  const { tag, mode, onRemove } = props;
+  return (
+    <Badge variant={mode === "required" ? "success" : "secondary"} size="sm">
+      {mode === "required" ? "+" : "−"}
+      {tag}
+      {onRemove ? (
+        <button
+          type="button"
+          aria-label={`Stop ${mode === "required" ? "requiring" : "hiding"} ${tag}`}
+          className="-mr-0.5 grid place-items-center opacity-70 hover:opacity-100"
+          onClick={onRemove}
+        >
+          <XIcon className="size-2.5" />
+        </button>
+      ) : null}
+    </Badge>
+  );
+}
+
+function PresetTags(props: { filter: ThreadTagFilter }) {
+  return (
+    <span className="flex min-w-0 shrink gap-1 overflow-hidden">
+      {props.filter.required.map((tag) => (
+        <TagChip key={`required:${tag}`} tag={tag} mode="required" />
+      ))}
+      {props.filter.hidden.map((tag) => (
+        <TagChip key={`hidden:${tag}`} tag={tag} mode="hidden" />
+      ))}
+    </span>
+  );
+}
+
+function PresetIconPicker(props: { icon: string | undefined; onChange: (icon: string) => void }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger
+        render={<Button size="icon-xs" variant="default" />}
+        aria-label="Change preset icon"
+        title="Change preset icon"
+      >
+        <PresetIcon name={props.icon} className="size-3.5" />
+      </PopoverTrigger>
+      <PopoverPopup align="start" padding="compact">
+        <div className="grid grid-cols-8 gap-1">
+          {Object.entries(THREAD_TAG_PRESET_ICONS).map(([name, Icon]) => {
+            const selected = threadTagPresetIcon(props.icon) === Icon;
+            return (
+              <Button
+                key={name}
+                size="icon-sm"
+                variant={selected ? "default" : "ghost"}
+                aria-label={name}
+                aria-pressed={selected}
+                onClick={() => {
+                  props.onChange(name);
+                  setOpen(false);
+                }}
+              >
+                <Icon />
+              </Button>
+            );
+          })}
+        </div>
+      </PopoverPopup>
+    </Popover>
   );
 }
 
@@ -117,28 +206,32 @@ export function SidebarTagFilterMenu(props: {
   const knownTags = [
     ...new Set([...tagCounts.keys(), ...filter.required, ...filter.hidden]),
   ].toSorted((left, right) => left.localeCompare(right));
-  const items: TagFilterItem[] = [
-    ...presets.map((preset) => ({
-      kind: "preset" as const,
-      value: `preset:${preset.name}`,
-      label: preset.name,
-      preset,
-    })),
-    ...knownTags.map((tag) => ({
-      kind: "tag" as const,
-      value: `tag:${tag}`,
-      label: tag,
-      count: tagCounts.get(tag) ?? 0,
-    })),
-  ];
+  const presetItems: TagFilterItem[] = presets.map((preset) => ({
+    kind: "preset",
+    value: `preset:${preset.name}`,
+    label: preset.name,
+    preset,
+  }));
+  const tagItems: TagFilterItem[] = knownTags.map((tag) => ({
+    kind: "tag",
+    value: `tag:${tag}`,
+    label: tag,
+    count: tagCounts.get(tag) ?? 0,
+  }));
   const needle = query.trim();
-  const filteredItems = items.filter((item) =>
-    item.label.toLowerCase().includes(needle.toLowerCase()),
-  );
+  const matches = (item: TagFilterItem) => item.label.toLowerCase().includes(needle.toLowerCase());
+  const filteredTagItems = tagItems.filter(matches);
   // A typed tag no thread has yet can still be required or hidden ahead of time.
   if (needle !== "" && isThreadTag(needle) && !knownTags.includes(needle)) {
-    filteredItems.push({ kind: "tag", value: `tag:${needle}`, label: needle, count: null });
+    filteredTagItems.push({ kind: "tag", value: `tag:${needle}`, label: needle, count: null });
   }
+  const groups = (presetRows: TagFilterItem[], tagRows: TagFilterItem[]): TagFilterGroup[] =>
+    [
+      { value: "presets" as const, items: presetRows },
+      { value: "tags" as const, items: tagRows },
+    ].filter((group) => group.items.length > 0);
+  const items = groups(presetItems, tagItems);
+  const filteredItems = groups(presetItems.filter(matches), filteredTagItems);
 
   const toggleTag = (tag: string, mode: ThreadTagMode) =>
     onFilterChange(toggleThreadTagMode(filter, tag, mode));
@@ -199,84 +292,92 @@ export function SidebarTagFilterMenu(props: {
         />
         <ComboboxEmpty>No matching presets or tags.</ComboboxEmpty>
         <ComboboxList>
-          {(item: TagFilterItem) => {
-            if (item.kind === "preset") {
-              const applied = activePreset === item.preset;
-              return (
-                <ComboboxItem
-                  key={item.value}
-                  hideIndicator
-                  selectedFill={false}
-                  value={item}
-                  aria-selected={applied}
-                >
-                  <BadgedIcon badge={applied ? "applied" : null}>
-                    <BookmarkIcon className="size-4" />
-                  </BadgedIcon>
-                  <span className="min-w-0 flex-1 truncate text-sm">{item.label}</span>
-                  <span className="min-w-0 truncate text-muted-foreground text-xs">
-                    {[
-                      ...item.preset.required.map((tag) => `+${tag}`),
-                      ...item.preset.hidden.map((tag) => `−${tag}`),
-                    ].join(" ")}
-                  </span>
-                  <Button
-                    size="icon-xs"
-                    variant="ghost-muted"
-                    tabIndex={-1}
-                    title={`Delete preset ${item.label}`}
-                    aria-label={`Delete preset ${item.label}`}
-                    onPointerDown={(event) => event.stopPropagation()}
-                    onClick={(event) => {
-                      event.preventDefault();
-                      event.stopPropagation();
-                      onPresetsChange(presets.filter((preset) => preset !== item.preset));
-                    }}
-                  >
-                    <XIcon className="size-3.5" />
-                  </Button>
-                </ComboboxItem>
-              );
-            }
-            const mode = threadTagMode(filter, item.label);
-            return (
-              <ComboboxItem
-                key={item.value}
-                hideIndicator
-                selectedFill={false}
-                value={item}
-                aria-selected={mode !== null}
-              >
-                <BadgedIcon badge={mode}>
-                  <TagIcon className="size-4" />
-                </BadgedIcon>
-                <span
-                  className={
-                    mode === "hidden"
-                      ? "min-w-0 flex-1 truncate text-muted-foreground text-sm line-through"
-                      : "min-w-0 flex-1 truncate text-sm"
+          {(group: TagFilterGroup) => (
+            <ComboboxGroup
+              key={group.value}
+              items={group.items}
+              variant={group.value === "presets" ? "muted" : "default"}
+            >
+              <ComboboxGroupLabel>
+                {group.value === "presets" ? "Presets" : "Tags"}
+              </ComboboxGroupLabel>
+              <ComboboxCollection>
+                {(item: TagFilterItem) => {
+                  if (item.kind === "preset") {
+                    const applied = activePreset === item.preset;
+                    return (
+                      <ComboboxItem
+                        key={item.value}
+                        hideIndicator
+                        selectedFill={false}
+                        value={item}
+                        aria-selected={applied}
+                      >
+                        <BadgedIcon badge={applied ? "applied" : null}>
+                          <PresetIcon name={item.preset.icon} className="size-4" />
+                        </BadgedIcon>
+                        <span className="min-w-0 flex-1 truncate text-sm">{item.label}</span>
+                        <PresetTags filter={item.preset} />
+                        <Button
+                          size="icon-xs"
+                          variant="ghost-muted"
+                          tabIndex={-1}
+                          title={`Delete preset ${item.label}`}
+                          aria-label={`Delete preset ${item.label}`}
+                          onPointerDown={(event) => event.stopPropagation()}
+                          onClick={(event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            onPresetsChange(presets.filter((preset) => preset !== item.preset));
+                          }}
+                        >
+                          <XIcon className="size-3.5" />
+                        </Button>
+                      </ComboboxItem>
+                    );
                   }
-                >
-                  {item.label}
-                </span>
-                <span className="shrink-0 text-muted-foreground text-xs tabular-nums">
-                  {item.count === null ? "new" : item.count}
-                </span>
-                <TagModeButton
-                  mode="required"
-                  active={mode === "required"}
-                  tag={item.label}
-                  onToggle={(next) => toggleTag(item.label, next)}
-                />
-                <TagModeButton
-                  mode="hidden"
-                  active={mode === "hidden"}
-                  tag={item.label}
-                  onToggle={(next) => toggleTag(item.label, next)}
-                />
-              </ComboboxItem>
-            );
-          }}
+                  const mode = threadTagMode(filter, item.label);
+                  return (
+                    <ComboboxItem
+                      key={item.value}
+                      hideIndicator
+                      selectedFill={false}
+                      value={item}
+                      aria-selected={mode !== null}
+                    >
+                      <BadgedIcon badge={mode}>
+                        <TagIcon className="size-4" />
+                      </BadgedIcon>
+                      <span
+                        className={
+                          mode === "hidden"
+                            ? "min-w-0 flex-1 truncate text-muted-foreground text-sm line-through"
+                            : "min-w-0 flex-1 truncate text-sm"
+                        }
+                      >
+                        {item.label}
+                      </span>
+                      <span className="shrink-0 text-muted-foreground text-xs tabular-nums">
+                        {item.count === null ? "new" : item.count}
+                      </span>
+                      <TagModeButton
+                        mode="required"
+                        active={mode === "required"}
+                        tag={item.label}
+                        onToggle={(next) => toggleTag(item.label, next)}
+                      />
+                      <TagModeButton
+                        mode="hidden"
+                        active={mode === "hidden"}
+                        tag={item.label}
+                        onToggle={(next) => toggleTag(item.label, next)}
+                      />
+                    </ComboboxItem>
+                  );
+                }}
+              </ComboboxCollection>
+            </ComboboxGroup>
+          )}
         </ComboboxList>
         <div className="border-border/70 border-t px-3 py-1.5 text-muted-foreground text-xs">
           Enter requires a tag, Shift+Enter hides it.
@@ -290,11 +391,10 @@ export function SidebarTagFilterMenu(props: {
 export function SidebarTagFilterBar(props: {
   filter: ThreadTagFilter;
   presets: ReadonlyArray<ThreadTagFilterPreset>;
-  hiddenCount: number;
   onFilterChange: (filter: ThreadTagFilter) => void;
   onPresetsChange: (presets: ReadonlyArray<ThreadTagFilterPreset>) => void;
 }) {
-  const { filter, presets, hiddenCount, onFilterChange, onPresetsChange } = props;
+  const { filter, presets, onFilterChange, onPresetsChange } = props;
   const [presetName, setPresetName] = useState<string | null>(null);
   if (filter.required.length === 0 && filter.hidden.length === 0) return null;
   const activePreset = matchingThreadTagPreset(presets, filter);
@@ -314,31 +414,64 @@ export function SidebarTagFilterBar(props: {
     onPresetsChange(next);
     setPresetName(null);
   };
+  const clear = () => {
+    setPresetName(null);
+    onFilterChange(EMPTY_THREAD_TAG_FILTER);
+  };
 
-  const chip = (tag: string, mode: ThreadTagMode) => (
-    <Badge key={`${mode}:${tag}`} variant={mode === "required" ? "success" : "error"} size="sm">
-      {mode === "required" ? "+" : "−"}
-      {tag}
-      <button
-        type="button"
-        aria-label={`Stop ${mode === "required" ? "requiring" : "hiding"} ${tag}`}
-        className="-mr-0.5 grid place-items-center opacity-70 hover:opacity-100"
-        onClick={() => onFilterChange(toggleThreadTagMode(filter, tag, mode))}
-      >
-        <XIcon className="size-2.5" />
-      </button>
-    </Badge>
+  const chips = (
+    <div className="flex min-w-0 flex-wrap gap-1">
+      {filter.required.map((tag) => (
+        <TagChip
+          key={`required:${tag}`}
+          tag={tag}
+          mode="required"
+          onRemove={() => onFilterChange(toggleThreadTagMode(filter, tag, "required"))}
+        />
+      ))}
+      {filter.hidden.map((tag) => (
+        <TagChip
+          key={`hidden:${tag}`}
+          tag={tag}
+          mode="hidden"
+          onRemove={() => onFilterChange(toggleThreadTagMode(filter, tag, "hidden"))}
+        />
+      ))}
+    </div>
   );
+
+  if (activePreset) {
+    return (
+      <div className="mx-2 mt-1 mb-1.5 flex flex-col gap-1.5 rounded-lg border border-primary/25 bg-primary/6 px-2 py-1.5 text-xs">
+        <div className="flex min-w-0 items-center gap-2">
+          <PresetIconPicker
+            icon={activePreset.icon}
+            onChange={(icon) =>
+              onPresetsChange(
+                presets.map((preset) => (preset === activePreset ? { ...preset, icon } : preset)),
+              )
+            }
+          />
+          <span className="flex min-w-0 flex-col leading-tight">
+            <span className="text-3xs text-muted-foreground">Preset</span>
+            <span className="truncate font-medium text-foreground text-sm">
+              {activePreset.name}
+            </span>
+          </span>
+          <Button size="xs" variant="outline" className="ml-auto" onClick={clear}>
+            <XIcon />
+            Exit
+          </Button>
+        </div>
+        <div className="pl-8">{chips}</div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-1 px-2 pt-1 pb-1.5 text-muted-foreground text-xs">
       <div className="flex min-w-0 items-center gap-2">
-        {activePreset ? (
-          <span className="flex min-w-0 items-center gap-1 font-medium text-foreground">
-            <BookmarkIcon className="size-3 shrink-0" />
-            <span className="truncate">{activePreset.name}</span>
-          </span>
-        ) : presetName !== null ? (
+        {presetName !== null ? (
           <Input
             size="compact"
             autoFocus
@@ -357,22 +490,11 @@ export function SidebarTagFilterBar(props: {
             Save as preset
           </Button>
         )}
-        <span className="ml-auto shrink-0 tabular-nums">{hiddenCount} hidden</span>
-        <Button
-          size="xs"
-          variant="ghost-muted"
-          onClick={() => {
-            setPresetName(null);
-            onFilterChange(EMPTY_THREAD_TAG_FILTER);
-          }}
-        >
+        <Button size="xs" variant="ghost-muted" className="ml-auto" onClick={clear}>
           Clear
         </Button>
       </div>
-      <div className="flex min-w-0 flex-wrap gap-1">
-        {filter.required.map((tag) => chip(tag, "required"))}
-        {filter.hidden.map((tag) => chip(tag, "hidden"))}
-      </div>
+      {chips}
     </div>
   );
 }

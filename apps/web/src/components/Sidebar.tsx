@@ -832,7 +832,6 @@ function partitionSidebarThreads(input: SidebarThreadPartitionInput) {
     ),
     settledThreads: sortSettledThreads(settled),
     visibleThreads: visible,
-    tagHiddenCount: scoped.length - visible.length,
     snoozeNow: preciseNow,
   };
 }
@@ -1475,7 +1474,6 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     settledCount,
     olderSettledShelf,
     hiddenSettledCount,
-    tagHiddenCount,
     showMoreSettled,
     settledShelfExpanded,
     toggleSettledShelf,
@@ -3726,7 +3724,6 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
               <SidebarTagFilterBar
                 filter={tagFilterSetting}
                 presets={tagFilterPresets}
-                hiddenCount={tagHiddenCount}
                 onFilterChange={setTagFilter}
                 onPresetsChange={(presets) =>
                   updatePrimarySettings({ threadTagFilterPresets: presets })

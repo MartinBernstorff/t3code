@@ -93,6 +93,7 @@ import { useNowAfter } from "../hooks/useDeadline";
 import { requestCustomSnooze } from "./CustomSnoozeDialog";
 import { pickSnoozePreset, resolveSnoozePresets } from "./Sidebar.snooze";
 import {
+  createElement,
   useDeferredValue,
   useEffect,
   useReducer,
@@ -126,6 +127,7 @@ import {
 } from "../hooks/useSettings";
 import { isThreadTagFilterActive } from "@t3tools/client-runtime/state/threads";
 import { matchingThreadTagPreset } from "./sidebar/sidebarTagFilter.logic";
+import { threadTagPresetIcon } from "./sidebar/threadTagPresetIcons";
 import { useStableCallback } from "../hooks/useStableCallback";
 import { readLocalApi } from "../localApi";
 import { configuredHostedAppUrl } from "../hostedPairing";
@@ -1872,7 +1874,9 @@ function OpenCommandPaletteDialog(props: {
               value: `action:tag-filter:${preset.name}`,
               searchTerms: [preset.name, ...preset.required, ...preset.hidden],
               title: preset.name,
-              icon: <TagIcon className={ITEM_ICON_CLASS} />,
+              icon: createElement(threadTagPresetIcon(preset.icon), {
+                className: ITEM_ICON_CLASS,
+              }),
               ...(preset === appliedTagPreset
                 ? { titleTrailingContent: <CheckIcon className={ITEM_ICON_CLASS} /> }
                 : {}),

@@ -40,15 +40,17 @@ export function matchingThreadTagPreset(
   );
 }
 
-/** Saving under an existing name replaces that preset. Null when the list is full. */
+/** Saving under an existing name replaces that preset's tags. Null when the list is full. */
 export function saveThreadTagPreset(
   presets: ReadonlyArray<ThreadTagFilterPreset>,
   name: string,
   filter: ThreadTagFilter,
 ): ReadonlyArray<ThreadTagFilterPreset> | null {
-  const preset = { name, required: filter.required, hidden: filter.hidden };
+  const tags = { required: filter.required, hidden: filter.hidden };
   if (presets.some((candidate) => candidate.name === name)) {
-    return presets.map((candidate) => (candidate.name === name ? preset : candidate));
+    return presets.map((candidate) =>
+      candidate.name === name ? { ...candidate, ...tags } : candidate,
+    );
   }
-  return presets.length >= MAX_THREAD_TAG_FILTER_PRESETS ? null : [...presets, preset];
+  return presets.length >= MAX_THREAD_TAG_FILTER_PRESETS ? null : [...presets, { name, ...tags }];
 }
