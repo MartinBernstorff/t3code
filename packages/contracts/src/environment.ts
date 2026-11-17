@@ -123,6 +123,7 @@ export const ExecutionEnvironmentCapabilities = Schema.Struct({
   threadEngagement: Schema.optionalKey(Schema.Boolean),
   threadWaitingOnOthers: Schema.optionalKey(Schema.Boolean),
   threadLinearIssue: Schema.optionalKey(Schema.Boolean),
+  threadTags: Schema.optionalKey(Schema.Boolean),
   threadProjectFromScratch: Schema.optionalKey(Schema.Boolean),
   threadTitleRegeneration: Schema.optionalKey(Schema.Boolean),
   threadVisitedTracking: Schema.optionalKey(Schema.Boolean),

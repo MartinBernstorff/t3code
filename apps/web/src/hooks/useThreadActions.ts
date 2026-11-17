@@ -17,6 +17,7 @@ import {
   type ThreadPriority,
   type ThreadEngagement,
   type LinearIssueId,
+  type ThreadTag,
   sessionGrantsScope,
 } from "@t3tools/contracts";
 import { resolveWorktreeCleanup } from "@t3tools/shared/projectSettings";
@@ -311,6 +312,9 @@ export function useThreadActions() {
     reportFailure: false,
   });
   const setThreadLinearIssueMutation = useOrchestrationCommand(threadEnvironment.setLinearIssue, {
+    reportFailure: false,
+  });
+  const setThreadTagMutation = useOrchestrationCommand(threadEnvironment.setTag, {
     reportFailure: false,
   });
   const reorderPinnedThreadMutation = useOrchestrationCommand(threadEnvironment.reorderPin, {
@@ -726,6 +730,12 @@ export function useThreadActions() {
       input: { threadId: target.threadId, linearIssue },
     });
 
+  const setThreadTag = (target: ScopedThreadRef, tag: ThreadTag, tagged: boolean) =>
+    setThreadTagMutation({
+      environmentId: target.environmentId,
+      input: { threadId: target.threadId, tag, tagged },
+    });
+
   const pinThread = async (target: ScopedThreadRef, opts: { orderKey?: string } = {}) => {
     if (!readEnvironmentServerConfigLoaded(target.environmentId)) {
       return AsyncResult.failure(
@@ -1008,6 +1018,7 @@ export function useThreadActions() {
     setThreadEngagement,
     setThreadWaiting,
     setThreadLinearIssue,
+    setThreadTag,
     turnThreadIntoProject: (target: ScopedThreadRef) =>
       createProjectFromThread({
         environmentId: target.environmentId,
