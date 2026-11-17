@@ -30,6 +30,8 @@ export const MAX_THREAD_TAG_FILTER_PRESETS = 20;
 
 export const ThreadTagFilterPreset = Schema.Struct({
   name: TrimmedNonEmptyString.check(Schema.isMaxLength(64)),
+  /** A client icon name. Unknown names fall back to the default icon instead of failing the presets. */
+  icon: Schema.optionalKey(Schema.String.check(Schema.isMaxLength(64))),
   ...ThreadTagFilter.fields,
 });
 export type ThreadTagFilterPreset = typeof ThreadTagFilterPreset.Type;

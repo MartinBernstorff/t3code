@@ -251,6 +251,39 @@ function ComboboxListVirtualized({ className, ...props }: ComboboxPrimitive.List
   );
 }
 
+function ComboboxGroup({
+  className,
+  variant = "default",
+  ...props
+}: ComboboxPrimitive.Group.Props & {
+  /** `muted` sets a group apart from the rows around it, such as saved presets above raw options. */
+  variant?: "default" | "muted";
+}) {
+  return (
+    <ComboboxPrimitive.Group
+      className={cn(
+        "not-last:mb-1",
+        variant === "muted" && "rounded-md bg-foreground/[0.04] pb-1 dark:bg-foreground/[0.06]",
+        className,
+      )}
+      data-slot="combobox-group"
+      {...props}
+    />
+  );
+}
+
+function ComboboxGroupLabel({ className, ...props }: ComboboxPrimitive.GroupLabel.Props) {
+  return (
+    <ComboboxPrimitive.GroupLabel
+      className={cn("px-2 pt-1.5 pb-1 font-medium text-muted-foreground text-xs", className)}
+      data-slot="combobox-group-label"
+      {...props}
+    />
+  );
+}
+
+const ComboboxCollection = ComboboxPrimitive.Collection;
+
 function ComboboxClear({ className, ...props }: ComboboxPrimitive.Clear.Props) {
   return <ComboboxPrimitive.Clear className={className} data-slot="combobox-clear" {...props} />;
 }
@@ -280,6 +313,9 @@ export {
   ComboboxEmpty,
   ComboboxList,
   ComboboxListVirtualized,
+  ComboboxGroup,
+  ComboboxGroupLabel,
+  ComboboxCollection,
   ComboboxClear,
   ComboboxStatus,
   useComboboxFilter,
