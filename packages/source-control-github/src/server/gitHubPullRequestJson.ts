@@ -18,6 +18,7 @@ import type {
   PullRequestLabel,
   PullRequestMergeCapabilities,
   PullRequestMergeMethod,
+  PullRequestMergeBlocker,
   PullRequestMergeQueueRemoval,
   PullRequestOmittedFileStat,
   PullRequestMergeability,
@@ -1013,6 +1014,7 @@ export function toPullRequestWatchFingerprint(
 
 export interface GitHubPullRequestCore extends GitHubPullRequestDetail {
   readonly mergeQueueRemoval?: PullRequestMergeQueueRemoval;
+  readonly mergeBlockers?: ReadonlyArray<PullRequestMergeBlocker>;
   readonly maintainerCanModify: boolean;
   readonly canEditMaintainerEdits: boolean;
   readonly reviewRequestTeams: ReadonlyArray<PullRequestActor>;
@@ -1026,6 +1028,21 @@ type CoreRequestedReviewer = NonNullable<
     NonNullable<NonNullable<PullRequestCore.Result["repository"]>["pullRequest"]>["reviewRequests"]
   >["nodes"]
 >[number];
+
+type CorePullRequest = NonNullable<
+  NonNullable<PullRequestCore.Result["repository"]>["pullRequest"]
+>;
+
+function toMergeBlockers(pr: CorePullRequest): ReadonlyArray<PullRequestMergeBlocker> {
+  if (pr.mergeStateStatus !== "BLOCKED") return [];
+  const blockers: Array<PullRequestMergeBlocker> = [];
+  if (pr.reviewDecision === "REVIEW_REQUIRED") blockers.push("review-required");
+  if (pr.reviewDecision === "CHANGES_REQUESTED") blockers.push("changes-requested");
+  if (nodesOf(pr.reviewThreads).some((thread) => !thread.isResolved)) {
+    blockers.push("unresolved-conversations");
+  }
+  return blockers.length > 0 ? blockers : ["other"];
+}
 
 export function toPullRequestCore(result: PullRequestCore.Result): GitHubPullRequestCore | null {
   const repository = result.repository;
@@ -1043,6 +1060,7 @@ export function toPullRequestCore(result: PullRequestCore.Result): GitHubPullReq
             reason: trimmed(removal.reason),
           },
         }),
+    mergeBlockers: toMergeBlockers(pr),
     reviewRequestTeams: nodesOf(pr.reviewRequests).flatMap(
       ({ requestedReviewer }) => toRequestedTeam(requestedReviewer) ?? [],
     ),

@@ -21,6 +21,7 @@ import type {
   PullRequestListState,
   PullRequestMergeCapabilities,
   PullRequestMergeMethod,
+  PullRequestMergeBlocker,
   PullRequestMergeQueueRemoval,
   PullRequestMergeability,
   PullRequestOmittedFileStat,
@@ -214,6 +215,7 @@ export interface ProviderChangeRequestDetail extends ProviderChangeRequest {
   readonly autoMergeMethod?: PullRequestMergeMethod;
   readonly workflowApprovalsRequired?: number;
   readonly mergeQueueRemoval?: PullRequestMergeQueueRemoval;
+  readonly mergeBlockers?: ReadonlyArray<PullRequestMergeBlocker>;
 }
 
 export interface ProviderChangeRequestActivity {

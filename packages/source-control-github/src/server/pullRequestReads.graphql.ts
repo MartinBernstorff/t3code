@@ -379,6 +379,20 @@ export const PullRequestCoreRepositoryPullRequestLabelsLabelConnection = Schema.
 })
 export interface PullRequestCoreRepositoryPullRequestLabelsLabelConnection extends Schema.Struct.Type<typeof PullRequestCoreRepositoryPullRequestLabelsLabelConnection.fields> {}
 
+/** A threaded list of comments for a given pull request. */
+export const PullRequestReviewThread = Schema.Struct({
+  /** Whether this thread has been resolved */
+  isResolved: Schema.Boolean
+})
+export interface PullRequestReviewThread extends Schema.Struct.Type<typeof PullRequestReviewThread.fields> {}
+
+/** Review comment threads for a pull request review. */
+export const PullRequestReviewThreadConnection = Schema.Struct({
+  /** A list of nodes. */
+  nodes: Schema.NullOr(Schema.Array(Schema.NullOr(PullRequestReviewThread)))
+})
+export interface PullRequestReviewThreadConnection extends Schema.Struct.Type<typeof PullRequestReviewThreadConnection.fields> {}
+
 /** Information about pagination in a connection. */
 export const ContextsPageInfoPageInfo = Schema.Struct({
   /** When paginating forwards, are there more items? */
@@ -499,6 +513,8 @@ export const PullRequestCoreRepositoryPullRequestPullRequest = Schema.Struct({
   reviewRequests: Schema.NullOr(PullRequestCoreRepositoryPullRequestReviewRequestsReviewRequestConnection),
   /** A list of labels associated with the object. */
   labels: Schema.NullOr(PullRequestCoreRepositoryPullRequestLabelsLabelConnection),
+  /** The list of all review threads for this pull request. */
+  reviewThreads: PullRequestReviewThreadConnection,
   /** A list of commits present in this pull request's head branch not present in the base branch. */
   commits: PullRequestCoreRepositoryPullRequestCommitsPullRequestCommitConnection
 })
@@ -534,7 +550,7 @@ export const PullRequestCore = GraphQL.query("PullRequestCore", {
       { name: "mergeQueue", body: "Boolean!" }
     ],
     selections: [
-      { name: "repository", body: ["(owner:$", "owner", " name:$", "name", "){mergeCommitAllowed squashMergeAllowed rebaseMergeAllowed autoMergeAllowed viewerPermission pullRequest(number:$", "number", "){number title url body state isDraft mergeable mergeStateStatus reviewDecision additions deletions changedFiles createdAt updatedAt mergedAt closedAt headRefName baseRefName headRefOid isCrossRepository maintainerCanModify headRepositoryOwner{__typename login}headRepository{nameWithOwner viewerPermission}headRef{id}author{__typename login avatarUrl...on User{id name}}autoMergeRequest{mergeMethod}mergeQueueRemovals:timelineItems(last:1 itemTypes:[REMOVED_FROM_MERGE_QUEUE_EVENT])@include(if:$", "mergeQueue", "){nodes{__typename...on RemovedFromMergeQueueEvent{id createdAt reason}}}viewerCanUpdate viewerDidAuthor viewerCanUpdateBranch baseRef{compare(headRef:$", "headRef", "){behindBy}}reviewRequests(first:$", "requestedReviewers", "){nodes{requestedReviewer{__typename...on User{login name}...on Bot{login}...on Team{slug combinedSlug teamName:name teamAvatarUrl:avatarUrl}}}}labels(first:100){nodes{name color}}commits(last:1){nodes{commit{statusCheckRollup{contexts(first:100){nodes{__typename...", "CheckContext", "}pageInfo{hasNextPage endCursor}}}}}}}}"] }
+      { name: "repository", body: ["(owner:$", "owner", " name:$", "name", "){mergeCommitAllowed squashMergeAllowed rebaseMergeAllowed autoMergeAllowed viewerPermission pullRequest(number:$", "number", "){number title url body state isDraft mergeable mergeStateStatus reviewDecision additions deletions changedFiles createdAt updatedAt mergedAt closedAt headRefName baseRefName headRefOid isCrossRepository maintainerCanModify headRepositoryOwner{__typename login}headRepository{nameWithOwner viewerPermission}headRef{id}author{__typename login avatarUrl...on User{id name}}autoMergeRequest{mergeMethod}mergeQueueRemovals:timelineItems(last:1 itemTypes:[REMOVED_FROM_MERGE_QUEUE_EVENT])@include(if:$", "mergeQueue", "){nodes{__typename...on RemovedFromMergeQueueEvent{id createdAt reason}}}viewerCanUpdate viewerDidAuthor viewerCanUpdateBranch baseRef{compare(headRef:$", "headRef", "){behindBy}}reviewRequests(first:$", "requestedReviewers", "){nodes{requestedReviewer{__typename...on User{login name}...on Bot{login}...on Team{slug combinedSlug teamName:name teamAvatarUrl:avatarUrl}}}}labels(first:100){nodes{name color}}reviewThreads(first:100){nodes{isResolved}}commits(last:1){nodes{commit{statusCheckRollup{contexts(first:100){nodes{__typename...", "CheckContext", "}pageInfo{hasNextPage endCursor}}}}}}}}"] }
     ],
     fragments: [
       { name: "CheckContext", body: ["on StatusCheckRollupContext{__typename...on StatusContext{context state targetUrl createdAt description isRequired(pullRequestNumber:$", "number", ")@include(if:$", "required", ")}...on CheckRun{name status conclusion startedAt completedAt detailsUrl isRequired(pullRequestNumber:$", "number", ")@include(if:$", "required", ")checkSuite{workflowRun{workflow{name}}}}}"] }
