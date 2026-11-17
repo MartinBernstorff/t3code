@@ -96,10 +96,14 @@ also set or clear it from the thread's menu.
 
 ## Tag threads
 
-Tag a thread from the CLI with `t3 thread set --tag review-request` (see
-[Outside agents](outside-agents.md)), or ask its agent to. A thread can have several
-tags. Thread cards and two-line rows show them under the title unless you turn off **Tags**
-in **Settings → Appearance → Sidebar thread rows**.
+Right-click a thread and open **Tags** to toggle a tag other threads already use, or
+choose **New tag…** to add one. With several threads selected, a tag shows as checked
+only when every selected thread has it; choosing it then removes it from all of them,
+and otherwise adds it to the ones missing it. You can also tag a thread from the CLI with
+`t3 thread set --tag review-request` (see [Outside agents](outside-agents.md)), or ask
+its agent to. A thread can have several tags. Thread cards and two-line rows show them
+under the title unless you turn off **Tags** in **Settings → Appearance → Sidebar thread
+rows**.
 
 To filter the sidebar by tag, open the tag filter next to the project filter. Each tag
 has **Require** and **Hide**: the sidebar lists a thread only when it has every

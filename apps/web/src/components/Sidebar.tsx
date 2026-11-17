@@ -17,6 +17,7 @@ import {
 import { discardComposerDraft } from "../lib/discardComposerDraft";
 import { requestCustomSnooze } from "./CustomSnoozeDialog";
 import { requestLinearIssue } from "./LinearIssueDialog";
+import { requestThreadTag } from "./ThreadTagDialog";
 import { useAtomValue } from "@effect/atom-react";
 import * as Schema from "effect/Schema";
 import {
@@ -160,6 +161,7 @@ import {
 } from "../state/environments";
 import {
   readThreadShell,
+  readThreadShells,
   useAllEnvironmentProjectSnapshotsReady,
   useDelegatedUnderParent,
   useProjects,
@@ -190,7 +192,11 @@ import {
   buildDraftActionMenuItems,
   buildThreadActionMenuItems,
   engagementFromThreadAction,
+  buildThreadTagsMenuItem,
+  knownThreadTags,
+  sharedThreadTags,
   priorityFromThreadAction,
+  tagToggleFromThreadAction,
   threadActionRequiresOperate,
 } from "./threadActionMenu.logic";
 import {
@@ -1054,6 +1060,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     setThreadEngagement,
     setThreadWaiting,
     setThreadLinearIssue,
+    setThreadTag,
     turnThreadIntoProject,
     reorderPinnedThread,
     reorderActiveThread,
@@ -2630,6 +2637,17 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
       const unpinMenuItem = buildBulkUnpinContextMenuItem({
         pinnedCount: pinnedSelectedThreads.length,
       });
+      const canTagSelection = selectedThreads.every(
+        (thread) => serverConfigs.get(thread.environmentId)?.environment.capabilities.threadTags,
+      );
+      const sharedTags = sharedThreadTags(
+        selectedThreads.map((thread) => thread.source.tags ?? []),
+      );
+      const tagsMenuItem = buildThreadTagsMenuItem({
+        tags: sharedTags,
+        knownTags: knownThreadTags(readThreadShells()),
+      });
+      const canOperateSelection = canOperateThreads(selectedThreads);
       // Presets sync across environments, so the first selected thread's stand for all.
       // oxlint-disable-next-line react/purity -- runs in an event handler (oxc#27309)
       const menuOpenedAt = new Date();
@@ -2678,6 +2696,18 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                     disabled:
                       titleRegenerationMenuItem.disabled ||
                       !canOperateThreads(regeneratableTitleThreads),
+                  },
+                ]
+              : []),
+            ...(canTagSelection
+              ? [
+                  {
+                    ...tagsMenuItem,
+                    disabled: !canOperateSelection,
+                    children: (tagsMenuItem.children ?? []).map((child) => ({
+                      ...child,
+                      disabled: !canOperateSelection,
+                    })),
                   },
                 ]
               : []),
@@ -2750,6 +2780,37 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
             );
           }
         }
+        return;
+      }
+      const tagToggle =
+        clicked.value === "tag-new"
+          ? await requestThreadTag().then((tag) =>
+              tag === undefined ? undefined : { tag, tagged: true },
+            )
+          : tagToggleFromThreadAction(clicked.value, sharedTags);
+      if (tagToggle !== undefined) {
+        const { tag, tagged } = tagToggle;
+        for (const thread of selectedThreads) {
+          if ((thread.source.tags ?? []).includes(tag) === tagged) continue;
+          const result = await setThreadTag(
+            scopeThreadRef(thread.environmentId, thread.id),
+            tag,
+            tagged,
+          );
+          if (result._tag === "Success") continue;
+          if (!isAtomCommandInterrupted(result)) {
+            const error = squashAtomCommandFailure(result);
+            toastManager.add(
+              stackedThreadToast({
+                type: "error",
+                title: "Failed to update thread tags",
+                description: error instanceof Error ? error.message : "An error occurred.",
+              }),
+            );
+          }
+          return;
+        }
+        clearSelection();
         return;
       }
       if (clicked.value === "unpin") {
@@ -2961,6 +3022,8 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
               engagement: thread.engagement,
               waitingOnOthers: thread.waitingOnOthers,
               linearIssue: thread.linearIssue,
+              tags: thread.source.tags ?? [],
+              knownTags: knownThreadTags(readThreadShells()),
               isRegeneratingTitle,
               isRunning: !threadRuntimeCanArchive(thread.runtime),
               canShareWithGuest: appAtomRegistry.get(
@@ -2977,6 +3040,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                 engagement: capabilities?.threadEngagement === true,
                 waiting: capabilities?.threadWaitingOnOthers === true,
                 linearIssue: capabilities?.threadLinearIssue === true,
+                tags: capabilities?.threadTags === true,
               },
               snoozePresets,
             }),
@@ -3036,6 +3100,26 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
               stackedThreadToast({
                 type: "error",
                 title: "Failed to update waiting on others",
+                description: error instanceof Error ? error.message : "An error occurred.",
+              }),
+            );
+          }
+          return;
+        }
+        const tagToggle =
+          clicked.value === "tag-new"
+            ? await requestThreadTag().then((tag) =>
+                tag === undefined ? undefined : { tag, tagged: true },
+              )
+            : tagToggleFromThreadAction(clicked.value, thread.source.tags ?? []);
+        if (tagToggle !== undefined) {
+          const result = await setThreadTag(threadRef, tagToggle.tag, tagToggle.tagged);
+          if (result._tag === "Failure" && !isAtomCommandInterrupted(result)) {
+            const error = squashAtomCommandFailure(result);
+            toastManager.add(
+              stackedThreadToast({
+                type: "error",
+                title: "Failed to update thread tags",
                 description: error instanceof Error ? error.message : "An error occurred.",
               }),
             );

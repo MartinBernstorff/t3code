@@ -27,6 +27,7 @@ import {
   type ThreadPriority,
   type ThreadEngagement,
   type LinearIssueId,
+  type ThreadTag,
   type LinearWorkspaceSlug,
   type ThreadEnvMode,
   type UploadChatAttachment,
@@ -572,6 +573,22 @@ export const setThreadLinearIssue = Effect.fn("EnvironmentCommands.setThreadLine
     });
   },
 );
+
+export interface SetThreadTagInput extends ThreadCommandInput {
+  readonly tag: ThreadTag;
+  readonly tagged: boolean;
+}
+export const setThreadTag = Effect.fn("EnvironmentCommands.setThreadTag")(function* (
+  input: SetThreadTagInput,
+) {
+  return yield* dispatch({
+    type: "thread.tag.set",
+    commandId: yield* allocateCommandId(input),
+    threadId: input.threadId,
+    tag: input.tag,
+    tagged: input.tagged,
+  });
+});
 
 export interface SetThreadAutoSettleInput extends ThreadCommandInput {
   readonly enabled: boolean;

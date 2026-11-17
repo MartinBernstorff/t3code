@@ -1,6 +1,7 @@
 import { scopeProjectRef } from "@t3tools/client-runtime/environment";
 import { requestCustomSnooze } from "../components/CustomSnoozeDialog";
 import { requestLinearIssue } from "../components/LinearIssueDialog";
+import { requestThreadTag } from "../components/ThreadTagDialog";
 import { openGuestShareDialog } from "../components/chat/guestShareDialogState";
 import {
   type AtomCommandResult,
@@ -20,7 +21,9 @@ import { pickSnoozePreset, resolveSnoozePresets } from "../components/Sidebar.sn
 import {
   buildThreadActionMenuItems,
   engagementFromThreadAction,
+  knownThreadTags,
   priorityFromThreadAction,
+  tagToggleFromThreadAction,
   threadActionRequiresOperate,
   type ThreadActionMenuId,
 } from "../components/threadActionMenu.logic";
@@ -34,6 +37,7 @@ import {
   readEnvironmentServerConfigLoaded,
   readEnvironmentCapabilities,
   readThreadShell,
+  readThreadShells,
   useProjects,
 } from "../state/entities";
 import { usePrimaryEnvironmentId } from "../state/environments";
@@ -90,6 +94,7 @@ export function useThreadActionMenu(input: {
     setThreadEngagement,
     setThreadWaiting,
     setThreadLinearIssue,
+    setThreadTag,
     archiveThread,
     deleteThread,
     markThreadUnread,
@@ -142,6 +147,7 @@ export function useThreadActionMenu(input: {
         engagement: capabilities?.threadEngagement === true,
         waiting: capabilities?.threadWaitingOnOthers === true,
         linearIssue: capabilities?.threadLinearIssue === true,
+        tags: capabilities?.threadTags === true,
       };
       const isRegeneratingTitle = thread.titleRegeneration != null;
       const snoozePresets = resolveSnoozePresets(now, timestampFormat, threadRef.environmentId);
@@ -159,6 +165,8 @@ export function useThreadActionMenu(input: {
         engagement: thread.engagement,
         waitingOnOthers: thread.waitingOnOthers,
         linearIssue: thread.linearIssue,
+        tags: thread.source.tags ?? [],
+        knownTags: knownThreadTags(readThreadShells()),
         isRegeneratingTitle,
         isRunning: !threadRuntimeCanArchive(thread.runtime),
         supports,
@@ -222,6 +230,18 @@ export function useThreadActionMenu(input: {
       if (action === "waiting-on" || action === "waiting-off") {
         await reportFailure("Failed to update waiting on others", () =>
           setThreadWaiting(threadRef, action === "waiting-on"),
+        );
+        return;
+      }
+      const tagToggle =
+        action === "tag-new"
+          ? await requestThreadTag().then((tag) =>
+              tag === undefined ? undefined : { tag, tagged: true },
+            )
+          : tagToggleFromThreadAction(action, thread.source.tags ?? []);
+      if (tagToggle !== undefined) {
+        await reportFailure("Failed to update thread tags", () =>
+          setThreadTag(threadRef, tagToggle.tag, tagToggle.tagged),
         );
         return;
       }

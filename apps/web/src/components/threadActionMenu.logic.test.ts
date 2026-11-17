@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { buildThreadActionMenuItems, type ThreadActionMenuState } from "./threadActionMenu.logic";
+import {
+  buildThreadActionMenuItems,
+  sharedThreadTags,
+  tagToggleFromThreadAction,
+  type ThreadActionMenuState,
+} from "./threadActionMenu.logic";
 
 const baseState: ThreadActionMenuState = {
   canOperate: true,
@@ -15,6 +20,8 @@ const baseState: ThreadActionMenuState = {
   engagement: "inbox",
   waitingOnOthers: false,
   linearIssue: null,
+  tags: [],
+  knownTags: [],
   isRegeneratingTitle: false,
   isRunning: false,
   supports: {
@@ -27,6 +34,7 @@ const baseState: ThreadActionMenuState = {
     engagement: true,
     waiting: true,
     linearIssue: true,
+    tags: true,
   },
   snoozePresets: [
     { id: "hour", label: "In 1 hour", whenLabel: "3:00 PM", snoozedUntil: "2026-08-07T15:00:00Z" },
@@ -54,6 +62,7 @@ describe("buildThreadActionMenuItems", () => {
             "engagement",
             "waiting-off",
             "linear-issue",
+            "tags",
             "rename",
             "regenerate-title",
             "auto-settle",
@@ -68,6 +77,7 @@ describe("buildThreadActionMenuItems", () => {
             "engagement",
             "waiting-on",
             "linear-issue",
+            "tags",
             "rename",
             "regenerate-title",
             "auto-settle",
@@ -91,11 +101,32 @@ describe("buildThreadActionMenuItems", () => {
         engagement: false,
         waiting: false,
         linearIssue: false,
+        tags: false,
       },
     }).map((item) => item.id);
-    for (const id of ["priority", "engagement", "waiting-on", "linear-issue"]) {
+    for (const id of ["priority", "engagement", "waiting-on", "linear-issue", "tags"]) {
       expect(ids).not.toContain(id);
     }
+  });
+
+  it("offers known and shared tags checked by membership, and toggles them", () => {
+    const tags = buildThreadActionMenuItems({
+      ...baseState,
+      tags: ["mine"],
+      knownTags: ["zeta", "alpha"],
+    }).find((item) => item.id === "tags");
+    expect(tags?.children?.map((child) => [child.id, child.checked ?? false])).toEqual([
+      ["tag:alpha", false],
+      ["tag:mine", true],
+      ["tag:zeta", false],
+      ["tag-new", false],
+    ]);
+    expect(tagToggleFromThreadAction("tag:mine", ["mine"])).toEqual({ tag: "mine", tagged: false });
+    expect(tagToggleFromThreadAction("tag:a:b", ["mine"])).toEqual({ tag: "a:b", tagged: true });
+    expect(tagToggleFromThreadAction("tag-new", ["mine"])).toBeUndefined();
+    // A selection removes a tag only when every selected thread already has it.
+    expect(sharedThreadTags([["a", "b"], ["b"]])).toEqual(["b"]);
+    expect(sharedThreadTags([])).toEqual([]);
   });
 
   it("disables archive and turning into a project while the thread is running", () => {

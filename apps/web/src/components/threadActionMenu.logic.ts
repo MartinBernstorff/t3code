@@ -32,6 +32,9 @@ export type ThreadActionMenuId =
   | "waiting-on"
   | "waiting-off"
   | "linear-issue"
+  | "tags"
+  | `tag:${string}`
+  | "tag-new"
   | "rename"
   | "regenerate-title"
   | "mark-unread"
@@ -99,6 +102,9 @@ export interface ThreadActionMenuState {
   readonly engagement: ThreadEngagement;
   readonly waitingOnOthers: boolean;
   readonly linearIssue: LinearIssueId | null;
+  readonly tags: ReadonlyArray<string>;
+  /** Tags on any listed thread, offered as choices beside the thread's own. */
+  readonly knownTags: ReadonlyArray<string>;
   readonly isRegeneratingTitle: boolean;
   /** Archive rejects attached providers, so disable it while running. */
   readonly isRunning: boolean;
@@ -112,6 +118,7 @@ export interface ThreadActionMenuState {
     readonly engagement: boolean;
     readonly waiting: boolean;
     readonly linearIssue: boolean;
+    readonly tags: boolean;
   };
   readonly snoozePresets: ReadonlyArray<SnoozePreset>;
   /** Guest links need their own grant, so the caller checks it instead of `canOperate`. */
@@ -133,6 +140,63 @@ export function engagementFromThreadAction(
   action: ThreadActionMenuId,
 ): ThreadEngagement | undefined {
   return THREAD_ENGAGEMENT_OPTIONS.find((option) => action === `engagement:${option.value}`)?.value;
+}
+
+/** Tags on unarchived threads, which the tag submenu offers as choices. */
+export function knownThreadTags(
+  threads: ReadonlyArray<{
+    readonly archivedAt: string | null;
+    readonly source: { readonly tags?: ReadonlyArray<string> | undefined };
+  }>,
+): ReadonlyArray<string> {
+  return [
+    ...new Set(
+      threads.flatMap((thread) => (thread.archivedAt === null ? (thread.source.tags ?? []) : [])),
+    ),
+  ];
+}
+
+/** The tags every given thread carries, so a selection shows a tag checked only when all have it. */
+export function sharedThreadTags(
+  tagSets: ReadonlyArray<ReadonlyArray<string>>,
+): ReadonlyArray<string> {
+  const [first = [], ...rest] = tagSets;
+  return first.filter((tag) => rest.every((tags) => tags.includes(tag)));
+}
+
+export function buildThreadTagsMenuItem(input: {
+  readonly tags: ReadonlyArray<string>;
+  readonly knownTags: ReadonlyArray<string>;
+}): ContextMenuItem<"tags" | `tag:${string}` | "tag-new"> {
+  return {
+    id: "tags",
+    label: "Tags",
+    icon: "tag",
+    children: [
+      ...[...new Set([...input.knownTags, ...input.tags])]
+        .toSorted((left, right) => left.localeCompare(right))
+        .map((tag) => ({
+          id: `tag:${tag}` as const,
+          label: tag,
+          checked: input.tags.includes(tag),
+        })),
+      {
+        id: "tag-new" as const,
+        label: "New tag…",
+        separatorBefore: input.knownTags.length + input.tags.length > 0,
+      },
+    ],
+  };
+}
+
+/** The tag a menu action toggles, or undefined when the action is not a tag choice. */
+export function tagToggleFromThreadAction(
+  action: string,
+  tags: ReadonlyArray<string>,
+): { readonly tag: string; readonly tagged: boolean } | undefined {
+  if (!action.startsWith("tag:")) return undefined;
+  const tag = action.slice("tag:".length);
+  return { tag, tagged: !tags.includes(tag) };
 }
 
 /** Local navigation, read markers, and copying remain available to read-only clients. */
@@ -255,6 +319,9 @@ export function buildThreadActionMenuItems(
             icon: "link",
           },
         ]
+      : []),
+    ...(state.supports.tags
+      ? [buildThreadTagsMenuItem({ tags: state.tags, knownTags: state.knownTags })]
       : []),
     { id: "rename", label: "Rename thread", icon: "pencil", separatorBefore: true },
     ...(state.supports.titleRegeneration
