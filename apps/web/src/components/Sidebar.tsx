@@ -288,6 +288,11 @@ import {
 } from "./sidebar/SidebarThreadRow";
 import { SidebarDraftBlock } from "./sidebar/SidebarDraftBlock";
 import {
+  groupSidebarStackRuns,
+  resolveSidebarStackPlacements,
+  useStableStackPlacements,
+} from "./sidebar/sidebarStacks";
+import {
   EMPTY_PROVIDER_ENTRIES,
   sidebarProviderEntriesAtom,
 } from "./sidebar/sidebarProviderEntries";
@@ -635,7 +640,10 @@ function useSidebarThreads(input: {
       },
       {
         showEmptyDropTargets: dragging,
-        orderLaneThreads: orderSidebarLaneThreads(defaultThreadSort, threadSortOverrides),
+        orderLaneThreads: (laneThreads, lane) =>
+          groupSidebarStackRuns(
+            orderSidebarLaneThreads(defaultThreadSort, threadSortOverrides)(laneThreads, lane),
+          ),
       },
     ).map((row) =>
       row.kind === "lane" ? { ...row, label: sidebarLaneLabel(row.lane, laneProjects) } : row,
@@ -659,6 +667,34 @@ function useSidebarThreads(input: {
   for (const [list, section] of sectionLists) {
     for (const thread of list) sectionByThreadKey.set(threadShellKey(thread), section);
   }
+  const stackPlacements = useStableStackPlacements(
+    resolveSidebarStackPlacements({
+      segments: [
+        ...(laneRows !== null
+          ? laneRows.reduce<EnvironmentThreadShell[][]>((segments, row) => {
+              if (row.kind === "lane") segments.push([]);
+              else (segments.at(-1) ?? segments[segments.push([]) - 1]!).push(row.thread);
+              return segments;
+            }, [])
+          : [
+              pinnedThreads,
+              ...(projectFolders === null
+                ? [activeThreads]
+                : projectFolders.map((folder) => folder.threads)),
+            ]),
+        visibleSnoozedThreads,
+        visibleWorkingThreads,
+        visibleWaitingThreads,
+        renderedSettledThreads,
+      ],
+      threads: partition.visibleThreads,
+      // A settled thread, or one whose agent finished its run, no longer waits on its layer.
+      isFinished: (thread) =>
+        sectionByThreadKey.get(threadShellKey(thread)) === "settled" ||
+        thread.latestRun?.status === "completed",
+      keyOf: threadShellKey,
+    }),
+  );
   return {
     ...partition,
     threads,
@@ -708,6 +744,7 @@ function useSidebarThreads(input: {
     settledThreadKeys: new Set(settledThreads.map(threadShellKey)),
     snoozedThreadKeys: new Set(snoozedThreads.map(threadShellKey)),
     sectionByThreadKey,
+    stackPlacements,
     pinnedKeys: pinnedThreads.map(threadShellKey),
     activeKeys: activeThreads.map(threadShellKey),
     pinnedKeysById: new Map(
@@ -805,7 +842,7 @@ function partitionSidebarThreads(input: SidebarThreadPartitionInput) {
     returnedAt: inboxObservation.returnedAt,
   });
   return {
-    pinnedThreads:
+    pinnedThreads: groupSidebarStackRuns(
       optimisticDrop?.section !== "pinned" || optimisticDrop.order === null
         ? sortedPinned
         : orderItemsByPreferredIds({
@@ -813,9 +850,10 @@ function partitionSidebarThreads(input: SidebarThreadPartitionInput) {
             preferredIds: optimisticDrop.order,
             getId: (thread) => scopedThreadKey(scopeThreadRef(thread.environmentId, thread.id)),
           }),
+    ),
     draggableThreadKeys,
     activeReorderableThreadKeys,
-    activeThreads:
+    activeThreads: groupSidebarStackRuns(
       optimisticDrop?.section !== "active" || optimisticDrop.order === null
         ? sortedActive
         : orderItemsByPreferredIds({
@@ -823,14 +861,17 @@ function partitionSidebarThreads(input: SidebarThreadPartitionInput) {
             preferredIds: optimisticDrop.order,
             getId: (thread) => scopedThreadKey(scopeThreadRef(thread.environmentId, thread.id)),
           }),
-    workingThreads: sortWorkingThreadsBySend(working),
-    waitingThreads: sortWorkingThreadsBySend(waiting),
-    snoozedThreads: snoozed.toSorted(
-      (left, right) =>
-        firstValidTimestampMs(left.snoozedUntil ?? null) -
-        firstValidTimestampMs(right.snoozedUntil ?? null),
     ),
-    settledThreads: sortSettledThreads(settled),
+    workingThreads: groupSidebarStackRuns(sortWorkingThreadsBySend(working)),
+    waitingThreads: groupSidebarStackRuns(sortWorkingThreadsBySend(waiting)),
+    snoozedThreads: groupSidebarStackRuns(
+      snoozed.toSorted(
+        (left, right) =>
+          firstValidTimestampMs(left.snoozedUntil ?? null) -
+          firstValidTimestampMs(right.snoozedUntil ?? null),
+      ),
+    ),
+    settledThreads: groupSidebarStackRuns(sortSettledThreads(settled)),
     visibleThreads: visible,
     snoozeNow: preciseNow,
   };
@@ -1496,6 +1537,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     settledThreadKeys,
     snoozedThreadKeys,
     sectionByThreadKey,
+    stackPlacements,
     pinnedKeys,
     activeKeys,
     pinnedKeysById,
@@ -3890,6 +3932,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                             thread={thread}
                             variant={rowVariant}
                             laneDepth={laneDepth}
+                            stack={stackPlacements.get(threadKey) ?? null}
                             navigationParent={
                               folderRow ??
                               laneRow ??
