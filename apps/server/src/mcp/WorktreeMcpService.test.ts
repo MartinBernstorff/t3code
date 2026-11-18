@@ -127,6 +127,9 @@ interface HarnessOptions {
   readonly createWorktreeGate?: Effect.Effect<void>;
   readonly existsFails?: boolean;
   readonly worktreeSharedWith?: ReadonlyArray<SharingShell>;
+  readonly worktreeHasChanges?: boolean;
+  /** Ends the thread's turn with the given run status. */
+  readonly turnEnds?: Deferred.Deferred<string>;
 }
 
 /** Another active thread on the worktree, as the shell snapshot lists it. */
@@ -143,6 +146,9 @@ const makeHarness = (options: HarnessOptions = {}) => {
   const fixture = options.thread === undefined ? {} : options.thread;
   // Archiving persists, and the orchestrator rejects archiving an archived thread.
   let archivedAt = fixture?.archivedAt ?? null;
+  const archived = Deferred.makeUnsafe<void>();
+  // The waited turn ends with this status.
+  let endedRun: { readonly id: string; readonly status: string } | null = null;
   // A detached session leaves the projection.
   const detached = new Set<string>();
   const currentThread = () =>
@@ -151,6 +157,7 @@ const makeHarness = (options: HarnessOptions = {}) => {
       : {
           ...fixture,
           archivedAt,
+          runs: (fixture.runs ?? []).map((run) => (run.id === endedRun?.id ? endedRun : run)),
           providerSessions: (fixture.providerSessions ?? []).filter(({ id }) => !detached.has(id)),
         };
   const scope = makeScope(options.capabilities ?? new Set(["preview", "worktree"]));
@@ -167,6 +174,7 @@ const makeHarness = (options: HarnessOptions = {}) => {
               ? (Effect.fail("Thread is already archived.") as never)
               : Effect.sync(() => {
                   archivedAt = "2026-01-02T00:00:00.000Z";
+                  Deferred.doneUnsafe(archived, Exit.void);
                 }),
       ),
       Effect.andThen(
@@ -200,6 +208,14 @@ const makeHarness = (options: HarnessOptions = {}) => {
           }) as unknown as OrchestrationV2ThreadShellSnapshot,
       ),
     );
+  const waitForThread = vi.fn((input: { readonly runId?: string }) =>
+    (options.turnEnds === undefined ? Effect.never : Deferred.await(options.turnEnds)).pipe(
+      Effect.map((status) => {
+        endedRun = { id: input.runId ?? "", status };
+        return { threadId, run: endedRun, timedOut: false } as never;
+      }),
+    ),
+  );
   const getThreadEventSequence = vi.fn((_: ThreadId) => Effect.succeed(7));
   const getThreadRecords = vi.fn((id: ThreadId) => {
     const thread = currentThread();
@@ -324,7 +340,7 @@ const makeHarness = (options: HarnessOptions = {}) => {
       hasPrimaryRemote: true,
       isDefaultRef: false,
       refName: options.currentBranch === undefined ? "dev" : options.currentBranch,
-      hasWorkingTreeChanges: false,
+      hasWorkingTreeChanges: options.worktreeHasChanges === true,
       workingTree: { files: [], insertions: 0, deletions: 0 },
     }),
   );
@@ -364,6 +380,7 @@ const makeHarness = (options: HarnessOptions = {}) => {
           sendToThread,
           readShellSnapshot,
           getThreadEventSequence,
+          waitForThread,
         } satisfies Partial<ThreadManagementService.ThreadManagementService["Service"]>),
         Layer.mock(ProjectService.ProjectService)({
           getById,
@@ -384,6 +401,7 @@ const makeHarness = (options: HarnessOptions = {}) => {
           listRefs,
           listLocalBranchNames,
           localStatus,
+          invalidateLocalStatus: () => Effect.void,
           fetchWorktreeBaseCommit,
           createWorktree,
           removeWorktree,
@@ -427,6 +445,7 @@ const makeHarness = (options: HarnessOptions = {}) => {
     deleteLocalBranch,
     localStatus,
     runForThread,
+    archived,
   };
 };
 
@@ -454,10 +473,13 @@ const runHandoff = (
     return yield* service.handoff(harness.scope, input);
   }).pipe(Effect.provide(harness.layer));
 
-const runArchive = (harness: ReturnType<typeof makeHarness>) =>
+const runArchive = (
+  harness: ReturnType<typeof makeHarness>,
+  options?: { readonly whenTurnEnds?: boolean },
+) =>
   Effect.gen(function* () {
     const service = yield* WorktreeMcpService.WorktreeMcpService;
-    return yield* service.archiveAndRemoveWorktree(harness.scope, threadId);
+    return yield* service.archiveAndRemoveWorktree(harness.scope, threadId, options);
   }).pipe(Effect.provide(harness.layer));
 
 const runStatus = (harness: ReturnType<typeof makeHarness>) =>
@@ -785,6 +807,7 @@ describe("archiveAndRemoveWorktree", () => {
       readonly worktreePath: string;
     }) => Effect.Effect<A, E, R>,
     thread: ThreadFixture = {},
+    harnessOptions: Omit<HarnessOptions, "thread" | "git"> = {},
   ) =>
     Effect.gen(function* () {
       const fs = yield* FileSystem.FileSystem;
@@ -801,6 +824,7 @@ describe("archiveAndRemoveWorktree", () => {
       yield* command(cwd, ["commit", "--allow-empty", "-m", "base"]);
       yield* command(cwd, ["worktree", "add", "-b", "feature/archive", worktreePath]);
       const harness = makeHarness({
+        ...harnessOptions,
         thread: { worktreePath, branch: "feature/archive", ...thread },
         git: { removeWorktree: (input) => git.removeWorktree({ ...input, cwd }) },
       });
@@ -857,13 +881,74 @@ describe("archiveAndRemoveWorktree", () => {
         runs: [{ id: "run-live", status: "running" }],
       },
     });
+    // A queued message would run after the turn that would archive the thread.
+    const queued = makeHarness({
+      thread: {
+        worktreePath: "/worktrees/project/busy",
+        runs: [
+          { id: "run-live", status: "running" },
+          { id: "run-next", status: "queued" },
+        ],
+      },
+    });
     return Effect.gen(function* () {
       const exit = yield* Effect.exit(runArchive(harness));
       expectTypedFailure(exit, { code: "invalid_request" });
       expect(harness.removeWorktree).not.toHaveBeenCalled();
       expect(harness.dispatch).not.toHaveBeenCalled();
+      expectTypedFailure(yield* Effect.exit(runArchive(queued, { whenTurnEnds: true })), {
+        code: "invalid_request",
+        message: expect.stringContaining("queued messages"),
+      });
     });
   });
+
+  it.effect("with whenTurnEnds, archives a running thread once its turn completes", () => {
+    const turnEnds = Deferred.makeUnsafe<string>();
+    return withLinkedWorktree(
+      ({ harness, worktreePath }) =>
+        Effect.gen(function* () {
+          const fs = yield* FileSystem.FileSystem;
+          const service = yield* WorktreeMcpService.WorktreeMcpService;
+          expect(
+            yield* service.archiveAndRemoveWorktree(harness.scope, threadId, {
+              whenTurnEnds: true,
+            }),
+          ).toEqual({ worktreePath, archivesWhenTurnEnds: true });
+          expect(yield* fs.exists(worktreePath)).toBe(true);
+          expect(harness.dispatch).not.toHaveBeenCalled();
+
+          yield* Deferred.succeed(turnEnds, "completed");
+          yield* Deferred.await(harness.archived);
+          expect(yield* fs.exists(worktreePath)).toBe(false);
+          expect(harness.dispatch.mock.calls.map(([command]) => command)).toEqual([
+            expect.objectContaining({ type: "provider-session.detach" }),
+            expect.objectContaining({ type: "thread.archive", threadId }),
+          ]);
+        }).pipe(Effect.provide(harness.layer)),
+      {
+        runs: [{ id: "run-live", status: "running" }],
+        providerSessions: [{ id: "session-live", status: "ready" }],
+      },
+      { turnEnds },
+    );
+  });
+
+  it.effect("with whenTurnEnds, refuses local changes before the turn ends", () =>
+    withLinkedWorktree(
+      ({ harness }) =>
+        Effect.gen(function* () {
+          const exit = yield* Effect.exit(runArchive(harness, { whenTurnEnds: true }));
+          expectTypedFailure(exit, {
+            code: "invalid_request",
+            message: expect.stringContaining("local changes"),
+          });
+          expect(harness.dispatch).not.toHaveBeenCalled();
+        }),
+      { runs: [{ id: "run-live", status: "running" }] },
+      { worktreeHasChanges: true },
+    ),
+  );
 
   it.effect("changes nothing when the worktree has local changes", () =>
     withLinkedWorktree(({ harness, worktreePath }) =>

@@ -1050,18 +1050,21 @@ const threadSetCommand = Command.make("set", {
   ),
 );
 
-const ThreadArchiveResult = Schema.Struct({
-  sequence: Schema.Number,
-  worktreePath: Schema.optional(Schema.String),
-  worktreeRemoved: Schema.optional(Schema.Boolean),
-});
+const ThreadArchiveResult = Schema.Union([
+  Schema.Struct({
+    sequence: Schema.Number,
+    worktreePath: Schema.optional(Schema.String),
+    worktreeRemoved: Schema.optional(Schema.Boolean),
+  }),
+  Schema.Struct({ worktreePath: Schema.String, archivesWhenTurnEnds: Schema.Literal(true) }),
+]);
 
 const threadArchiveCommand = Command.make("archive", {
   ...projectLocationFlags,
   thread: threadArgument,
   removeWorktree: Flag.Boolean("remove-worktree").pipe(
     Flag.withDescription(
-      "Also delete the thread's git worktree, keeping its branch. Fails, changing nothing, while the thread runs, if it has local changes, or if another active thread uses it.",
+      "Also delete the thread's git worktree, keeping its branch. Fails, changing nothing, while the thread runs, if it has local changes, or if another active thread uses it. Run by the thread's own agent, the thread is checked now and archived when its turn completes.",
     ),
     Flag.withDefault(false),
   ),
@@ -1071,6 +1074,10 @@ const threadArchiveCommand = Command.make("archive", {
   Command.withHandler((flags) =>
     Effect.gen(function* () {
       const threadId = yield* decodeThreadId(flags.thread);
+      // Agents launch with T3CODE_THREAD_ID set to their thread (PortScanner.AGENT_THREAD_ENV).
+      // The CLI signs in without a thread, so it tells the server the agent archives its own.
+      const agentThread = yield* Config.option(Config.String("T3CODE_THREAD_ID"));
+      const ownThread = Option.contains(agentThread, threadId);
       yield* withThreadTools(
         flags,
         Effect.fn("cli.thread.archive")(function* (tools) {
@@ -1080,16 +1087,19 @@ const threadArchiveCommand = Command.make("archive", {
               threadId,
               action: "archive",
               ...(flags.removeWorktree ? { removeWorktree: true } : {}),
+              ...(flags.removeWorktree && ownThread ? { whenTurnEnds: true } : {}),
             },
             ThreadArchiveResult,
           );
           if (flags.json) return yield* printJson(result);
           yield* Console.log(
-            result.worktreePath === undefined
-              ? "Archived."
-              : result.worktreeRemoved === true
-                ? `Archived. Removed ${result.worktreePath}.`
-                : `Archived. ${result.worktreePath} was already gone.`,
+            "archivesWhenTurnEnds" in result
+              ? `Archives the thread and removes ${result.worktreePath} when this turn completes.`
+              : result.worktreePath === undefined
+                ? "Archived."
+                : result.worktreeRemoved === true
+                  ? `Archived. Removed ${result.worktreePath}.`
+                  : `Archived. ${result.worktreePath} was already gone.`,
           );
         }),
       );

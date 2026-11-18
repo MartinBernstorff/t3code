@@ -72,6 +72,12 @@ const ThreadOrganizeTool = Tool.make("t3_thread_organize", {
           "With `archive`, also delete the thread's git worktree. Fails, changing nothing, while it runs, has local changes, or another active thread uses it.",
       }),
     ),
+    whenTurnEnds: Schema.optional(
+      Schema.Boolean.annotate({
+        description:
+          "With `removeWorktree`, archive a running thread when its turn completes. Defaults to true for this thread.",
+      }),
+    ),
   }),
   success: Schema.Union([
     // First, so the encoder keeps its extra fields.
@@ -82,6 +88,7 @@ const ThreadOrganizeTool = Tool.make("t3_thread_organize", {
     }),
     OrchestrationV2DispatchCommandResult,
     Schema.Struct({ settlesWhenTurnEnds: Schema.Literal(true) }),
+    Schema.Struct({ worktreePath: Schema.String, archivesWhenTurnEnds: Schema.Literal(true) }),
   ]),
   failure: OrchestratorMcpFailure,
   failureMode: "return" as const,

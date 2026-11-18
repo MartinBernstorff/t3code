@@ -43,13 +43,14 @@ export class WorktreeMcpService extends Context.Service<
     ) => Effect.Effect<WorktreeMcpStatusResult, WorktreeMcpFailure>;
     /**
      * Stops the thread's provider sessions, deletes its worktree, then archives it. Refuses while
-     * it or its subagent threads run, or when another active thread uses the worktree; git refuses
-     * local changes. Already archived threads only lose the worktree.
+     * it or its subagents run, another active thread uses the worktree, or it has local changes.
+     * `whenTurnEnds` checks a running thread now and archives it once that turn completes.
      */
     readonly archiveAndRemoveWorktree: (
       scope: McpInvocationScope,
       threadId: ThreadId,
-    ) => Effect.Effect<WorktreeArchiveResult, WorktreeMcpFailure>;
+      options?: { readonly whenTurnEnds?: boolean },
+    ) => Effect.Effect<WorktreeArchiveResult | WorktreeArchiveDeferred, WorktreeMcpFailure>;
     readonly listRefs: (
       input: Omit<VcsListRefsInput, "cwd"> & {
         readonly worktreePath: string | null;
@@ -65,6 +66,13 @@ export interface WorktreeArchiveResult {
   /** False when the folder was already gone. */
   readonly worktreeRemoved: boolean;
 }
+
+export interface WorktreeArchiveDeferred {
+  readonly worktreePath: string;
+  readonly archivesWhenTurnEnds: true;
+}
+
+const TURN_END_WAIT_MS = 24 * 60 * 60 * 1_000;
 
 function failure(code: WorktreeMcpFailure["code"], message: string): WorktreeMcpFailure {
   return new WorktreeMcpFailure({ code, message });
@@ -92,6 +100,7 @@ const make = Effect.gen(function* () {
   const gitWorkflow = yield* GitWorkflowService.GitWorkflowService;
   const setupScriptRunner = yield* ProjectSetupScriptRunner.ProjectSetupScriptRunner;
   const vcsStatusBroadcaster = yield* VcsStatusBroadcaster.VcsStatusBroadcaster;
+  const layerScope = yield* Effect.scope;
 
   // Serialize handoffs per thread to avoid creating two worktrees and orphaning one.
   const handoffThreadsInFlight = new Set<string>();
@@ -463,58 +472,128 @@ const make = Effect.gen(function* () {
     },
   );
 
+  // Fails while another active thread uses the worktree or a subagent thread in it runs. The
+  // thread's own runs are the caller's to check. Returns the thread and its subagent threads.
+  const checkRemovable = Effect.fn("WorktreeMcpService.checkRemovable")(function* (
+    threadId: ThreadId,
+    worktreePath: string,
+  ) {
+    const sharing = yield* threadManagement
+      .readShellSnapshot({ location: "active", worktreePath })
+      .pipe(
+        Effect.flatten,
+        asOperationFailed(`Unable to list the threads in worktree ${worktreePath}`),
+      );
+    // Subagent threads inherit the worktree and are never archived with their parent.
+    const family = new Set<ThreadId>([threadId]);
+    let grew = true;
+    while (grew) {
+      grew = false;
+      for (const thread of sharing.threads) {
+        const parent = thread.lineage.parentThreadId;
+        if (
+          !family.has(thread.id) &&
+          thread.lineage.relationshipToParent === "subagent" &&
+          parent !== null &&
+          family.has(parent)
+        ) {
+          family.add(thread.id);
+          grew = true;
+        }
+      }
+    }
+    const others = sharing.threads.filter((thread) => !family.has(thread.id));
+    if (others.length > 0) {
+      return yield* failure(
+        "invalid_request",
+        `Worktree '${worktreePath}' is also used by active threads ${others.map((thread) => thread.id).join(", ")}. Archive them first.`,
+      );
+    }
+    const busy = sharing.threads.find(
+      (thread) => thread.id !== threadId && thread.activeRunId !== null,
+    );
+    if (busy !== undefined) {
+      return yield* failure(
+        "invalid_request",
+        `Thread '${busy.id}' is running in worktree '${worktreePath}'. Interrupt it or wait for it to finish first.`,
+      );
+    }
+    return family;
+  });
+
   const archiveAndRemoveWorktree: WorktreeMcpService["Service"]["archiveAndRemoveWorktree"] =
-    Effect.fn("WorktreeMcpService.archiveAndRemoveWorktree")(function* (scope, threadId) {
+    Effect.fn("WorktreeMcpService.archiveAndRemoveWorktree")(function* (
+      scope,
+      threadId,
+      options = {},
+    ) {
       yield* requireCapability(scope);
       const projection = yield* loadThread(threadId, ["runs", "providerSessions"]);
       const worktreePath = projection.thread.worktreePath;
       if (worktreePath === null) {
         return yield* failure("invalid_request", `Thread '${threadId}' has no worktree.`);
       }
-      const running = (id: ThreadId) =>
-        failure(
-          "invalid_request",
-          `Thread '${id}' is running in worktree '${worktreePath}'. Interrupt it or wait for it to finish first.`,
-        );
-      if (projection.runs.some((run) => !ThreadManagementService.isTerminalRunStatus(run.status))) {
-        return yield* running(threadId);
-      }
-      const project = yield* loadProject(threadId, projection.thread.projectId);
-      const sharing = yield* threadManagement
-        .readShellSnapshot({ location: "active", worktreePath })
-        .pipe(
-          Effect.flatten,
-          asOperationFailed(`Unable to list the threads in worktree ${worktreePath}`),
-        );
-      // Subagent threads inherit the worktree and are never archived with their parent.
-      const family = new Set<ThreadId>([threadId]);
-      let grew = true;
-      while (grew) {
-        grew = false;
-        for (const thread of sharing.threads) {
-          const parent = thread.lineage.parentThreadId;
-          if (
-            !family.has(thread.id) &&
-            thread.lineage.relationshipToParent === "subagent" &&
-            parent !== null &&
-            family.has(parent)
-          ) {
-            family.add(thread.id);
-            grew = true;
+      const unfinished = projection.runs.filter(
+        (run) => !ThreadManagementService.isTerminalRunStatus(run.status),
+      );
+      const ownRun = unfinished[0];
+      if (ownRun !== undefined) {
+        if (options.whenTurnEnds !== true) {
+          return yield* failure(
+            "invalid_request",
+            `Thread '${threadId}' is running in worktree '${worktreePath}'. Interrupt it or wait for it to finish first.`,
+          );
+        }
+        if (unfinished.length > 1) {
+          return yield* failure(
+            "invalid_request",
+            `Thread '${threadId}' has queued messages that would run in worktree '${worktreePath}' after this turn. Cancel them first.`,
+          );
+        }
+        // Check now what can be checked, so the caller hears of a refusal. The removal checks
+        // everything again once the turn ends.
+        yield* checkRemovable(threadId, worktreePath);
+        if (
+          yield* fileSystem.exists(worktreePath).pipe(asOperationFailed("Unable to check worktree"))
+        ) {
+          yield* gitWorkflow.invalidateLocalStatus(worktreePath);
+          const status = yield* gitWorkflow
+            .localStatus({ cwd: worktreePath })
+            .pipe(asOperationFailed(`Unable to read the status of ${worktreePath}`));
+          if (status.hasWorkingTreeChanges) {
+            return yield* failure(
+              "invalid_request",
+              `Worktree '${worktreePath}' has local changes. Commit or discard them first.`,
+            );
           }
         }
+        // Only a turn that completes archives; an interrupted or failed one leaves the thread.
+        yield* threadManagement
+          .waitForThread({
+            projectId: projection.thread.projectId,
+            threadId,
+            runId: ownRun.id,
+            timeoutMs: TURN_END_WAIT_MS,
+          })
+          .pipe(
+            Effect.flatMap(({ run }) =>
+              run?.status === "completed"
+                ? archiveAndRemoveWorktree(scope, threadId)
+                : Effect.logInfo(
+                    "Left the thread and its worktree, as its turn did not complete.",
+                    {
+                      threadId,
+                      status: run?.status,
+                    },
+                  ),
+            ),
+            Effect.ignoreCause({ log: true }),
+            Effect.forkIn(layerScope),
+          );
+        return { worktreePath, archivesWhenTurnEnds: true } as const;
       }
-      const others = sharing.threads.filter((thread) => !family.has(thread.id));
-      if (others.length > 0) {
-        return yield* failure(
-          "invalid_request",
-          `Worktree '${worktreePath}' is also used by active threads ${others.map((thread) => thread.id).join(", ")}. Archive them first.`,
-        );
-      }
-      const busyChild = sharing.threads.find(
-        (thread) => thread.id !== threadId && thread.activeRunId !== null,
-      );
-      if (busyChild !== undefined) return yield* running(busyChild.id);
+      const project = yield* loadProject(threadId, projection.thread.projectId);
+      const family = yield* checkRemovable(threadId, worktreePath);
 
       // Stop provider processes before their working directory goes away, as thread deletion does.
       const newCommandId = (kind: string) =>

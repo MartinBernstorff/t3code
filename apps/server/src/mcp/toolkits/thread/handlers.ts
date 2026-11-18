@@ -341,6 +341,12 @@ export const layer = McpToolAccess.toLayer(ThreadToolkit, {
   t3_thread_organize: writesThread((input) =>
     Effect.gen(function* () {
       const { threads, projection, caller } = yield* readThread(input.threadId);
+      if (input.whenTurnEnds !== undefined && input.removeWorktree !== true) {
+        return yield* new OrchestratorMcpFailure({
+          code: "invalid_request",
+          message: "whenTurnEnds goes with removeWorktree.",
+        });
+      }
       if (input.removeWorktree === true) {
         if (input.action !== "archive") {
           return yield* new OrchestratorMcpFailure({
@@ -353,6 +359,8 @@ export const layer = McpToolAccess.toLayer(ThreadToolkit, {
           .archiveAndRemoveWorktree(
             yield* McpInvocationContext.McpInvocationContext,
             projection.thread.id,
+            // Like settling, a thread's own agent can only archive it once its turn ends.
+            { whenTurnEnds: input.whenTurnEnds ?? caller?.id === projection.thread.id },
           )
           .pipe(
             Effect.mapError(

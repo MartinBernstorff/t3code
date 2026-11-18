@@ -128,7 +128,9 @@ an agent, `set` defaults to the agent's own thread.
 `--linear` links a Linear issue id, and `--linear none` unlinks it. `--tag` adds a tag and `--untag` removes one; repeat either for several. `show` prints the fields that
 are set. `archive --remove-worktree` also deletes the thread's worktree and
 keeps its branch; it changes nothing while the thread runs, if the worktree has
-local changes, or if another active thread uses it. A thread unarchived after
+local changes, or if another active thread uses it. Run by the thread's own
+agent, it checks now and archives once the agent's turn completes; an
+interrupted or failed turn leaves the thread. A thread unarchived after
 that still points at the deleted folder: recreate it with
 `git worktree add <path> <branch>` before sending it work.
 
